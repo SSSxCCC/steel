@@ -10,7 +10,7 @@ The Steel Game Engine is an open source cross-platform rust game engine with the
 
 ## Build and run Steel Editor
 
-Currently, it is recommended to run in VSCode in debugging mode, convenient for debugging.
+Currently, it is recommended to run in VSCode, convenient for debugging.
 Desktop:
 ```
 cargo run -p steel -F desktop
@@ -55,7 +55,7 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 
 ## 编译并运行Steel引擎编辑器
 
-目前推荐在VSCode中以调试的方式运行，方便debug。
+目前推荐在VSCode中运行，方便调试。
 桌面：
 ```
 cargo run -p steel -F desktop
