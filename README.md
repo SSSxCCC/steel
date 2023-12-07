@@ -11,11 +11,13 @@ The Steel Game Engine is an open source cross-platform rust game engine with the
 ## Build and run Steel Editor
 
 Currently, it is recommended to run in VSCode, convenient for debugging.
-Desktop:
+
+### Desktop
 ```
 cargo run -p steel -F desktop
 ```
-Android:
+
+### Android
 ```
 rustup target add aarch64-linux-android
 cargo install cargo-ndk
@@ -56,11 +58,13 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 ## 编译并运行Steel引擎编辑器
 
 目前推荐在VSCode中运行，方便调试。
-桌面：
+
+### 桌面
 ```
 cargo run -p steel -F desktop
 ```
-安卓：
+
+### 安卓
 ```
 rustup target add aarch64-linux-android
 cargo install cargo-ndk
