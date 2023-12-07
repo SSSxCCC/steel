@@ -1881,6 +1881,14 @@ dependencies = [
 name = "steel"
 version = "0.1.0"
 dependencies = [
+ "libloading 0.8.1",
+ "steel-common",
+]
+
+[[package]]
+name = "steel-common"
+version = "0.1.0"
+dependencies = [
  "android_logger",
  "egui",
  "egui_demo_lib",
@@ -1896,6 +1904,15 @@ dependencies = [
  "vulkano-util",
  "vulkano-win",
  "winit",
+]
+
+[[package]]
+name = "steel-engine"
+version = "0.1.0"
+dependencies = [
+ "rapier2d",
+ "shipyard",
+ "steel-common",
 ]
 
 [[package]]

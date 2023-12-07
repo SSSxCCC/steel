@@ -1,0 +1,23 @@
+[package]
+name = "steel"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+steel-common = { path = "../steel-common" }
+libloading = "0.8"
+
+[features]
+default = []
+desktop = []
+
+[lib]
+name = "main"
+crate_type = ["cdylib"]
+
+[[bin]]
+name = "steel-editor"
+path="src/lib.rs"
+required-features = [ "desktop" ]

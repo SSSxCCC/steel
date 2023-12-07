@@ -1,4 +1,6 @@
 [workspace]
 members = [
-    "steel",
+    "steel-engine",
+    "steel-common",
+    "steel-editor",
 ]

@@ -1,17 +1,18 @@
-use glam::Vec2;
-use egui_winit_vulkano::{Gui, GuiConfig};
-use vulkano::image::{StorageImage, ImageUsage};
-use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
-use winit::{
+use libloading::{Library, Symbol};
+use steel_common::{Engine, egui_demo_lib, egui, DrawInfo};
+use steel_common::glam::Vec2;
+use steel_common::egui_winit_vulkano::{Gui, GuiConfig};
+use steel_common::vulkano::image::{StorageImage, ImageUsage};
+use steel_common::vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
+use steel_common::winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
-
-mod steel;
-use crate::steel::DrawInfo;
+use steel_common::env_logger;
+use steel_common::log;
 
 #[cfg(target_os = "android")]
-use winit::platform::android::activity::AndroidApp;
+use steel_common::winit::platform::android::activity::AndroidApp;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
@@ -38,7 +39,10 @@ fn _main(event_loop: EventLoop<()>) {
     let mut scene_image = None;
     let mut scene_texture_id = None;
     let mut scene_size = Vec2::ZERO;
-    let mut engine = steel::create();
+
+    let lib = unsafe { Library::new("steel.dll") }.unwrap();
+    let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { lib.get(b"create") }.unwrap();
+    let mut engine = create_engine_fn();
     engine.init();
 
     log::warn!("Vulkano start main loop!");

@@ -1,9 +1,7 @@
 [package]
-name = "steel"
+name = "steel-common"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 vulkano = "0.33.0"
@@ -25,16 +23,3 @@ env_logger = "0.10.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.13.3"
-
-[features]
-default = []
-desktop = []
-
-[lib]
-name = "main"
-crate_type = ["cdylib"]
-
-[[bin]]
-name = "vulkano-android"
-path="src/lib.rs"
-required-features = [ "desktop" ]
