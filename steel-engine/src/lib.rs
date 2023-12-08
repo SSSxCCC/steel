@@ -1,15 +1,19 @@
-use steel_common::prelude::*;
-use steel_common::{ComponentData, WorldData, EntityData, Variant, Value};
+pub mod prelude {
+    pub use steel_common::prelude::*;
+    pub use steel_common::*;
+}
+
+use steel_common::{prelude::*, ComponentData, WorldData, EntityData, Variant, Value};
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, World, AddComponent, Get};
 use rapier2d::prelude::*;
 use glam::{Vec3, Vec2};
 use rayon::iter::ParallelIterator;
 
 #[derive(Component, Debug)]
-struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
+pub struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
 
 #[derive(Unique)]
-struct Physics2DManager {
+pub struct Physics2DManager {
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
     gravity: Vector<Real>,
@@ -26,7 +30,7 @@ struct Physics2DManager {
 }
 
 impl Physics2DManager {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Physics2DManager { rigid_body_set: RigidBodySet::new(), collider_set: ColliderSet::new(), gravity: vector![0.0, -9.81],
             integration_parameters: IntegrationParameters::default(), physics_pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(), broad_phase: BroadPhase::new(), narrow_phase: NarrowPhase::new(),
@@ -34,7 +38,7 @@ impl Physics2DManager {
             ccd_solver: CCDSolver::new(), physics_hooks: Box::new(()), event_handler: Box::new(()) }
     }
 
-    fn update(&mut self) {
+    pub fn update(&mut self) {
         self.physics_pipeline.step(
             &self.gravity,
             &self.integration_parameters,
@@ -53,7 +57,7 @@ impl Physics2DManager {
     }
 }
 
-fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
+pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>,
         mut transform2d: ViewMut<Transform2D>) {
     let physics2d_manager = physics2d_manager.as_mut();
@@ -103,7 +107,7 @@ fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DManag
     col2d.clear_all_inserted_and_modified();
 }
 
-fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
+pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
         rb2d: View<RigidBody2D>, mut transform2d: ViewMut<Transform2D>) {
     physics2d_manager.update();
     (&rb2d, &mut transform2d).par_iter().for_each(|(rb2d, mut transform2d)| {
@@ -114,7 +118,7 @@ fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager
     });
 }
 
-trait Edit: Component {
+pub trait Edit: Component {
     fn name() -> &'static str;
 
     fn to_data(&self) -> ComponentData {
@@ -124,7 +128,7 @@ trait Edit: Component {
     fn from_data(&mut self, data: ComponentData) { }
 }
 
-fn add_component<T: Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
+pub fn add_component<T: Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
     world.run(|c: View<T>| {
         for (e, c) in c.iter().with_id() {
             let index = *world_data.id_index_map.entry(e).or_insert(world_data.entities.len());
@@ -138,10 +142,10 @@ fn add_component<T: Edit + Send + Sync>(world_data: &mut WorldData, world: &Worl
 
 
 #[derive(Component, Debug, Default)]
-struct Transform2D {
-    position: Vec3,
-    rotation: f32, // radian
-    scale: Vec2
+pub struct Transform2D {
+    pub position: Vec3,
+    pub rotation: f32, // radian
+    pub scale: Vec2
 }
 
 impl Edit for Transform2D {
@@ -169,13 +173,13 @@ impl Edit for Transform2D {
 
 #[derive(Component, Debug)]
 #[track(All)]
-struct RigidBody2D {
+pub struct RigidBody2D {
     handle: RigidBodyHandle,
     body_type: RigidBodyType,
 }
 
 impl RigidBody2D {
-    fn new(body_type: RigidBodyType) -> Self {
+    pub fn new(body_type: RigidBodyType) -> Self {
         RigidBody2D { handle: RigidBodyHandle::invalid(), body_type }
     }
 }
@@ -184,7 +188,7 @@ impl Edit for RigidBody2D {
     fn name() -> &'static str { "RigidBody2D" }
 }
 
-struct ShapeWrapper(SharedShape);
+pub struct ShapeWrapper(SharedShape);
 
 impl std::ops::Deref for ShapeWrapper {
     type Target = SharedShape;
@@ -202,14 +206,14 @@ impl std::fmt::Debug for ShapeWrapper {
 
 #[derive(Component, Debug)]
 #[track(All)]
-struct Collider2D {
+pub struct Collider2D {
     handle: ColliderHandle,
     shape: ShapeWrapper,
     restitution: f32,
 }
 
 impl Collider2D {
-    fn new(shape: SharedShape, restitution: f32) -> Self {
+    pub fn new(shape: SharedShape, restitution: f32) -> Self {
         Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution }
     }
 }

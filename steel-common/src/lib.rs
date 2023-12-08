@@ -73,7 +73,7 @@ pub struct WorldData {
 }
 
 impl WorldData {
-    fn new() -> Self {
+    pub fn new() -> Self {
         WorldData{entities: Vec::new(), id_index_map: HashMap::new()}
     }
 }

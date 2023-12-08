@@ -1,3 +1,8 @@
+use steel_engine::Physics2DManager;//{Physics2DManager, Transform2D, RigidBody2D, Collider2D, Renderer2D, physics2d_maintain_system, physics2d_update_system, add_component};
+use shipyard::{World, View, IntoIter};
+use rapier2d::prelude::*;
+use glam::{Vec2, Vec3, Mat4, Quat};
+use vulkano::{render_pass::{FramebufferCreateInfo, Framebuffer, Subpass}, buffer::{BufferContents, Buffer, BufferCreateInfo, BufferUsage}, pipeline::{graphics::{vertex_input::Vertex, viewport::{Viewport, ViewportState}, input_assembly::InputAssemblyState}, GraphicsPipeline, Pipeline}, memory::allocator::{AllocationCreateInfo, MemoryUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, PrimaryCommandBufferAbstract}, sync::GpuFuture};
 
 #[no_mangle]
 pub fn create() -> Box<dyn Engine> {
@@ -31,9 +36,9 @@ impl Engine for EngineImpl {
         self.world.run(physics2d_update_system);
 
         let mut world_data = WorldData::new();
-        world_data.add_component::<Transform2D>(&self.world);
-        world_data.add_component::<RigidBody2D>(&self.world);
-        world_data.add_component::<Collider2D>(&self.world);
+        add_component::<Transform2D>(&mut world_data, &self.world);
+        add_component::<RigidBody2D>(&mut world_data, &self.world);
+        add_component::<Collider2D>(&mut world_data, &self.world);
         log::info!("world_data={:?}", world_data);
     }
 

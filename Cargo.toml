@@ -4,3 +4,6 @@ members = [
     "steel-common",
     "steel-editor",
 ]
+exclude = [
+    "examples/test-project"
+]
