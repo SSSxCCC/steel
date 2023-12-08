@@ -37,7 +37,8 @@ fn _main(event_loop: EventLoop<()>) {
     let mut scene_image = None;
     let mut scene_texture_id = None;
     let mut scene_size = Vec2::ZERO;
-    let mut project = Project::new("../../examples/test-project/target/debug/steel.dll");
+    let mut project: Option<Project> = None;
+    let mut project_path = String::from("../../examples/test-project/target/debug/steel.dll");
 
     log::warn!("Vulkano start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -85,35 +86,49 @@ fn _main(event_loop: EventLoop<()>) {
                 gui.immediate_ui(|gui| {
                     let ctx = gui.context();
                     demo_windows.ui(&ctx);
-                    egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
-                        let available_size = ui.available_size();
-                        if scene_image.is_none() || scene_size.x != available_size.x || scene_size.y != available_size.y {
-                            (scene_size.x, scene_size.y) = (available_size.x, available_size.y);
-                            scene_image = Some(StorageImage::general_purpose_image_view(
-                                context.memory_allocator(),
-                                context.graphics_queue().clone(),
-                                [scene_size.x as u32, scene_size.y as u32],
-                                renderer.swapchain_format(),
-                                ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                            ).unwrap());
-                            if let Some(scene_texture_id) = scene_texture_id {
-                                gui.unregister_user_image(scene_texture_id);
+
+                    if project.is_none() {
+                        egui::Window::new("Open Project").show(&ctx, |ui| {
+                            ui.text_edit_singleline(&mut project_path);
+                            if ui.button("Open").clicked() {
+                                project = Some(Project::new(project_path.clone()));
                             }
-                            scene_texture_id = Some(gui.register_user_image_view(
-                                scene_image.as_ref().unwrap().clone(), Default::default()));
-                            log::info!("Created scene image, scene_size={scene_size}");
-                        }
-                        ui.image(scene_texture_id.unwrap(), available_size);
+                        });
+                    }
+
+                    if let Some(project) = project.as_mut() {
+                        egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
+                            let available_size = ui.available_size();
+                            if scene_image.is_none() || scene_size.x != available_size.x || scene_size.y != available_size.y {
+                                (scene_size.x, scene_size.y) = (available_size.x, available_size.y);
+                                scene_image = Some(StorageImage::general_purpose_image_view(
+                                    context.memory_allocator(),
+                                    context.graphics_queue().clone(),
+                                    [scene_size.x as u32, scene_size.y as u32],
+                                    renderer.swapchain_format(),
+                                    ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                                ).unwrap());
+                                if let Some(scene_texture_id) = scene_texture_id {
+                                    gui.unregister_user_image(scene_texture_id);
+                                }
+                                scene_texture_id = Some(gui.register_user_image_view(
+                                    scene_image.as_ref().unwrap().clone(), Default::default()));
+                                log::info!("Created scene image, scene_size={scene_size}");
+                            }
+                            ui.image(scene_texture_id.unwrap(), available_size);
+                        });
+                    }
+                });
+
+                let mut gpu_future = renderer.acquire().unwrap();
+
+                if let Some(project) = project.as_mut() {
+                    project.engine.update();
+                    gpu_future = project.engine.draw(DrawInfo {
+                        before_future: gpu_future, context: &context, renderer: &renderer,
+                        image: scene_image.as_ref().unwrap().clone(), window_size: scene_size,
                     });
-                });
-
-                let gpu_future = renderer.acquire().unwrap();
-
-                project.engine.update();
-                let gpu_future = project.engine.draw(DrawInfo {
-                    before_future: gpu_future, context: &context, renderer: &renderer,
-                    image: scene_image.as_ref().unwrap().clone(), window_size: scene_size,
-                });
+                }
 
                 let gpu_future = gui.draw_on_image(gpu_future, renderer.swapchain_image_view());
 
@@ -129,14 +144,14 @@ fn _main(event_loop: EventLoop<()>) {
 }
 
 struct Project {
-    path: &'static str,
+    path: String,
     library: Library,
     engine: Box<dyn Engine>,
 }
 
 impl Project {
-    fn new(path: &'static str) -> Self {
-        let library: Library = unsafe { Library::new(path) }.unwrap();
+    fn new(path: String) -> Self {
+        let library: Library = unsafe { Library::new(&path) }.unwrap();
         let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create") }.unwrap();
         let mut engine = create_engine_fn();
         engine.init();
