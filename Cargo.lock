@@ -1910,7 +1910,6 @@ dependencies = [
 name = "steel-engine"
 version = "0.1.0"
 dependencies = [
- "rapier2d",
  "shipyard",
  "steel-common",
 ]

@@ -6,4 +6,3 @@ edition = "2021"
 [dependencies]
 steel-common = { path = "../steel-common" }
 shipyard = "0.6.2"
-rapier2d = "0.17.2"
