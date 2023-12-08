@@ -38,7 +38,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut scene_texture_id = None;
     let mut scene_size = Vec2::ZERO;
 
-    let lib = unsafe { Library::new("steel.dll") }.unwrap();
+    let lib = unsafe { Library::new("../../examples/test-project/target/debug/steel.dll") }.unwrap();
     let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { lib.get(b"create") }.unwrap();
     let mut engine = create_engine_fn();
     engine.init();
