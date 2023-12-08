@@ -1,5 +1,5 @@
-use libloading::{Library, Symbol};
 use steel_common::{Engine, DrawInfo};
+use libloading::{Library, Symbol};
 use glam::Vec2;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::image::{StorageImage, ImageUsage};
@@ -37,11 +37,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut scene_image = None;
     let mut scene_texture_id = None;
     let mut scene_size = Vec2::ZERO;
-
-    let lib = unsafe { Library::new("../../examples/test-project/target/debug/steel.dll") }.unwrap();
-    let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { lib.get(b"create") }.unwrap();
-    let mut engine = create_engine_fn();
-    engine.init();
+    let mut project = Project::new("../../examples/test-project/target/debug/steel.dll");
 
     log::warn!("Vulkano start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -113,8 +109,8 @@ fn _main(event_loop: EventLoop<()>) {
 
                 let gpu_future = renderer.acquire().unwrap();
 
-                engine.update();
-                let gpu_future = engine.draw(DrawInfo {
+                project.engine.update();
+                let gpu_future = project.engine.draw(DrawInfo {
                     before_future: gpu_future, context: &context, renderer: &renderer,
                     image: scene_image.as_ref().unwrap().clone(), window_size: scene_size,
                 });
@@ -130,4 +126,20 @@ fn _main(event_loop: EventLoop<()>) {
         }
         _ => (),
     });
+}
+
+struct Project {
+    path: &'static str,
+    library: Library,
+    engine: Box<dyn Engine>,
+}
+
+impl Project {
+    fn new(path: &'static str) -> Self {
+        let library: Library = unsafe { Library::new(path) }.unwrap();
+        let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create") }.unwrap();
+        let mut engine = create_engine_fn();
+        engine.init();
+        Project { path, library, engine }
+    }
 }
