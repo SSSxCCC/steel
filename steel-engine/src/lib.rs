@@ -8,8 +8,9 @@ use steel_common::{
     rapier2d::{dynamics::{RigidBodySet, IntegrationParameters, IslandManager, ImpulseJointSet, MultibodyJointSet, CCDSolver, RigidBodyBuilder, RigidBodyHandle, RigidBodyType},
     geometry::{ColliderSet, BroadPhase, NarrowPhase, ColliderBuilder, SharedShape, ColliderHandle}, math::{Real, Vector}, pipeline::{PhysicsPipeline, PhysicsHooks, EventHandler}},
     Variant,
-    Value};
-use shipyard::Component;
+    Value, rayon::iter::ParallelIterator};
+use shipyard::{Component, IntoIter, IntoWithId};
+use rapier2d::prelude::*;
 
 #[derive(Component, Debug)]
 struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
