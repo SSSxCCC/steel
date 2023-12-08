@@ -1,4 +1,4 @@
-use steel_engine::{Physics2DManager, Transform2D, RigidBody2D, Collider2D, Renderer2D, physics2d_maintain_system, physics2d_update_system, add_component, Engine, WorldData, DrawInfo};
+use steel::{Physics2DManager, Transform2D, RigidBody2D, Collider2D, Renderer2D, physics2d_maintain_system, physics2d_update_system, add_component, Engine, WorldData, DrawInfo};
 use shipyard::{World, View, IntoIter};
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3, Mat4, Quat};

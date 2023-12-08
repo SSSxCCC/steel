@@ -8,7 +8,7 @@ name = "steel"
 crate-type = ["dylib"]
 
 [dependencies]
-steel-engine = { path = "../../steel-engine" }
+steel = { path = "../../steel-engine" }
 
 vulkano = "0.33.0"
 vulkano-shaders = "0.33.0"

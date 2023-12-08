@@ -1,5 +1,5 @@
 pub use steel_common::*;
-//use steel_common::{ComponentData, WorldData, EntityData, Variant, Value};
+
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, World, AddComponent, Get};
 use rapier2d::prelude::*;
 use glam::{Vec3, Vec2};

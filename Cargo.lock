@@ -1878,6 +1878,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "steel"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "log",
+ "rapier2d",
+ "rayon",
+ "shipyard",
+ "steel-common",
+ "vulkano",
+ "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
+]
+
+[[package]]
 name = "steel-common"
 version = "0.1.0"
 dependencies = [
@@ -1909,28 +1931,6 @@ dependencies = [
  "env_logger",
  "glam",
  "libloading 0.8.1",
- "log",
- "rapier2d",
- "rayon",
- "shipyard",
- "steel-common",
- "vulkano",
- "vulkano-shaders",
- "vulkano-util",
- "vulkano-win",
- "winit",
-]
-
-[[package]]
-name = "steel-engine"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "egui",
- "egui_demo_lib",
- "egui_winit_vulkano",
- "env_logger",
- "glam",
  "log",
  "rapier2d",
  "rayon",
