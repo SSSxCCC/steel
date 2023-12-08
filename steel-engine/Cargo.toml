@@ -5,4 +5,23 @@ edition = "2021"
 
 [dependencies]
 steel-common = { path = "../steel-common" }
+
+vulkano = "0.33.0"
+vulkano-shaders = "0.33.0"
+vulkano-win = "0.33.0"
+vulkano-util = "0.33.0"
+log = "0.4"
+winit = { version = "0.28.6", features = [ "android-game-activity" ] }
 shipyard = "0.6.2"
+rayon = "1.8.0"
+rapier2d = "0.17.2"
+glam = "0.24.2"
+egui_winit_vulkano = "0.25.0"
+egui = "0.22.0"
+egui_demo_lib = "0.22.0"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger = "0.10.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.13.3"

@@ -1,4 +1,3 @@
-use steel_common::prelude::*;
 use libloading::{Library, Symbol};
 use steel_common::{Engine, DrawInfo};
 use glam::Vec2;

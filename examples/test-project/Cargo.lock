@@ -1902,8 +1902,22 @@ dependencies = [
 name = "steel-engine"
 version = "0.1.0"
 dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "log",
+ "rapier2d",
+ "rayon",
  "shipyard",
  "steel-common",
+ "vulkano",
+ "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
 ]
 
 [[package]]
@@ -1953,9 +1967,22 @@ dependencies = [
 name = "test-project"
 version = "0.1.0"
 dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "log",
+ "rapier2d",
+ "rayon",
+ "shipyard",
  "steel-engine",
  "vulkano",
  "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
 ]
 
 [[package]]

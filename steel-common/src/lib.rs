@@ -1,21 +1,3 @@
-pub mod prelude {
-    pub use vulkano;
-    pub use vulkano_shaders;
-    pub use vulkano_win;
-    pub use vulkano_util;
-    pub use log;
-    pub use winit;
-    pub use shipyard; // TODO: how to re-export proc-macro-derive?
-    pub use rayon;
-    pub use rapier2d;
-    pub use glam;
-    pub use egui_winit_vulkano;
-    pub use egui;
-    pub use egui_demo_lib;
-    pub use env_logger;
-    //pub use android_logger; TODO: reexport this
-}
-
 use std::{collections::HashMap, sync::Arc};
 
 use glam::{Vec2, Vec3, Vec4};
