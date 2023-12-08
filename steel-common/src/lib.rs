@@ -5,7 +5,7 @@ pub mod prelude {
     pub use vulkano_util;
     pub use log;
     pub use winit;
-    pub use shipyard;
+    pub use shipyard; // TODO: how to re-export proc-macro-derive?
     pub use rayon;
     pub use rapier2d;
     pub use glam;
