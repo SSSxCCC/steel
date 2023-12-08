@@ -1,16 +1,9 @@
-pub use steel_common;
-use steel_common::{
-    shipyard::{Unique, UniqueViewMut, ViewMut, View, World, AddComponent, Get},
-    ComponentData,
-    WorldData,
-    EntityData,
-    glam::{Vec3, Vec2},
-    rapier2d::{dynamics::{RigidBodySet, IntegrationParameters, IslandManager, ImpulseJointSet, MultibodyJointSet, CCDSolver, RigidBodyBuilder, RigidBodyHandle, RigidBodyType},
-    geometry::{ColliderSet, BroadPhase, NarrowPhase, ColliderBuilder, SharedShape, ColliderHandle}, math::{Real, Vector}, pipeline::{PhysicsPipeline, PhysicsHooks, EventHandler}},
-    Variant,
-    Value, rayon::iter::ParallelIterator};
-use shipyard::{Component, IntoIter, IntoWithId};
+use steel_common::prelude::*;
+use steel_common::{ComponentData, WorldData, EntityData, Variant, Value};
+use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, World, AddComponent, Get};
 use rapier2d::prelude::*;
+use glam::{Vec3, Vec2};
+use rayon::iter::ParallelIterator;
 
 #[derive(Component, Debug)]
 struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape

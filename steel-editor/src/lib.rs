@@ -1,18 +1,17 @@
+use steel_common::prelude::*;
 use libloading::{Library, Symbol};
-use steel_common::{Engine, egui_demo_lib, egui, DrawInfo};
-use steel_common::glam::Vec2;
-use steel_common::egui_winit_vulkano::{Gui, GuiConfig};
-use steel_common::vulkano::image::{StorageImage, ImageUsage};
-use steel_common::vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
-use steel_common::winit::{
+use steel_common::{Engine, DrawInfo};
+use glam::Vec2;
+use egui_winit_vulkano::{Gui, GuiConfig};
+use vulkano::image::{StorageImage, ImageUsage};
+use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
+use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
-use steel_common::env_logger;
-use steel_common::log;
 
 #[cfg(target_os = "android")]
-use steel_common::winit::platform::android::activity::AndroidApp;
+use winit::platform::android::activity::AndroidApp;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
