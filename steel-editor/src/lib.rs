@@ -40,7 +40,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut project: Option<Project> = None;
     let mut project_path = String::from("../../examples/test-project/target/debug/steel.dll");
 
-    log::warn!("Vulkano start main loop!");
+    log::warn!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
         Event::Resumed => {
             log::info!("Event::Resumed");
@@ -91,8 +91,22 @@ fn _main(event_loop: EventLoop<()>) {
                         egui::Window::new("Open Project").show(&ctx, |ui| {
                             ui.text_edit_singleline(&mut project_path);
                             if ui.button("Open").clicked() {
+                                log::info!("Open project, path={project_path}");
                                 project = Some(Project::new(project_path.clone()));
                             }
+                        });
+                    } else {
+                        egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
+                            egui::menu::bar(ui, |ui| {
+                                ui.menu_button("Project", |ui| {
+                                    if ui.button("Close project").clicked() {
+                                        log::info!("Close project");
+                                        scene_image = None;
+                                        scene_texture_id = None;
+                                        project = None;
+                                    }
+                                });
+                            });
                         });
                     }
 
@@ -145,8 +159,8 @@ fn _main(event_loop: EventLoop<()>) {
 
 struct Project {
     path: String,
-    library: Library,
     engine: Box<dyn Engine>,
+    library: Library, // Library must be destroyed after Engine
 }
 
 impl Project {
