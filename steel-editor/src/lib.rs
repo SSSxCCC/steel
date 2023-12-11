@@ -39,6 +39,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut scene_size = Vec2::ZERO;
     let mut project: Option<Project> = None;
     let mut project_path = String::from("../../examples/test-project/target/debug/steel.dll");
+    let mut open_project_window = false;
 
     log::warn!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -87,28 +88,39 @@ fn _main(event_loop: EventLoop<()>) {
                     let ctx = gui.context();
                     demo_windows.ui(&ctx);
 
-                    if project.is_none() {
-                        egui::Window::new("Open Project").show(&ctx, |ui| {
-                            ui.text_edit_singleline(&mut project_path);
-                            if ui.button("Open").clicked() {
-                                log::info!("Open project, path={project_path}");
-                                project = Some(Project::new(project_path.clone()));
-                            }
-                        });
-                    } else {
-                        egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
-                            egui::menu::bar(ui, |ui| {
-                                ui.menu_button("Project", |ui| {
+                    let mut open = open_project_window;
+                    egui::Window::new("Open Project").open(&mut open).show(&ctx, |ui| {
+                        ui.text_edit_singleline(&mut project_path);
+                        if ui.button("Open").clicked() {
+                            log::info!("Open project, path={project_path}");
+                            scene_image = None;
+                            scene_texture_id = None;
+                            project = Some(Project::new(project_path.clone()));
+                            open_project_window = false;
+                        }
+                    });
+                    open_project_window &= open;
+
+                    egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
+                        egui::menu::bar(ui, |ui| {
+                            ui.menu_button("Project", |ui| {
+                                if ui.button("Open project").clicked() {
+                                    log::info!("Open project");
+                                    open_project_window = true;
+                                    ui.close_menu();
+                                }
+                                if project.is_some() {
                                     if ui.button("Close project").clicked() {
                                         log::info!("Close project");
                                         scene_image = None;
                                         scene_texture_id = None;
                                         project = None;
+                                        ui.close_menu();
                                     }
-                                });
+                                }
                             });
                         });
-                    }
+                    });
 
                     if let Some(project) = project.as_mut() {
                         egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
