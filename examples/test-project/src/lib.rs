@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use steel::{Physics2DManager, Transform2D, RigidBody2D, Collider2D, Renderer2D, physics2d_maintain_system, physics2d_update_system, add_component, Engine, WorldData, DrawInfo};
+use steel::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Renderer2D, add_component, Engine, WorldData, DrawInfo};
 use shipyard::{World, View, IntoIter, Unique, UniqueView};
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3, Mat4, Quat};
