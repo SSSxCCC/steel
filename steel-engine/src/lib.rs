@@ -1,11 +1,9 @@
 pub use steel_common::*;
 pub mod physics2d;
+pub mod render2d;
 
 use shipyard::{Component, IntoIter, IntoWithId, View, World};
 use glam::{Vec3, Vec2};
-
-#[derive(Component, Debug)]
-pub struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
 
 pub trait Edit: Component {
     fn name() -> &'static str;
