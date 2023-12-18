@@ -1,8 +1,15 @@
+use log::{Log, LevelFilter, SetLoggerError};
 use steel::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, add_component, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}};
 use shipyard::World;
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
+
+#[no_mangle]
+pub fn setup_logger(logger: &'static dyn Log, level: LevelFilter) -> Result<(), SetLoggerError> {
+    log::set_max_level(level);
+    log::set_logger(logger)
+}
 
 #[no_mangle]
 pub fn create() -> Box<dyn Engine> {

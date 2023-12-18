@@ -1,5 +1,6 @@
 use steel_common::{Engine, DrawInfo};
 use libloading::{Library, Symbol};
+use log::{Log, LevelFilter, SetLoggerError};
 use glam::Vec2;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::image::{StorageImage, ImageUsage};
@@ -95,6 +96,7 @@ fn _main(event_loop: EventLoop<()>) {
                             log::info!("Open project, path={project_path}");
                             scene_image = None;
                             scene_texture_id = None;
+                            project = None; // prevent a library from being loaded twice at same time
                             project = Some(Project::new(project_path.clone()));
                             open_project_window = false;
                         }
@@ -178,9 +180,14 @@ struct Project {
 impl Project {
     fn new(path: String) -> Self {
         let library: Library = unsafe { Library::new(&path) }.unwrap();
+
+        let setup_logger_fn: Symbol<fn(&'static dyn Log, LevelFilter) -> Result<(), SetLoggerError>> = unsafe { library.get(b"setup_logger") }.unwrap();
+        setup_logger_fn(log::logger(), log::max_level()).unwrap();
+
         let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create") }.unwrap();
         let mut engine = create_engine_fn();
         engine.init();
+
         Project { path, library, engine }
     }
 }
