@@ -1,3 +1,5 @@
+use std::{process::Command, fs, path::PathBuf};
+
 use steel_common::{Engine, DrawInfo};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
@@ -39,7 +41,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut scene_texture_id = None;
     let mut scene_size = Vec2::ZERO;
     let mut project: Option<Project> = None;
-    let mut project_path = String::from("../../examples/test-project/target/debug/steel.dll");
+    let mut project_path = fs::canonicalize("examples/test-project").unwrap();
     let mut open_project_window = false;
 
     log::warn!("Start main loop!");
@@ -91,13 +93,16 @@ fn _main(event_loop: EventLoop<()>) {
 
                     let mut open = open_project_window;
                     egui::Window::new("Open Project").open(&mut open).show(&ctx, |ui| {
-                        ui.text_edit_singleline(&mut project_path);
+                        let mut path_str = project_path.display().to_string();
+                        ui.text_edit_singleline(&mut path_str);
+                        project_path = path_str.into();
                         if ui.button("Open").clicked() {
-                            log::info!("Open project, path={project_path}");
+                            log::info!("Open project, path={}", project_path.display());
                             scene_image = None;
                             scene_texture_id = None;
                             project = None; // prevent a library from being loaded twice at same time
                             project = Some(Project::new(project_path.clone()));
+                            project.as_mut().unwrap().compile();
                             open_project_window = false;
                         }
                     });
@@ -151,8 +156,8 @@ fn _main(event_loop: EventLoop<()>) {
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 if let Some(project) = project.as_mut() {
-                    project.engine.update();
-                    gpu_future = project.engine.draw(DrawInfo {
+                    project.data.as_mut().unwrap().engine.update();
+                    gpu_future = project.data.as_mut().unwrap().engine.draw(DrawInfo {
                         before_future: gpu_future, context: &context, renderer: &renderer,
                         image: scene_image.as_ref().unwrap().clone(), window_size: scene_size,
                     });
@@ -171,15 +176,32 @@ fn _main(event_loop: EventLoop<()>) {
     });
 }
 
-struct Project {
-    path: String,
+struct ProjectData {
     engine: Box<dyn Engine>,
     library: Library, // Library must be destroyed after Engine
 }
 
+struct Project {
+    path: PathBuf,
+    data: Option<ProjectData>,
+}
+
 impl Project {
-    fn new(path: String) -> Self {
-        let library: Library = unsafe { Library::new(&path) }.unwrap();
+    fn new(path: PathBuf) -> Self {
+        Project { path, data: None }
+    }
+
+    fn compile(&mut self) {
+        let mut complie_process = Command::new("cargo")
+            .arg("build")
+            .current_dir(&self.path)
+            .spawn()
+            .unwrap();
+
+        complie_process.wait().unwrap();
+
+        let lib_path = self.path.join("target/debug/steel.dll");
+        let library: Library = unsafe { Library::new(&lib_path) }.unwrap();
 
         let setup_logger_fn: Symbol<fn(&'static dyn Log, LevelFilter) -> Result<(), SetLoggerError>> = unsafe { library.get(b"setup_logger") }.unwrap();
         setup_logger_fn(log::logger(), log::max_level()).unwrap();
@@ -188,6 +210,6 @@ impl Project {
         let mut engine = create_engine_fn();
         engine.init();
 
-        Project { path, library, engine }
+        self.data = Some(ProjectData { engine, library });
     }
 }
