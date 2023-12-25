@@ -47,7 +47,7 @@ fn _main(event_loop: EventLoop<()>) {
     // project
     let mut project: Option<Project> = None;
     let mut project_path = fs::canonicalize("examples/test-project").unwrap();
-    // the windows path prefix "\\?\" makes cargo build in std::process::Command fail
+    // the windows path prefix "\\?\" makes cargo build fail in std::process::Command
     const WINDOWS_PATH_PREFIX: &str = r#"\\?\"#;
     if project_path.display().to_string().starts_with(WINDOWS_PATH_PREFIX) {
         // TODO: convert PathBuf to String and back to PathBuf may lose data, find a better way to do this
