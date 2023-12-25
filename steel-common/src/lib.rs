@@ -1,15 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
-use log::{Log, LevelFilter, SetLoggerError};
 use glam::{Vec2, Vec3, Vec4};
 use shipyard::EntityId;
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
-
-#[no_mangle]
-pub fn setup_logger(logger: &'static dyn Log, level: LevelFilter) -> Result<(), SetLoggerError> {
-    log::set_max_level(level);
-    log::set_logger(logger)
-}
 
 pub trait Engine {
     fn init(&mut self);

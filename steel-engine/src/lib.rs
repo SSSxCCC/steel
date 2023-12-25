@@ -4,6 +4,13 @@ pub mod render2d;
 
 use shipyard::{Component, IntoIter, IntoWithId, View, World};
 use glam::{Vec3, Vec2};
+use log::{Log, LevelFilter, SetLoggerError};
+
+#[no_mangle]
+pub fn setup_logger(logger: &'static dyn Log, level: LevelFilter) -> Result<(), SetLoggerError> {
+    log::set_max_level(level);
+    log::set_logger(logger)
+}
 
 pub trait Edit: Component {
     fn name() -> &'static str;
