@@ -1,4 +1,4 @@
-use steel::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, add_component, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}};
+use steel::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}, WorldDataExt};
 use shipyard::World;
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
@@ -36,9 +36,9 @@ impl Engine for EngineImpl {
         self.world.run(physics2d_update_system);
 
         let mut world_data = WorldData::new();
-        add_component::<Transform2D>(&mut world_data, &self.world);
-        add_component::<RigidBody2D>(&mut world_data, &self.world);
-        add_component::<Collider2D>(&mut world_data, &self.world);
+        world_data.add_component::<Transform2D>(&self.world);
+        world_data.add_component::<RigidBody2D>(&self.world);
+        world_data.add_component::<Collider2D>(&self.world);
         log::info!("world_data={:?}", world_data);
     }
 

@@ -22,18 +22,23 @@ pub trait Edit: Component {
     fn from_data(&mut self, data: ComponentData) { }
 }
 
-pub fn add_component<T: Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
-    world.run(|c: View<T>| {
-        for (e, c) in c.iter().with_id() {
-            let index = *world_data.id_index_map.entry(e).or_insert(world_data.entities.len());
-            if index == world_data.entities.len() {
-                world_data.entities.push(EntityData { id: e, components: Vec::new() });
-            }
-            world_data.entities[index].components.push(c.to_data());
-        }
-    })
+pub trait WorldDataExt {
+    fn add_component<T: Edit + Send + Sync>(&mut self, world: &World);
 }
 
+impl WorldDataExt for WorldData {
+    fn add_component<T: Edit + Send + Sync>(&mut self, world: &World) {
+        world.run(|c: View<T>| {
+            for (e, c) in c.iter().with_id() {
+                let index = *self.id_index_map.entry(e).or_insert(self.entities.len());
+                if index == self.entities.len() {
+                    self.entities.push(EntityData { id: e, components: Vec::new() });
+                }
+                self.entities[index].components.push(c.to_data());
+            }
+        })
+    }
+}
 
 #[derive(Component, Debug, Default)]
 pub struct Transform2D {
