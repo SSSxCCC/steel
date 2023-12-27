@@ -1,12 +1,11 @@
 use std::{sync::Arc, path::PathBuf, fs};
-
 use egui::TextureId;
 use egui_winit_vulkano::Gui;
 use glam::Vec2;
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
-use crate::Project;
+use crate::project::Project;
 
 pub struct Editor {
     scene_image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>,

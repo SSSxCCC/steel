@@ -1,8 +1,7 @@
-use std::{process::Command, path::PathBuf};
+mod ui;
+mod project;
 
-use steel_common::{Engine, DrawInfo};
-use libloading::{Library, Symbol};
-use log::{Log, LevelFilter, SetLoggerError};
+use steel_common::DrawInfo;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
 use winit::{
@@ -10,12 +9,10 @@ use winit::{
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
 
-mod ui;
+use crate::ui::Editor;
 
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;
-
-use crate::ui::Editor;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
@@ -44,7 +41,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor = Editor::new();
 
     // project
-    let mut project: Option<Project> = None;
+    let mut project = None;
 
     log::warn!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -93,8 +90,10 @@ fn _main(event_loop: EventLoop<()>) {
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 if let Some(project) = project.as_mut() {
-                    project.data.as_mut().unwrap().engine.update(); // TODO: project.data is None if project failed to compile
-                    gpu_future = project.data.as_mut().unwrap().engine.draw(DrawInfo {
+                    let mut engine = project.engine();
+                    let engine = engine.as_mut().unwrap(); // TODO: engine is None if project failed to compile
+                    engine.update();
+                    gpu_future = engine.draw(DrawInfo {
                         before_future: gpu_future, context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(), window_size: editor.scene_size(),
                     });
@@ -111,42 +110,4 @@ fn _main(event_loop: EventLoop<()>) {
         }
         _ => (),
     });
-}
-
-struct ProjectData {
-    engine: Box<dyn Engine>,
-    library: Library, // Library must be destroyed after Engine
-}
-
-pub struct Project {
-    path: PathBuf,
-    data: Option<ProjectData>,
-}
-
-impl Project {
-    fn new(path: PathBuf) -> Self {
-        Project { path, data: None }
-    }
-
-    fn compile(&mut self) {
-        let mut complie_process = Command::new("cargo")
-            .arg("build")
-            .current_dir(&self.path)
-            .spawn()
-            .unwrap();
-
-        complie_process.wait().unwrap();
-
-        let lib_path = self.path.join("target/debug/steel.dll");
-        let library: Library = unsafe { Library::new(&lib_path) }.unwrap();
-
-        let setup_logger_fn: Symbol<fn(&'static dyn Log, LevelFilter) -> Result<(), SetLoggerError>> = unsafe { library.get(b"setup_logger") }.unwrap();
-        setup_logger_fn(log::logger(), log::max_level()).unwrap();
-
-        let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create") }.unwrap();
-        let mut engine = create_engine_fn();
-        engine.init();
-
-        self.data = Some(ProjectData { engine, library });
-    }
 }
