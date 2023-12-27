@@ -1,4 +1,4 @@
-use std::{sync::Arc, path::PathBuf, fs};
+use std::{sync::Arc, path::PathBuf, fs, time::Instant};
 use egui::TextureId;
 use egui_winit_vulkano::Gui;
 use glam::Vec2;
@@ -15,6 +15,7 @@ pub struct Editor {
     demo_windows: egui_demo_lib::DemoWindows,
     open_project_window: bool,
     project_path: PathBuf,
+    fps_counter: FpsCounter,
 }
 
 impl Editor {
@@ -27,7 +28,8 @@ impl Editor {
             project_path = PathBuf::from(&project_path.display().to_string()[WINDOWS_PATH_PREFIX.len()..]);
         };
         Editor { scene_image: None, scene_texture_id: None, scene_size: Vec2::ZERO,
-            demo_windows: egui_demo_lib::DemoWindows::default(), open_project_window: false, project_path }
+            demo_windows: egui_demo_lib::DemoWindows::default(), open_project_window: false,
+            project_path, fps_counter: FpsCounter::new() }
     }
 
     pub fn ui(&mut self, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer, project: &mut Option<Project>) {
@@ -70,6 +72,8 @@ impl Editor {
                             }
                         }
                     });
+                    self.fps_counter.update();
+                    ui.label(format!("fps: {:.2}", self.fps_counter.fps));
                 });
             });
 
@@ -109,5 +113,28 @@ impl Editor {
 
     pub fn scene_size(&self) -> Vec2 {
         self.scene_size
+    }
+}
+
+struct FpsCounter {
+    start: Instant,
+    frame: u32,
+    fps: f32,
+}
+
+impl FpsCounter {
+    fn new() -> Self {
+        FpsCounter { start: Instant::now(), frame: 0, fps: 0.0 }
+    }
+
+    fn update(&mut self) {
+        self.frame += 1;
+        let now = Instant::now();
+        let duration = now.duration_since(self.start).as_secs_f32();
+        if duration >= 1.0 {
+            self.fps = self.frame as f32 / duration;
+            self.frame = 0;
+            self.start = now;
+        }
     }
 }
