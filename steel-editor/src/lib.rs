@@ -1,19 +1,21 @@
-use std::{process::Command, fs, path::PathBuf};
+use std::{process::Command, path::PathBuf};
 
 use steel_common::{Engine, DrawInfo};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
-use glam::Vec2;
 use egui_winit_vulkano::{Gui, GuiConfig};
-use vulkano::image::{StorageImage, ImageUsage};
 use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
 
+mod ui;
+
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;
+
+use crate::ui::Editor;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
@@ -39,21 +41,10 @@ fn _main(event_loop: EventLoop<()>) {
 
     // egui
     let mut gui = None;
-    let mut demo_windows = egui_demo_lib::DemoWindows::default();
-    let mut scene_image = None;
-    let mut scene_texture_id = None;
-    let mut scene_size = Vec2::ZERO;
+    let mut editor = Editor::new();
 
     // project
     let mut project: Option<Project> = None;
-    let mut project_path = fs::canonicalize("examples/test-project").unwrap();
-    // the windows path prefix "\\?\" makes cargo build fail in std::process::Command
-    const WINDOWS_PATH_PREFIX: &str = r#"\\?\"#;
-    if project_path.display().to_string().starts_with(WINDOWS_PATH_PREFIX) {
-        // TODO: convert PathBuf to String and back to PathBuf may lose data, find a better way to do this
-        project_path = PathBuf::from(&project_path.display().to_string()[WINDOWS_PATH_PREFIX.len()..]);
-    };
-    let mut open_project_window = false;
 
     log::warn!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -69,8 +60,7 @@ fn _main(event_loop: EventLoop<()>) {
         }
         Event::Suspended => {
             log::info!("Event::Suspended");
-            scene_texture_id = None;
-            scene_image = None;
+            editor.suspend();
             gui = None;
             windows.remove_renderer(windows.primary_window_id().unwrap());
         }
@@ -98,79 +88,15 @@ fn _main(event_loop: EventLoop<()>) {
             log::info!("Event::RedrawRequested");
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let gui = gui.as_mut().unwrap();
-                gui.immediate_ui(|gui| {
-                    let ctx = gui.context();
-                    demo_windows.ui(&ctx);
-
-                    let mut open = open_project_window;
-                    egui::Window::new("Open Project").open(&mut open).show(&ctx, |ui| {
-                        let mut path_str = project_path.display().to_string();
-                        ui.text_edit_singleline(&mut path_str);
-                        project_path = path_str.into();
-                        if ui.button("Open").clicked() {
-                            log::info!("Open project, path={}", project_path.display());
-                            scene_image = None;
-                            scene_texture_id = None;
-                            project = None; // prevent a library from being loaded twice at same time
-                            project = Some(Project::new(project_path.clone()));
-                            project.as_mut().unwrap().compile();
-                            open_project_window = false;
-                        }
-                    });
-                    open_project_window &= open;
-
-                    egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
-                        egui::menu::bar(ui, |ui| {
-                            ui.menu_button("Project", |ui| {
-                                if ui.button("Open project").clicked() {
-                                    log::info!("Open project");
-                                    open_project_window = true;
-                                    ui.close_menu();
-                                }
-                                if project.is_some() {
-                                    if ui.button("Close project").clicked() {
-                                        log::info!("Close project");
-                                        scene_image = None;
-                                        scene_texture_id = None;
-                                        project = None;
-                                        ui.close_menu();
-                                    }
-                                }
-                            });
-                        });
-                    });
-
-                    if let Some(project) = project.as_mut() {
-                        egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
-                            let available_size = ui.available_size();
-                            if scene_image.is_none() || scene_size.x != available_size.x || scene_size.y != available_size.y {
-                                (scene_size.x, scene_size.y) = (available_size.x, available_size.y);
-                                scene_image = Some(StorageImage::general_purpose_image_view(
-                                    context.memory_allocator(),
-                                    context.graphics_queue().clone(),
-                                    [scene_size.x as u32, scene_size.y as u32],
-                                    renderer.swapchain_format(),
-                                    ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                                ).unwrap());
-                                if let Some(scene_texture_id) = scene_texture_id {
-                                    gui.unregister_user_image(scene_texture_id);
-                                }
-                                scene_texture_id = Some(gui.register_user_image_view(
-                                    scene_image.as_ref().unwrap().clone(), Default::default()));
-                                log::info!("Created scene image, scene_size={scene_size}");
-                            }
-                            ui.image(scene_texture_id.unwrap(), available_size);
-                        });
-                    }
-                });
+                editor.ui(gui, &context, renderer, &mut project);
 
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 if let Some(project) = project.as_mut() {
-                    project.data.as_mut().unwrap().engine.update();
+                    project.data.as_mut().unwrap().engine.update(); // TODO: project.data is None if project failed to compile
                     gpu_future = project.data.as_mut().unwrap().engine.draw(DrawInfo {
                         before_future: gpu_future, context: &context, renderer: &renderer,
-                        image: scene_image.as_ref().unwrap().clone(), window_size: scene_size,
+                        image: editor.scene_image().as_ref().unwrap().clone(), window_size: editor.scene_size(),
                     });
                 }
 
@@ -192,7 +118,7 @@ struct ProjectData {
     library: Library, // Library must be destroyed after Engine
 }
 
-struct Project {
+pub struct Project {
     path: PathBuf,
     data: Option<ProjectData>,
 }
