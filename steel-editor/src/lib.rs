@@ -9,7 +9,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
 
-use crate::ui::Editor;
+use crate::{ui::Editor, project::Project};
 
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;
@@ -41,7 +41,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor = Editor::new();
 
     // project
-    let mut project = None;
+    let mut project: Option<Project> = None;
 
     log::warn!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -85,7 +85,9 @@ fn _main(event_loop: EventLoop<()>) {
             log::info!("Event::RedrawRequested");
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let gui = gui.as_mut().unwrap();
-                editor.ui(gui, &context, renderer, &mut project);
+                let mut world_data = project.as_mut().and_then(|p| { p.engine().map(|e| { e.save() }) });
+                if let Some(world_data) = world_data.as_ref() { log::info!("world_data={:?}", world_data); }
+                editor.ui(gui, &context, renderer, &mut project, world_data.as_mut());
 
                 let mut gpu_future = renderer.acquire().unwrap();
 
@@ -93,7 +95,6 @@ fn _main(event_loop: EventLoop<()>) {
                     let mut engine = project.engine();
                     let engine = engine.as_mut().unwrap(); // TODO: engine is None if project failed to compile
                     engine.update();
-                    log::info!("world_data={:?}", engine.save());
                     gpu_future = engine.draw(DrawInfo {
                         before_future: gpu_future, context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(), window_size: editor.scene_size(),
