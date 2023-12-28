@@ -41,6 +41,6 @@ impl Project {
     }
 
     pub fn engine(&mut self) -> Option<&mut Box<dyn Engine>> {
-        self.data.as_mut().and_then(|data| { Some(&mut data.engine) })
+        self.data.as_mut().map(|data| { &mut data.engine })
     }
 }
