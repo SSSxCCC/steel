@@ -1,3 +1,4 @@
+pub mod engine;
 pub mod physics2d;
 pub mod render2d;
 
