@@ -8,6 +8,8 @@ pub trait Engine {
     fn init(&mut self);
     fn update(&mut self);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
+    fn save(&self) -> WorldData;
+    fn load(&mut self, world_data: WorldData);
 }
 
 #[derive(Debug)]

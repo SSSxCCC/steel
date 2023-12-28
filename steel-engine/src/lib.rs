@@ -1,7 +1,9 @@
-pub use steel_common::*;
 pub mod physics2d;
 pub mod render2d;
 
+pub use steel_common::*;
+
+use physics2d::{RigidBody2D, Collider2D};
 use shipyard::{Component, IntoIter, IntoWithId, View, World};
 use glam::{Vec3, Vec2};
 use log::{Log, LevelFilter, SetLoggerError};
@@ -23,10 +25,19 @@ pub trait Edit: Component {
 }
 
 pub trait WorldDataExt {
+    fn with_core_components(world: &World) -> Self;
     fn add_component<T: Edit + Send + Sync>(&mut self, world: &World);
 }
 
 impl WorldDataExt for WorldData {
+    fn with_core_components(world: &World) -> Self {
+        let mut world_data = WorldData::new();
+        world_data.add_component::<Transform2D>(world);
+        world_data.add_component::<RigidBody2D>(world);
+        world_data.add_component::<Collider2D>(world);
+        world_data
+    }
+
     fn add_component<T: Edit + Send + Sync>(&mut self, world: &World) {
         world.run(|c: View<T>| {
             for (e, c) in c.iter().with_id() {

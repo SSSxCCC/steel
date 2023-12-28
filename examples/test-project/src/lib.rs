@@ -16,7 +16,7 @@ struct EngineImpl {
 
 impl Engine for EngineImpl {
     fn init(&mut self) {
-        log::info!("Engine::init");
+        log::debug!("Engine::init");
 
         self.world.add_unique(Physics2DManager::new());
 
@@ -30,24 +30,27 @@ impl Engine for EngineImpl {
     }
 
     fn update(&mut self) {
-        log::info!("Engine::update");
-
+        log::trace!("Engine::update");
         self.world.run(physics2d_maintain_system);
         self.world.run(physics2d_update_system);
-
-        let mut world_data = WorldData::new();
-        world_data.add_component::<Transform2D>(&self.world);
-        world_data.add_component::<RigidBody2D>(&self.world);
-        world_data.add_component::<Collider2D>(&self.world);
-        log::info!("world_data={:?}", world_data);
     }
 
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
+        log::trace!("Engine::draw");
         self.world.add_unique(RenderInfo::new(info.context.device().clone(),
             info.context.graphics_queue().clone(), info.context.memory_allocator().clone(),
             info.window_size, info.image, info.renderer.swapchain_format()));
         let command_buffer = self.world.run(render2d_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
+    }
+
+    fn save(&self) -> WorldData {
+        log::trace!("Engine::save");
+        WorldData::with_core_components(&self.world)
+    }
+
+    fn load(&mut self, world_data: WorldData) {
+        log::trace!("Engine::load");
     }
 }

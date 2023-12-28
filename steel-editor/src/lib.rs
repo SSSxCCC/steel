@@ -93,6 +93,7 @@ fn _main(event_loop: EventLoop<()>) {
                     let mut engine = project.engine();
                     let engine = engine.as_mut().unwrap(); // TODO: engine is None if project failed to compile
                     engine.update();
+                    log::info!("world_data={:?}", engine.save());
                     gpu_future = engine.draw(DrawInfo {
                         before_future: gpu_future, context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(), window_size: editor.scene_size(),

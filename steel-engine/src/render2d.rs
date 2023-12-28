@@ -2,10 +2,14 @@ use std::sync::Arc;
 use vulkano::{format::Format, render_pass::{FramebufferCreateInfo, Framebuffer, Subpass}, buffer::{BufferContents, Buffer, BufferCreateInfo, BufferUsage}, pipeline::{graphics::{vertex_input::Vertex, viewport::{Viewport, ViewportState}, input_assembly::InputAssemblyState}, GraphicsPipeline, Pipeline}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, PrimaryAutoCommandBuffer}, device::{Device, Queue}, image::ImageViewAbstract};
 use shipyard::{View, IntoIter, Unique, UniqueView, Component};
 use glam::{Vec2, Vec3, Mat4, Quat};
-use crate::Transform2D;
+use crate::{Transform2D, Edit};
 
 #[derive(Component, Debug)]
 pub struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
+
+impl Edit for Renderer2D {
+    fn name() -> &'static str { "Renderer2D" }
+}
 
 #[derive(Unique)]
 pub struct RenderInfo {
