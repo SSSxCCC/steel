@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cargo build",
+            "type": "cargo",
+			"command": "build",
+			"args": ["-p", "steel-editor", "-F", "desktop"],
+        },
+    ]
+}

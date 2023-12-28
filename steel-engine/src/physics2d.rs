@@ -54,7 +54,6 @@ impl Edit for Collider2D {
     fn name() -> &'static str { "Collider2D" }
 }
 
-
 #[derive(Unique)]
 pub struct Physics2DManager {
     rigid_body_set: RigidBodySet,
