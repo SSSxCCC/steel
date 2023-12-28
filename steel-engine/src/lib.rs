@@ -4,6 +4,7 @@ pub mod render2d;
 
 pub use steel_common::*;
 
+use render2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
 use shipyard::{Component, IntoIter, IntoWithId, View, World};
 use glam::{Vec3, Vec2};
@@ -36,6 +37,7 @@ impl WorldDataExt for WorldData {
         world_data.add_component::<Transform2D>(world);
         world_data.add_component::<RigidBody2D>(world);
         world_data.add_component::<Collider2D>(world);
+        world_data.add_component::<Renderer2D>(world);
         world_data
     }
 

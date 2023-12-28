@@ -1,7 +1,8 @@
 use std::{sync::Arc, path::PathBuf, fs, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::Vec2;
-use steel_common::WorldData;
+use shipyard::EntityId;
+use steel_common::{WorldData, Value};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
@@ -16,6 +17,7 @@ pub struct Editor {
     show_open_project_dialog: bool,
     project_path: PathBuf,
     fps_counter: FpsCounter,
+    selected_entity: EntityId,
 }
 
 impl Editor {
@@ -29,7 +31,7 @@ impl Editor {
         };
         Editor { scene_image: None, scene_texture_id: None, scene_size: Vec2::ZERO,
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
-            project_path, fps_counter: FpsCounter::new() }
+            project_path, fps_counter: FpsCounter::new(), selected_entity: EntityId::dead() }
     }
 
     pub fn ui(&mut self, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
@@ -42,6 +44,7 @@ impl Editor {
             self.open_project_dialog(&ctx, project);
             self.menu_bars(&ctx, project);
             self.scene_window(&ctx, project, context, renderer, gui);
+            self.entity_component_view(&ctx, world_data);
         });
     }
 
@@ -111,6 +114,50 @@ impl Editor {
                 }
                 ui.image(self.scene_texture_id.unwrap(), available_size);
             });
+        }
+    }
+
+    fn entity_component_view(&mut self, ctx: &egui::Context, world_data: Option<&mut WorldData>) {
+        if let Some(world_data) = world_data {
+            egui::Window::new("Entities").show(&ctx, |ui| {
+                for entity_data in &mut world_data.entities {
+                    if ui.selectable_label(self.selected_entity == entity_data.id, format!("{:?}", entity_data.id)).clicked() {
+                        self.selected_entity = entity_data.id;
+                    }
+                }
+            });
+
+            if let Some(index) = world_data.id_index_map.get(&self.selected_entity) {
+                let entity_data = &mut world_data.entities[*index];
+                egui::Window::new("Components").show(&ctx, |ui| {
+                    for component_data in &mut entity_data.components {
+                        ui.label(component_data.name);
+                        for variant in &mut component_data.variants {
+                            ui.label(variant.name);
+                            match &mut variant.value {
+                                Value::Float32(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Int32(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::String(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Vec2(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Vec3(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Vec4(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
     }
 
