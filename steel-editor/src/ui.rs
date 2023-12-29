@@ -133,28 +133,31 @@ impl Editor {
                     for component_data in &mut entity_data.components {
                         ui.label(&component_data.name);
                         for variant in &mut component_data.variants {
-                            ui.label(&variant.name);
-                            match &mut variant.value {
-                                Value::Float32(v) => {
-                                    ui.label(format!("{}", v));
+                            ui.horizontal(|ui| {
+                                ui.label(&variant.name);
+                                match &mut variant.value {
+                                    Value::Float32(v) => {
+                                        ui.label(format!("{}", v));
+                                    }
+                                    Value::Int32(v) => {
+                                        ui.label(format!("{}", v));
+                                    }
+                                    Value::String(v) => {
+                                        ui.label(format!("{}", v));
+                                    }
+                                    Value::Vec2(v) => {
+                                        ui.label(format!("{}", v));
+                                    }
+                                    Value::Vec3(v) => {
+                                        ui.label(format!("{}", v));
+                                    }
+                                    Value::Vec4(v) => {
+                                        ui.label(format!("{}", v));
+                                    }
                                 }
-                                Value::Int32(v) => {
-                                    ui.label(format!("{}", v));
-                                }
-                                Value::String(v) => {
-                                    ui.label(format!("{}", v));
-                                }
-                                Value::Vec2(v) => {
-                                    ui.label(format!("{}", v));
-                                }
-                                Value::Vec3(v) => {
-                                    ui.label(format!("{}", v));
-                                }
-                                Value::Vec4(v) => {
-                                    ui.label(format!("{}", v));
-                                }
-                            }
+                            });
                         }
+                        ui.separator();
                     }
                 });
             }
