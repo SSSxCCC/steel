@@ -66,15 +66,15 @@ impl Edit for Transform2D {
 
     fn to_data(&self) -> ComponentData {
         let mut data = ComponentData::new(Self::name());
-        data.variants.push(Variant { name: "position", value: Value::Vec3(self.position) });
-        data.variants.push(Variant { name: "rotation", value: Value::Float32(self.rotation) });
-        data.variants.push(Variant { name: "scale", value: Value::Vec2(self.scale) });
+        data.variants.push(Variant::new("position", Value::Vec3(self.position)));
+        data.variants.push(Variant::new("rotation", Value::Float32(self.rotation)));
+        data.variants.push(Variant::new("scale", Value::Vec2(self.scale)));
         data
     }
 
     fn from_data(&mut self, data: ComponentData) {
         for v in data.variants {
-            match v.name {
+            match v.name.as_str() {
                 "position" => self.position = if let Value::Vec3(position) = v.value { position } else { Default::default() },
                 "rotation" => self.rotation = if let Value::Float32(rotation) = v.value { rotation } else { Default::default() },
                 "scale" => self.scale = if let Value::Vec2(scale) = v.value { scale } else { Vec2::ONE },
@@ -83,4 +83,3 @@ impl Edit for Transform2D {
         }
     }
 }
-

@@ -131,9 +131,9 @@ impl Editor {
                 let entity_data = &mut world_data.entities[*index];
                 egui::Window::new("Components").show(&ctx, |ui| {
                     for component_data in &mut entity_data.components {
-                        ui.label(component_data.name);
+                        ui.label(&component_data.name);
                         for variant in &mut component_data.variants {
-                            ui.label(variant.name);
+                            ui.label(&variant.name);
                             match &mut variant.value {
                                 Value::Float32(v) => {
                                     ui.label(format!("{}", v));

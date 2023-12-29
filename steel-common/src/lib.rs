@@ -24,20 +24,28 @@ pub enum Value {
 
 #[derive(Debug)]
 pub struct Variant {
-    pub name: &'static str,
+    // &'static str is too dangerous to be used here because
+    // its memory is no longer exist when steel.dll is unloaded!
+    pub name: String,
     pub value: Value,
+}
+
+impl Variant {
+    pub fn new(name: impl Into<String>, value: Value) -> Self {
+        Variant { name: name.into(), value }
+    }
 }
 
 // ComponentData contains all variant in a component
 #[derive(Debug)]
 pub struct ComponentData {
-    pub name: &'static str,
+    pub name: String,
     pub variants: Vec<Variant>,
 }
 
 impl ComponentData {
-    pub fn new(name: &'static str) -> Self {
-        ComponentData { name, variants: Vec::new() }
+    pub fn new(name: impl Into<String>) -> Self {
+        ComponentData { name: name.into(), variants: Vec::new() }
     }
 }
 
