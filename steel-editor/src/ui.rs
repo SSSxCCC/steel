@@ -10,6 +10,7 @@ use crate::project::Project;
 
 pub struct Editor {
     scene_window: ImageWindow,
+    game_window: ImageWindow,
     demo_windows: egui_demo_lib::DemoWindows,
     show_open_project_dialog: bool,
     project_path: PathBuf,
@@ -26,7 +27,7 @@ impl Editor {
             // TODO: convert PathBuf to String and back to PathBuf may lose data, find a better way to do this
             project_path = PathBuf::from(&project_path.display().to_string()[WINDOWS_PATH_PREFIX.len()..]);
         };
-        Editor { scene_window: ImageWindow::new("Scene"),
+        Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
             project_path, fps_counter: FpsCounter::new(), selected_entity: EntityId::dead() }
     }
@@ -43,6 +44,7 @@ impl Editor {
 
             if project.is_some() {
                 self.scene_window.ui(&ctx, gui, context, renderer);
+                self.game_window.ui(&ctx, gui, context, renderer);
             }
 
             if let Some(world_data) = world_data {
@@ -60,6 +62,7 @@ impl Editor {
             if ui.button("Open").clicked() {
                 log::info!("Open project, path={}", self.project_path.display());
                 self.scene_window.close(Some(gui));
+                self.game_window.close(Some(gui));
                 *project = None; // prevent a library from being loaded twice at same time
                 *project = Some(Project::new(self.project_path.clone()));
                 project.as_mut().unwrap().compile();
@@ -82,6 +85,7 @@ impl Editor {
                         if ui.button("Close project").clicked() {
                             log::info!("Menu: Close project");
                             self.scene_window.close(Some(gui));
+                            self.game_window.close(Some(gui));
                             *project = None;
                             ui.close_menu();
                         }
@@ -140,6 +144,7 @@ impl Editor {
 
     pub fn suspend(&mut self) {
         self.scene_window.close(None);
+        self.game_window.close(None);
     }
 
     pub fn scene_image(&self) -> &Option<Arc<dyn ImageViewAbstract + Send + Sync>> {
@@ -148,6 +153,14 @@ impl Editor {
 
     pub fn scene_size(&self) -> Vec2 {
         self.scene_window.size
+    }
+
+    pub fn game_image(&self) -> &Option<Arc<dyn ImageViewAbstract + Send + Sync>> {
+        &self.game_window.image
+    }
+
+    pub fn game_size(&self) -> Vec2 {
+        self.game_window.size
     }
 }
 

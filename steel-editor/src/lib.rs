@@ -102,6 +102,12 @@ fn _main(event_loop: EventLoop<()>) {
                         image: editor.scene_image().as_ref().unwrap().clone(),
                         window_size: editor.scene_size(),
                     })).boxed();
+                    gpu_future = gpu_future.join(engine.draw(DrawInfo {
+                        before_future: vulkano::sync::now(context.device().clone()).boxed(),
+                        context: &context, renderer: &renderer,
+                        image: editor.game_image().as_ref().unwrap().clone(),
+                        window_size: editor.game_size(),
+                    })).boxed();
                 }
 
                 let gpu_future = gui.draw_on_image(gpu_future, renderer.swapchain_image_view());
