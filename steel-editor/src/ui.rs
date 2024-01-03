@@ -74,13 +74,13 @@ impl Editor {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
                     if ui.button("Open project").clicked() {
-                        log::info!("Open project");
+                        log::info!("Menu: Open project");
                         self.show_open_project_dialog = true;
                         ui.close_menu();
                     }
                     if project.is_some() {
                         if ui.button("Close project").clicked() {
-                            log::info!("Close project");
+                            log::info!("Menu: Close project");
                             self.scene_window.close(Some(gui));
                             *project = None;
                             ui.close_menu();

@@ -27,7 +27,7 @@ fn android_main(app: AndroidApp) {
 #[cfg(not(target_os = "android"))]
 #[allow(dead_code)]
 fn main() {
-    env_logger::builder().filter_level(log::LevelFilter::Trace).parse_default_env().init();
+    env_logger::builder().filter_level(log::LevelFilter::Debug).parse_default_env().init();
     let event_loop = EventLoopBuilder::new().build();
     _main(event_loop);
 }
@@ -44,10 +44,10 @@ fn _main(event_loop: EventLoop<()>) {
     // project
     let mut project: Option<Project> = None;
 
-    log::warn!("Start main loop!");
+    log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
         Event::Resumed => {
-            log::info!("Event::Resumed");
+            log::debug!("Event::Resumed");
             windows.create_window(&event_loop, &context,
                 &WindowDescriptor::default(), |_|{});
             let renderer = windows.get_primary_renderer().unwrap();
@@ -57,7 +57,7 @@ fn _main(event_loop: EventLoop<()>) {
                 GuiConfig { is_overlay: false, ..Default::default() }));
         }
         Event::Suspended => {
-            log::info!("Event::Suspended");
+            log::debug!("Event::Suspended");
             editor.suspend();
             gui = None;
             windows.remove_renderer(windows.primary_window_id().unwrap());
@@ -68,26 +68,26 @@ fn _main(event_loop: EventLoop<()>) {
             }
             match event {
                 WindowEvent::CloseRequested => {
-                    log::info!("WindowEvent::CloseRequested");
+                    log::debug!("WindowEvent::CloseRequested");
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(_) => {
-                    log::info!("WindowEvent::Resized");
+                    log::debug!("WindowEvent::Resized");
                     if let Some(renderer) = windows.get_primary_renderer_mut() { renderer.resize() }
                 }
                 WindowEvent::ScaleFactorChanged { .. } => {
-                    log::info!("WindowEvent::ScaleFactorChanged");
+                    log::debug!("WindowEvent::ScaleFactorChanged");
                     if let Some(renderer) = windows.get_primary_renderer_mut() { renderer.resize() }
                 }
                 _ => ()
             }
         }
         Event::RedrawRequested(_) => {
-            log::info!("Event::RedrawRequested");
+            log::trace!("Event::RedrawRequested");
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let gui = gui.as_mut().unwrap();
                 let mut world_data = project.as_mut().and_then(|p| { p.engine().map(|e| { e.save() }) });
-                if let Some(world_data) = world_data.as_ref() { log::info!("world_data={:?}", world_data); }
+                if let Some(world_data) = world_data.as_ref() { log::trace!("world_data={:?}", world_data); }
                 editor.ui(gui, &context, renderer, &mut project, world_data.as_mut());
 
                 let mut gpu_future = renderer.acquire().unwrap();
@@ -110,7 +110,7 @@ fn _main(event_loop: EventLoop<()>) {
             }
         }
         Event::MainEventsCleared => {
-            log::info!("Event::MainEventsCleared");
+            log::trace!("Event::MainEventsCleared");
             if let Some(renderer) = windows.get_primary_renderer() { renderer.window().request_redraw() }
         }
         _ => (),
