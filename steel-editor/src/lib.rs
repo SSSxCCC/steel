@@ -3,6 +3,7 @@ mod project;
 
 use steel_common::DrawInfo;
 use egui_winit_vulkano::{Gui, GuiConfig};
+use vulkano::sync::GpuFuture;
 use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
 use winit::{
     event::{Event, WindowEvent},
@@ -95,10 +96,12 @@ fn _main(event_loop: EventLoop<()>) {
                     let mut engine = project.engine();
                     let engine = engine.as_mut().unwrap(); // TODO: engine is None if project failed to compile
                     engine.update();
-                    gpu_future = engine.draw(DrawInfo {
-                        before_future: gpu_future, context: &context, renderer: &renderer,
-                        image: editor.scene_image().as_ref().unwrap().clone(), window_size: editor.scene_size(),
-                    });
+                    gpu_future = gpu_future.join(engine.draw(DrawInfo {
+                        before_future: vulkano::sync::now(context.device().clone()).boxed(),
+                        context: &context, renderer: &renderer,
+                        image: editor.scene_image().as_ref().unwrap().clone(),
+                        window_size: editor.scene_size(),
+                    })).boxed();
                 }
 
                 let gpu_future = gui.draw_on_image(gpu_future, renderer.swapchain_image_view());
