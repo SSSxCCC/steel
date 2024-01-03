@@ -43,8 +43,14 @@ impl Editor {
 
             self.open_project_dialog(&ctx, project);
             self.menu_bars(&ctx, project);
-            self.scene_window(&ctx, project, context, renderer, gui);
-            self.entity_component_view(&ctx, world_data);
+
+            if project.is_some() {
+                self.scene_window(&ctx, context, renderer, gui);
+            }
+
+            if let Some(world_data) = world_data {
+                self.entity_component_view(&ctx, world_data);
+            }
         });
     }
 
@@ -92,75 +98,71 @@ impl Editor {
         });
     }
 
-    fn scene_window(&mut self, ctx: &egui::Context, project: &mut Option<Project>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer, gui: &mut Gui) {
-        if let Some(project) = project.as_mut() {
-            egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
-                let available_size = ui.available_size();
-                if self.scene_image.is_none() || self.scene_size.x != available_size.x || self.scene_size.y != available_size.y {
-                    (self.scene_size.x, self.scene_size.y) = (available_size.x, available_size.y);
-                    self.scene_image = Some(StorageImage::general_purpose_image_view(
-                        context.memory_allocator(),
-                        context.graphics_queue().clone(),
-                        [self.scene_size.x as u32, self.scene_size.y as u32],
-                        renderer.swapchain_format(),
-                        ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                    ).unwrap());
-                    if let Some(scene_texture_id) = self.scene_texture_id {
-                        gui.unregister_user_image(scene_texture_id);
-                    }
-                    self.scene_texture_id = Some(gui.register_user_image_view(
-                        self.scene_image.as_ref().unwrap().clone(), Default::default()));
-                    log::info!("Created scene image, scene_size={}", self.scene_size);
+    fn scene_window(&mut self, ctx: &egui::Context, context: &VulkanoContext, renderer: &VulkanoWindowRenderer, gui: &mut Gui) {
+        egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
+            let available_size = ui.available_size();
+            if self.scene_image.is_none() || self.scene_size.x != available_size.x || self.scene_size.y != available_size.y {
+                (self.scene_size.x, self.scene_size.y) = (available_size.x, available_size.y);
+                self.scene_image = Some(StorageImage::general_purpose_image_view(
+                    context.memory_allocator(),
+                    context.graphics_queue().clone(),
+                    [self.scene_size.x as u32, self.scene_size.y as u32],
+                    renderer.swapchain_format(),
+                    ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                ).unwrap());
+                if let Some(scene_texture_id) = self.scene_texture_id {
+                    gui.unregister_user_image(scene_texture_id);
                 }
-                ui.image(self.scene_texture_id.unwrap(), available_size);
-            });
-        }
+                self.scene_texture_id = Some(gui.register_user_image_view(
+                    self.scene_image.as_ref().unwrap().clone(), Default::default()));
+                log::info!("Created scene image, scene_size={}", self.scene_size);
+            }
+            ui.image(self.scene_texture_id.unwrap(), available_size);
+        });
     }
 
-    fn entity_component_view(&mut self, ctx: &egui::Context, world_data: Option<&mut WorldData>) {
-        if let Some(world_data) = world_data {
-            egui::Window::new("Entities").show(&ctx, |ui| {
-                for entity_data in &mut world_data.entities {
-                    if ui.selectable_label(self.selected_entity == entity_data.id, format!("{:?}", entity_data.id)).clicked() {
-                        self.selected_entity = entity_data.id;
+    fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
+        egui::Window::new("Entities").show(&ctx, |ui| {
+            for entity_data in &mut world_data.entities {
+                if ui.selectable_label(self.selected_entity == entity_data.id, format!("{:?}", entity_data.id)).clicked() {
+                    self.selected_entity = entity_data.id;
+                }
+            }
+        });
+
+        if let Some(index) = world_data.id_index_map.get(&self.selected_entity) {
+            let entity_data = &mut world_data.entities[*index];
+            egui::Window::new("Components").show(&ctx, |ui| {
+                for component_data in &mut entity_data.components {
+                    ui.label(&component_data.name);
+                    for variant in &mut component_data.variants {
+                        ui.horizontal(|ui| {
+                            ui.label(&variant.name);
+                            match &mut variant.value {
+                                Value::Float32(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Int32(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::String(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Vec2(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Vec3(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                                Value::Vec4(v) => {
+                                    ui.label(format!("{}", v));
+                                }
+                            }
+                        });
                     }
+                    ui.separator();
                 }
             });
-
-            if let Some(index) = world_data.id_index_map.get(&self.selected_entity) {
-                let entity_data = &mut world_data.entities[*index];
-                egui::Window::new("Components").show(&ctx, |ui| {
-                    for component_data in &mut entity_data.components {
-                        ui.label(&component_data.name);
-                        for variant in &mut component_data.variants {
-                            ui.horizontal(|ui| {
-                                ui.label(&variant.name);
-                                match &mut variant.value {
-                                    Value::Float32(v) => {
-                                        ui.label(format!("{}", v));
-                                    }
-                                    Value::Int32(v) => {
-                                        ui.label(format!("{}", v));
-                                    }
-                                    Value::String(v) => {
-                                        ui.label(format!("{}", v));
-                                    }
-                                    Value::Vec2(v) => {
-                                        ui.label(format!("{}", v));
-                                    }
-                                    Value::Vec3(v) => {
-                                        ui.label(format!("{}", v));
-                                    }
-                                    Value::Vec4(v) => {
-                                        ui.label(format!("{}", v));
-                                    }
-                                }
-                            });
-                        }
-                        ui.separator();
-                    }
-                });
-            }
         }
     }
 
