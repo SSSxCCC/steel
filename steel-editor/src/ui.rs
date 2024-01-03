@@ -9,10 +9,7 @@ use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use crate::project::Project;
 
 pub struct Editor {
-    scene_image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>,
-    scene_texture_id: Option<egui::TextureId>,
-    scene_size: Vec2,
-
+    scene_window: ImageWindow,
     demo_windows: egui_demo_lib::DemoWindows,
     show_open_project_dialog: bool,
     project_path: PathBuf,
@@ -29,7 +26,7 @@ impl Editor {
             // TODO: convert PathBuf to String and back to PathBuf may lose data, find a better way to do this
             project_path = PathBuf::from(&project_path.display().to_string()[WINDOWS_PATH_PREFIX.len()..]);
         };
-        Editor { scene_image: None, scene_texture_id: None, scene_size: Vec2::ZERO,
+        Editor { scene_window: ImageWindow::new("Scene"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
             project_path, fps_counter: FpsCounter::new(), selected_entity: EntityId::dead() }
     }
@@ -41,11 +38,11 @@ impl Editor {
 
             self.demo_windows.ui(&ctx);
 
-            self.open_project_dialog(&ctx, project);
-            self.menu_bars(&ctx, project);
+            self.open_project_dialog(&ctx, gui, project);
+            self.menu_bars(&ctx, gui, project);
 
             if project.is_some() {
-                self.scene_window(&ctx, context, renderer, gui);
+                self.scene_window.ui(&ctx, gui, context, renderer);
             }
 
             if let Some(world_data) = world_data {
@@ -54,7 +51,7 @@ impl Editor {
         });
     }
 
-    fn open_project_dialog(&mut self, ctx: &egui::Context, project: &mut Option<Project>) {
+    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Option<Project>) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
             let mut path_str = self.project_path.display().to_string();
@@ -62,8 +59,7 @@ impl Editor {
             self.project_path = path_str.into();
             if ui.button("Open").clicked() {
                 log::info!("Open project, path={}", self.project_path.display());
-                self.scene_image = None;
-                self.scene_texture_id = None;
+                self.scene_window.close(Some(gui));
                 *project = None; // prevent a library from being loaded twice at same time
                 *project = Some(Project::new(self.project_path.clone()));
                 project.as_mut().unwrap().compile();
@@ -73,7 +69,7 @@ impl Editor {
         self.show_open_project_dialog &= show;
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, project: &mut Option<Project>) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Option<Project>) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -85,8 +81,7 @@ impl Editor {
                     if project.is_some() {
                         if ui.button("Close project").clicked() {
                             log::info!("Close project");
-                            self.scene_image = None;
-                            self.scene_texture_id = None;
+                            self.scene_window.close(Some(gui));
                             *project = None;
                             ui.close_menu();
                         }
@@ -95,29 +90,6 @@ impl Editor {
                 self.fps_counter.update();
                 ui.label(format!("fps: {:.2}", self.fps_counter.fps));
             });
-        });
-    }
-
-    fn scene_window(&mut self, ctx: &egui::Context, context: &VulkanoContext, renderer: &VulkanoWindowRenderer, gui: &mut Gui) {
-        egui::Window::new("Scene").resizable(true).show(&ctx, |ui| {
-            let available_size = ui.available_size();
-            if self.scene_image.is_none() || self.scene_size.x != available_size.x || self.scene_size.y != available_size.y {
-                (self.scene_size.x, self.scene_size.y) = (available_size.x, available_size.y);
-                self.scene_image = Some(StorageImage::general_purpose_image_view(
-                    context.memory_allocator(),
-                    context.graphics_queue().clone(),
-                    [self.scene_size.x as u32, self.scene_size.y as u32],
-                    renderer.swapchain_format(),
-                    ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                ).unwrap());
-                if let Some(scene_texture_id) = self.scene_texture_id {
-                    gui.unregister_user_image(scene_texture_id);
-                }
-                self.scene_texture_id = Some(gui.register_user_image_view(
-                    self.scene_image.as_ref().unwrap().clone(), Default::default()));
-                log::info!("Created scene image, scene_size={}", self.scene_size);
-            }
-            ui.image(self.scene_texture_id.unwrap(), available_size);
         });
     }
 
@@ -167,16 +139,15 @@ impl Editor {
     }
 
     pub fn suspend(&mut self) {
-        self.scene_texture_id = None;
-        self.scene_image = None;
+        self.scene_window.close(None);
     }
 
     pub fn scene_image(&self) -> &Option<Arc<dyn ImageViewAbstract + Send + Sync>> {
-        &self.scene_image
+        &self.scene_window.image
     }
 
     pub fn scene_size(&self) -> Vec2 {
-        self.scene_size
+        self.scene_window.size
     }
 }
 
@@ -200,5 +171,47 @@ impl FpsCounter {
             self.frame = 0;
             self.start = now;
         }
+    }
+}
+
+struct ImageWindow {
+    title: String,
+    image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>, // TODO: use multi-buffering
+    texture_id: Option<egui::TextureId>,
+    size: Vec2,
+}
+
+impl ImageWindow {
+    fn new(title: impl Into<String>) -> Self {
+        ImageWindow { title: title.into(), image: None, texture_id: None, size: Vec2::ZERO }
+    }
+
+    fn ui(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
+        egui::Window::new(&self.title).resizable(true).show(&ctx, |ui| {
+            let available_size = ui.available_size();
+            if self.image.is_none() || self.size.x != available_size.x || self.size.y != available_size.y {
+                (self.size.x, self.size.y) = (available_size.x, available_size.y);
+                self.close(Some(gui));
+                self.image = Some(StorageImage::general_purpose_image_view(
+                    context.memory_allocator(),
+                    context.graphics_queue().clone(),
+                    [self.size.x as u32, self.size.y as u32],
+                    renderer.swapchain_format(),
+                    ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                ).unwrap());
+                self.texture_id = Some(gui.register_user_image_view(
+                    self.image.as_ref().unwrap().clone(), Default::default()));
+                log::info!("ImageWindow({}): image created, size={}", self.title, self.size);
+            }
+            ui.image(self.texture_id.unwrap(), available_size);
+        });
+    }
+
+    fn close(&mut self, gui: Option<&mut Gui>) {
+        self.image = None;
+        if let (Some(gui), Some(texture_id)) = (gui, self.texture_id) {
+            gui.unregister_user_image(texture_id);
+        }
+        self.texture_id = None;
     }
 }
