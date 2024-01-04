@@ -66,7 +66,7 @@ impl Editor {
                 self.scene_window.close(Some(gui));
                 self.game_window.close(Some(gui));
                 project.open(self.project_path.clone());
-                project.compile(); // TODO: handle compile result
+                project.compile();
                 self.show_open_project_dialog = false;
             }
         });
@@ -102,7 +102,7 @@ impl Editor {
                             log::info!("Menu->Project->Compile");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
-                            project.compile(); // TODO: handle compile result
+                            project.compile();
                             ui.close_menu();
                         }
                     }

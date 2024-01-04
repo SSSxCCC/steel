@@ -34,7 +34,13 @@ impl Project {
         self.inner = None;
     }
 
-    pub fn compile(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn compile(&mut self) {
+        if let Some(error) = self._compile().err() {
+            log::error!("Project compile failed: {}", error);
+        }
+    }
+
+    fn _compile(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(project) = self.inner.as_mut() {
             project.compile = None; // prevent steel.dll from being loaded twice at same time
             let lib_path = project.path.join("target/debug/steel.dll");
