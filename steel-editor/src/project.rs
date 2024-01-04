@@ -10,7 +10,7 @@ struct ProjectCompileData {
 
 struct ProjectData {
     path: PathBuf,
-    data: Option<ProjectCompileData>,
+    compile: Option<ProjectCompileData>,
 }
 
 pub struct Project {
@@ -23,7 +23,7 @@ impl Project {
     }
 
     pub fn open(&mut self, path: PathBuf) {
-        self.inner = Some(ProjectData { path, data: None });
+        self.inner = Some(ProjectData { path, compile: None });
     }
 
     pub fn is_open(&self) -> bool {
@@ -36,6 +36,12 @@ impl Project {
 
     pub fn compile(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(project) = self.inner.as_mut() {
+            project.compile = None; // prevent steel.dll from being loaded twice at same time
+            let lib_path = project.path.join("target/debug/steel.dll");
+            if lib_path.exists() {
+                std::fs::remove_file(&lib_path)?;
+            }
+
             let mut complie_process = Command::new("cargo")
                 .arg("build")
                 .current_dir(&project.path)
@@ -43,7 +49,6 @@ impl Project {
 
             complie_process.wait()?;
 
-            let lib_path = project.path.join("target/debug/steel.dll");
             let library: Library = unsafe { Library::new(&lib_path)? };
 
             let setup_logger_fn: Symbol<fn(&'static dyn Log, LevelFilter) -> Result<(), SetLoggerError>> = unsafe { library.get(b"setup_logger")? };
@@ -53,15 +58,19 @@ impl Project {
             let mut engine = create_engine_fn();
             engine.init();
 
-            project.data = Some(ProjectCompileData { engine, library });
+            project.compile = Some(ProjectCompileData { engine, library });
             Ok(())
         } else {
             Err(Box::new(CompileError { message: "No open project".into() }))
         }
     }
 
+    pub fn is_compiled(&self) -> bool {
+        return self.inner.as_ref().is_some_and(|project| project.compile.is_some());
+    }
+
     pub fn engine(&mut self) -> Option<&mut Box<dyn Engine>> {
-        Some(&mut self.inner.as_mut()?.data.as_mut()?.engine)
+        Some(&mut self.inner.as_mut()?.compile.as_mut()?.engine)
     }
 }
 

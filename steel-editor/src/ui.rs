@@ -42,9 +42,11 @@ impl Editor {
             self.open_project_dialog(&ctx, gui, project);
             self.menu_bars(&ctx, gui, project);
 
-            if project.is_open() {
+            if project.is_compiled() {
                 self.scene_window.ui(&ctx, gui, context, renderer);
                 self.game_window.ui(&ctx, gui, context, renderer);
+            } else if project.is_open() {
+                self.compile_error_dialog(&ctx);
             }
 
             if let Some(world_data) = world_data {
@@ -64,28 +66,43 @@ impl Editor {
                 self.scene_window.close(Some(gui));
                 self.game_window.close(Some(gui));
                 project.open(self.project_path.clone());
-                project.compile().unwrap(); // TODO: handle compile result
+                project.compile(); // TODO: handle compile result
                 self.show_open_project_dialog = false;
             }
         });
         self.show_open_project_dialog &= show;
     }
 
+    fn compile_error_dialog(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Compile error!").show(&ctx, |ui| {
+            ui.label("We have some compile issues, \
+                please solve them according to the terminal output, \
+                then click 'Project -> Compile' to try again.");
+        });
+    }
+
     fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
-                    if ui.button("Open project").clicked() {
-                        log::info!("Menu: Open project");
+                    if ui.button("Open").clicked() {
+                        log::info!("Menu->Project->Open");
                         self.show_open_project_dialog = true;
                         ui.close_menu();
                     }
                     if project.is_open() {
-                        if ui.button("Close project").clicked() {
-                            log::info!("Menu: Close project");
+                        if ui.button("Close").clicked() {
+                            log::info!("Menu->Project->Close");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
                             project.close();
+                            ui.close_menu();
+                        }
+                        if ui.button("Compile").clicked() {
+                            log::info!("Menu->Project->Compile");
+                            self.scene_window.close(Some(gui));
+                            self.game_window.close(Some(gui));
+                            project.compile(); // TODO: handle compile result
                             ui.close_menu();
                         }
                     }
