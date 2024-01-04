@@ -42,7 +42,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor = Editor::new();
 
     // project
-    let mut project: Option<Project> = None;
+    let mut project = Project::new();
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -86,15 +86,13 @@ fn _main(event_loop: EventLoop<()>) {
             log::trace!("Event::RedrawRequested");
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let gui = gui.as_mut().unwrap();
-                let mut world_data = project.as_mut().and_then(|p| { p.engine().map(|e| { e.save() }) });
+                let mut world_data = project.engine().map(|e| { e.save() });
                 if let Some(world_data) = world_data.as_ref() { log::trace!("world_data={:?}", world_data); }
                 editor.ui(gui, &context, renderer, &mut project, world_data.as_mut());
 
                 let mut gpu_future = renderer.acquire().unwrap();
 
-                if let Some(project) = project.as_mut() {
-                    let mut engine = project.engine();
-                    let engine = engine.as_mut().unwrap(); // TODO: engine is None if project failed to compile
+                if let Some(engine) = project.engine() {
                     engine.update();
                     gpu_future = gpu_future.join(engine.draw(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),

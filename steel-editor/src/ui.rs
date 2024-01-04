@@ -33,7 +33,7 @@ impl Editor {
     }
 
     pub fn ui(&mut self, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
-            project: &mut Option<Project>, world_data: Option<&mut WorldData>) {
+            project: &mut Project, world_data: Option<&mut WorldData>) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
 
@@ -42,7 +42,7 @@ impl Editor {
             self.open_project_dialog(&ctx, gui, project);
             self.menu_bars(&ctx, gui, project);
 
-            if project.is_some() {
+            if project.is_open() {
                 self.scene_window.ui(&ctx, gui, context, renderer);
                 self.game_window.ui(&ctx, gui, context, renderer);
             }
@@ -53,7 +53,7 @@ impl Editor {
         });
     }
 
-    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Option<Project>) {
+    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
             let mut path_str = self.project_path.display().to_string();
@@ -63,16 +63,15 @@ impl Editor {
                 log::info!("Open project, path={}", self.project_path.display());
                 self.scene_window.close(Some(gui));
                 self.game_window.close(Some(gui));
-                *project = None; // prevent a library from being loaded twice at same time
-                *project = Some(Project::new(self.project_path.clone()));
-                project.as_mut().unwrap().compile();
+                project.open(self.project_path.clone());
+                project.compile().unwrap(); // TODO: handle compile result
                 self.show_open_project_dialog = false;
             }
         });
         self.show_open_project_dialog &= show;
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Option<Project>) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -81,12 +80,12 @@ impl Editor {
                         self.show_open_project_dialog = true;
                         ui.close_menu();
                     }
-                    if project.is_some() {
+                    if project.is_open() {
                         if ui.button("Close project").clicked() {
                             log::info!("Menu: Close project");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
-                            *project = None;
+                            project.close();
                             ui.close_menu();
                         }
                     }
