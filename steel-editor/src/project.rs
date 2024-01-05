@@ -3,35 +3,35 @@ use steel_common::Engine;
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
-struct ProjectCompileData {
+struct ProjectCompiledState {
     engine: Box<dyn Engine>,
     library: Library, // Library must be destroyed after Engine
 }
 
-struct ProjectData {
+struct ProjectState {
     path: PathBuf,
-    compile: Option<ProjectCompileData>,
+    compiled: Option<ProjectCompiledState>,
 }
 
 pub struct Project {
-    inner: Option<ProjectData>,
+    state: Option<ProjectState>,
 }
 
 impl Project {
     pub fn new() -> Self {
-        Project { inner: None }
+        Project { state: None }
     }
 
     pub fn open(&mut self, path: PathBuf) {
-        self.inner = Some(ProjectData { path, compile: None });
+        self.state = Some(ProjectState { path, compiled: None });
     }
 
     pub fn is_open(&self) -> bool {
-        self.inner.is_some()
+        self.state.is_some()
     }
 
     pub fn close(&mut self) {
-        self.inner = None;
+        self.state = None;
     }
 
     pub fn compile(&mut self) {
@@ -41,16 +41,16 @@ impl Project {
     }
 
     fn _compile(&mut self) -> Result<(), Box<dyn Error>> {
-        if let Some(project) = self.inner.as_mut() {
-            project.compile = None; // prevent steel.dll from being loaded twice at same time
-            let lib_path = project.path.join("target/debug/steel.dll");
+        if let Some(state) = self.state.as_mut() {
+            state.compiled = None; // prevent steel.dll from being loaded twice at same time
+            let lib_path = state.path.join("target/debug/steel.dll");
             if lib_path.exists() {
                 std::fs::remove_file(&lib_path)?;
             }
 
             let mut complie_process = Command::new("cargo")
                 .arg("build")
-                .current_dir(&project.path)
+                .current_dir(&state.path)
                 .spawn()?;
 
             complie_process.wait()?;
@@ -64,7 +64,7 @@ impl Project {
             let mut engine = create_engine_fn();
             engine.init();
 
-            project.compile = Some(ProjectCompileData { engine, library });
+            state.compiled = Some(ProjectCompiledState { engine, library });
             Ok(())
         } else {
             Err(Box::new(CompileError { message: "No open project".into() }))
@@ -72,11 +72,19 @@ impl Project {
     }
 
     pub fn is_compiled(&self) -> bool {
-        return self.inner.as_ref().is_some_and(|project| project.compile.is_some());
+        return self.compiled_ref().is_some();
     }
 
     pub fn engine(&mut self) -> Option<&mut Box<dyn Engine>> {
-        Some(&mut self.inner.as_mut()?.compile.as_mut()?.engine)
+        Some(&mut self.compiled_mut()?.engine)
+    }
+
+    fn compiled_ref(&self) -> Option<&ProjectCompiledState> {
+        self.state.as_ref()?.compiled.as_ref()
+    }
+
+    fn compiled_mut(&mut self) -> Option<&mut ProjectCompiledState> {
+        self.state.as_mut()?.compiled.as_mut()
     }
 }
 
