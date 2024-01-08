@@ -1,5 +1,5 @@
 use std::{path::PathBuf, process::Command, error::Error};
-use steel_common::Engine;
+use steel_common::{Engine, WorldData};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -7,13 +7,8 @@ struct ProjectCompiledState {
     engine: Box<dyn Engine>,
     library: Library, // Library must be destroyed after Engine
 
+    data: WorldData,
     running: bool,
-}
-
-impl ProjectCompiledState {
-    fn new(engine: Box<dyn Engine>, library: Library) -> ProjectCompiledState {
-        ProjectCompiledState { engine, library, running: false }
-    }
 }
 
 struct ProjectState {
@@ -70,9 +65,11 @@ impl Project {
 
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
-            engine.init();
 
-            state.compiled = Some(ProjectCompiledState::new(engine, library));
+            engine.init();
+            let data = engine.save(); // TODO: load WorldData from file
+
+            state.compiled = Some(ProjectCompiledState { engine, library, data, running: false });
             Ok(())
         } else {
             Err(Box::new(CompileError { message: "No open project".into() }))
@@ -103,6 +100,18 @@ impl Project {
 
     pub fn is_running(&self) -> bool {
         self.compiled_ref().is_some_and(|compiled| compiled.running)
+    }
+
+    pub fn save(&mut self) {
+        if let Some(compiled) = self.compiled_mut() {
+            compiled.data = compiled.engine.save();
+        }
+    }
+
+    pub fn load(&mut self) {
+        if let Some(compiled) = self.compiled_mut() {
+            compiled.engine.load(&compiled.data);
+        }
     }
 }
 

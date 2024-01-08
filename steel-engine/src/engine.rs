@@ -1,4 +1,4 @@
-use crate::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}, WorldDataExt};
+use crate::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}, WorldDataExt, WorldExt};
 use shipyard::World;
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
@@ -57,7 +57,8 @@ impl Engine for EngineImpl {
         WorldData::with_core_components(&self.world)
     }
 
-    fn load(&mut self, world_data: WorldData) {
+    fn load(&mut self, world_data: &WorldData) {
         log::trace!("Engine::load");
+        self.world.create_components(world_data);
     }
 }

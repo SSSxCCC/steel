@@ -114,7 +114,13 @@ impl Editor {
                         let text = if project.is_running() { "Stop" } else { "Start" };
                         if ui.button(text).clicked() {
                             log::info!("Menu->Run->{text}");
+                            if project.is_running() {
+                                project.load();
+                            } else {
+                                project.save();
+                            }
                             project.set_running(!project.is_running());
+                            ui.close_menu();
                         }
                     });
                 }

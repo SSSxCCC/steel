@@ -4,9 +4,10 @@ pub mod render2d;
 
 pub use steel_common::*;
 
+use std::collections::HashMap;
 use render2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
-use shipyard::{Component, IntoIter, IntoWithId, View, World};
+use shipyard::{Component, IntoIter, IntoWithId, View, World, EntityId};
 use glam::{Vec3, Vec2};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -16,14 +17,20 @@ pub fn setup_logger(logger: &'static dyn Log, level: LevelFilter) -> Result<(), 
     log::set_logger(logger)
 }
 
-pub trait Edit: Component {
+pub trait Edit: Component + Default {
     fn name() -> &'static str;
 
     fn to_data(&self) -> ComponentData {
         ComponentData::new(Self::name())
     }
 
-    fn from_data(&mut self, data: ComponentData) { }
+    fn from_data(&mut self, data: &ComponentData) { }
+
+    fn from(data: &ComponentData) -> Self {
+        let mut e = Self::default();
+        e.from_data(data);
+        e
+    }
 }
 
 pub trait WorldDataExt {
@@ -54,6 +61,33 @@ impl WorldDataExt for WorldData {
     }
 }
 
+pub trait WorldExt {
+    fn create_components(&mut self, data: &WorldData);
+    fn create_component<T: Edit + Send + Sync>(&mut self, id: EntityId, data: &ComponentData);
+}
+
+impl WorldExt for World {
+    fn create_components(&mut self, data: &WorldData) {
+        self.clear();
+        let mut old_id_to_new_id = HashMap::new();
+        for entity_data in &data.entities {
+            let id = *old_id_to_new_id.entry(entity_data.id).or_insert_with(|| self.add_entity(()));
+            for component_data in &entity_data.components {
+                self.create_component::<Transform2D>(id, component_data);
+                self.create_component::<RigidBody2D>(id, component_data);
+                self.create_component::<Collider2D>(id, component_data);
+                self.create_component::<Renderer2D>(id, component_data);
+            }
+        }
+    }
+
+    fn create_component<T: Edit + Send + Sync>(&mut self, id: EntityId, data: &ComponentData) {
+        if T::name() == data.name {
+            self.add_component(id, (T::from(data),));
+        }
+    }
+}
+
 #[derive(Component, Debug, Default)]
 pub struct Transform2D {
     pub position: Vec3,
@@ -72,8 +106,8 @@ impl Edit for Transform2D {
         data
     }
 
-    fn from_data(&mut self, data: ComponentData) {
-        for v in data.variants {
+    fn from_data(&mut self, data: &ComponentData) {
+        for v in &data.variants {
             match v.name.as_str() {
                 "position" => self.position = if let Value::Vec3(position) = v.value { position } else { Default::default() },
                 "rotation" => self.rotation = if let Value::Float32(rotation) = v.value { rotation } else { Default::default() },

@@ -4,7 +4,7 @@ use shipyard::{View, IntoIter, Unique, UniqueView, Component};
 use glam::{Vec2, Vec3, Mat4, Quat};
 use crate::{Transform2D, Edit};
 
-#[derive(Component, Debug)]
+#[derive(Component, Default, Debug)]
 pub struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
 
 impl Edit for Renderer2D {

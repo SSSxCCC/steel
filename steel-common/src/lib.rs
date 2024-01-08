@@ -11,7 +11,7 @@ pub trait Engine {
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn draw_editor(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn save(&self) -> WorldData;
-    fn load(&mut self, world_data: WorldData);
+    fn load(&mut self, world_data: &WorldData);
 }
 
 #[derive(Debug)]

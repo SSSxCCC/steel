@@ -16,6 +16,12 @@ impl RigidBody2D {
     }
 }
 
+impl Default for RigidBody2D {
+    fn default() -> Self {
+        Self { handle: RigidBodyHandle::invalid(), body_type: RigidBodyType::Dynamic }
+    }
+}
+
 impl Edit for RigidBody2D {
     fn name() -> &'static str { "RigidBody2D" }
 }
@@ -47,6 +53,12 @@ pub struct Collider2D {
 impl Collider2D {
     pub fn new(shape: SharedShape, restitution: f32) -> Self {
         Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution }
+    }
+}
+
+impl Default for Collider2D {
+    fn default() -> Self {
+        Self { handle: ColliderHandle::invalid(), shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)), restitution: Default::default() }
     }
 }
 
