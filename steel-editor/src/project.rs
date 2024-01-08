@@ -6,6 +6,14 @@ use log::{Log, LevelFilter, SetLoggerError};
 struct ProjectCompiledState {
     engine: Box<dyn Engine>,
     library: Library, // Library must be destroyed after Engine
+
+    running: bool,
+}
+
+impl ProjectCompiledState {
+    fn new(engine: Box<dyn Engine>, library: Library) -> ProjectCompiledState {
+        ProjectCompiledState { engine, library, running: false }
+    }
 }
 
 struct ProjectState {
@@ -64,7 +72,7 @@ impl Project {
             let mut engine = create_engine_fn();
             engine.init();
 
-            state.compiled = Some(ProjectCompiledState { engine, library });
+            state.compiled = Some(ProjectCompiledState::new(engine, library));
             Ok(())
         } else {
             Err(Box::new(CompileError { message: "No open project".into() }))
@@ -85,6 +93,16 @@ impl Project {
 
     fn compiled_mut(&mut self) -> Option<&mut ProjectCompiledState> {
         self.state.as_mut()?.compiled.as_mut()
+    }
+
+    pub fn set_running(&mut self, running: bool) {
+        if let Some(compiled) = self.compiled_mut() {
+            compiled.running = running;
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.compiled_ref().is_some_and(|compiled| compiled.running)
     }
 }
 
