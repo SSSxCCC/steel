@@ -92,19 +92,23 @@ fn _main(event_loop: EventLoop<()>) {
 
                 let mut gpu_future = renderer.acquire().unwrap();
 
+                let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
-                    engine.update();
-                    gpu_future = gpu_future.join(engine.draw(DrawInfo {
+                    engine.maintain();
+                    if is_running {
+                        engine.update();
+                        gpu_future = gpu_future.join(engine.draw(DrawInfo {
+                            before_future: vulkano::sync::now(context.device().clone()).boxed(),
+                            context: &context, renderer: &renderer,
+                            image: editor.game_image().as_ref().unwrap().clone(),
+                            window_size: editor.game_size(),
+                        })).boxed();
+                    }
+                    gpu_future = gpu_future.join(engine.draw_editor(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(),
                         window_size: editor.scene_size(),
-                    })).boxed();
-                    gpu_future = gpu_future.join(engine.draw(DrawInfo {
-                        before_future: vulkano::sync::now(context.device().clone()).boxed(),
-                        context: &context, renderer: &renderer,
-                        image: editor.game_image().as_ref().unwrap().clone(),
-                        window_size: editor.game_size(),
                     })).boxed();
                 }
 

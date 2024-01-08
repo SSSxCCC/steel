@@ -44,7 +44,9 @@ impl Editor {
 
             if project.is_compiled() {
                 self.scene_window.ui(&ctx, gui, context, renderer);
-                self.game_window.ui(&ctx, gui, context, renderer);
+                if project.is_running() {
+                    self.game_window.ui(&ctx, gui, context, renderer);
+                }
             } else if project.is_open() {
                 self.compile_error_dialog(&ctx);
             }
@@ -107,6 +109,15 @@ impl Editor {
                         }
                     }
                 });
+                if project.is_compiled() {
+                    ui.menu_button("Run", |ui| {
+                        let text = if project.is_running() { "Stop" } else { "Start" };
+                        if ui.button(text).clicked() {
+                            log::info!("Menu->Run->{text}");
+                            project.set_running(!project.is_running());
+                        }
+                    });
+                }
                 self.fps_counter.update();
                 ui.label(format!("fps: {:.2}", self.fps_counter.fps));
             });

@@ -29,9 +29,12 @@ impl Engine for EngineImpl {
                 Renderer2D));
     }
 
+    fn maintain(&mut self) {
+        self.world.run(physics2d_maintain_system);
+    }
+
     fn update(&mut self) {
         log::trace!("Engine::update");
-        self.world.run(physics2d_maintain_system);
         self.world.run(physics2d_update_system);
     }
 
@@ -43,6 +46,10 @@ impl Engine for EngineImpl {
         let command_buffer = self.world.run(render2d_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
+    }
+
+    fn draw_editor(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
+        self.draw(info)
     }
 
     fn save(&self) -> WorldData {
