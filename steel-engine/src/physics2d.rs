@@ -1,6 +1,8 @@
+use std::{collections::HashMap, sync::OnceLock};
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
+use steel_common::{ComponentData, Value, Variant};
 use crate::{Transform2D, Edit};
 
 #[derive(Component, Debug)]
@@ -14,6 +16,16 @@ impl RigidBody2D {
     pub fn new(body_type: RigidBodyType) -> Self {
         RigidBody2D { handle: RigidBodyHandle::invalid(), body_type }
     }
+
+    pub fn i32_to_rbt() -> &'static HashMap<i32, RigidBodyType> {
+        static HASHMAP: OnceLock<HashMap<i32, RigidBodyType>> = OnceLock::new();
+        HASHMAP.get_or_init(|| [
+            (0, RigidBodyType::Dynamic),
+            (1, RigidBodyType::Fixed),
+            (2, RigidBodyType::KinematicPositionBased),
+            (3, RigidBodyType::KinematicVelocityBased)
+        ].into())
+    }
 }
 
 impl Default for RigidBody2D {
@@ -24,6 +36,21 @@ impl Default for RigidBody2D {
 
 impl Edit for RigidBody2D {
     fn name() -> &'static str { "RigidBody2D" }
+
+    fn get_data(&self) -> ComponentData {
+        let mut data = ComponentData::new(Self::name());
+        data.variants.push(Variant::new("body_type", Value::Int32(self.body_type as i32)));
+        data
+    }
+
+    fn set_data(&mut self, data: &ComponentData) {
+        for v in &data.variants {
+            match v.name.as_str() {
+                "body_type" => self.body_type = if let Value::Int32(v) = v.value { *Self::i32_to_rbt().get(&v).unwrap_or(&RigidBodyType::Dynamic) } else { RigidBodyType::Dynamic },
+                _ => (),
+            }
+        }
+    }
 }
 
 pub struct ShapeWrapper(SharedShape);
