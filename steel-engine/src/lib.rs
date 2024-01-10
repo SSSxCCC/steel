@@ -20,15 +20,15 @@ pub fn setup_logger(logger: &'static dyn Log, level: LevelFilter) -> Result<(), 
 pub trait Edit: Component + Default {
     fn name() -> &'static str;
 
-    fn to_data(&self) -> ComponentData {
+    fn get_data(&self) -> ComponentData {
         ComponentData::new(Self::name())
     }
 
-    fn from_data(&mut self, data: &ComponentData) { }
+    fn set_data(&mut self, data: &ComponentData) { }
 
     fn from(data: &ComponentData) -> Self {
         let mut e = Self::default();
-        e.from_data(data);
+        e.set_data(data);
         e
     }
 }
@@ -55,7 +55,7 @@ impl WorldDataExt for WorldData {
                 if index == self.entities.len() {
                     self.entities.push(EntityData { id: e, components: Vec::new() });
                 }
-                self.entities[index].components.push(c.to_data());
+                self.entities[index].components.push(c.get_data());
             }
         })
     }
@@ -98,7 +98,7 @@ pub struct Transform2D {
 impl Edit for Transform2D {
     fn name() -> &'static str { "Transform2D" }
 
-    fn to_data(&self) -> ComponentData {
+    fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new(Self::name());
         data.variants.push(Variant::new("position", Value::Vec3(self.position)));
         data.variants.push(Variant::new("rotation", Value::Float32(self.rotation)));
@@ -106,7 +106,7 @@ impl Edit for Transform2D {
         data
     }
 
-    fn from_data(&mut self, data: &ComponentData) {
+    fn set_data(&mut self, data: &ComponentData) {
         for v in &data.variants {
             match v.name.as_str() {
                 "position" => self.position = if let Value::Vec3(position) = v.value { position } else { Default::default() },
