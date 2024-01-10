@@ -115,6 +115,36 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>,
         mut transform2d: ViewMut<Transform2D>) {
     let physics2d_manager = physics2d_manager.as_mut();
+
+    for e in rb2d.removed() {
+        log::warn!("Leak warning: RigidBody2D component of entity({e:?}) has been removed, \
+            we don't know its handle so that its body can not be removed from physics world! \
+            please use delete instead of remove on RigidBody2D component");
+    }
+
+    for e in col2d.removed() {
+        log::warn!("Leak warning: Collider2D component of entity({e:?}) has been removed, \
+            we don't know its handle so that its body can not be removed from physics world! \
+            please use delete instead of remove on Collider2D component");
+    }
+
+    for (_, rb2d) in rb2d.deleted() {
+        if physics2d_manager.rigid_body_set.contains(rb2d.handle) {
+            physics2d_manager.rigid_body_set.remove(rb2d.handle,
+                &mut physics2d_manager.island_manager, &mut physics2d_manager.collider_set,
+                &mut physics2d_manager.impulse_joint_set, &mut physics2d_manager.multibody_joint_set,
+                false);
+        }
+    }
+
+    for (_, col2d) in col2d.deleted() {
+        if physics2d_manager.collider_set.contains(col2d.handle) {
+            physics2d_manager.collider_set.remove(col2d.handle,
+                &mut physics2d_manager.island_manager, &mut physics2d_manager.rigid_body_set,
+                true);
+        }
+    }
+
     for (e, mut rb2d) in rb2d.inserted_or_modified_mut().iter().with_id() {
         if let Some(rigid_body) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
             rigid_body.set_body_type(rb2d.body_type, true);
@@ -157,6 +187,8 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
         }
     }
 
+    rb2d.clear_all_removed_and_deleted();
+    col2d.clear_all_removed_and_deleted();
     rb2d.clear_all_inserted_and_modified();
     col2d.clear_all_inserted_and_modified();
 }
