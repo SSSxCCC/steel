@@ -45,7 +45,7 @@ impl Edit for RigidBody2D {
     fn set_data(&mut self, data: &ComponentData) {
         for v in &data.variants {
             match v.name.as_str() {
-                "body_type" => self.body_type = if let Value::Int32(i) = v.value { Self::i32_to_rigid_body_type(i) } else { RigidBodyType::Dynamic },
+                "body_type" => if let Value::Int32(i) = v.value { self.body_type = Self::i32_to_rigid_body_type(i) },
                 _ => (),
             }
         }
@@ -90,6 +90,21 @@ impl Default for Collider2D {
 
 impl Edit for Collider2D {
     fn name() -> &'static str { "Collider2D" }
+
+    fn get_data(&self) -> ComponentData {
+        let mut data = ComponentData::new(Self::name());
+        data.variants.push(Variant::new("restitution", Value::Float32(self.restitution)));
+        data
+    }
+
+    fn set_data(&mut self, data: &ComponentData) {
+        for v in &data.variants {
+            match v.name.as_str() {
+                "restitution" => if let Value::Float32(f) = v.value { self.restitution = f },
+                _ => (),
+            }
+        }
+    }
 }
 
 #[derive(Unique)]

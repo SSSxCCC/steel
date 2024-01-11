@@ -109,9 +109,9 @@ impl Edit for Transform2D {
     fn set_data(&mut self, data: &ComponentData) {
         for v in &data.variants {
             match v.name.as_str() {
-                "position" => self.position = if let Value::Vec3(position) = v.value { position } else { Default::default() },
-                "rotation" => self.rotation = if let Value::Float32(rotation) = v.value { rotation } else { Default::default() },
-                "scale" => self.scale = if let Value::Vec2(scale) = v.value { scale } else { Vec2::ONE },
+                "position" => if let Value::Vec3(v) = v.value { self.position = v },
+                "rotation" => if let Value::Float32(f) = v.value { self.rotation = f },
+                "scale" => if let Value::Vec2(v) = v.value { self.scale = v },
                 _ => (),
             }
         }
