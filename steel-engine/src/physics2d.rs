@@ -1,4 +1,3 @@
-use std::{collections::HashMap, sync::OnceLock};
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
@@ -17,14 +16,14 @@ impl RigidBody2D {
         RigidBody2D { handle: RigidBodyHandle::invalid(), body_type }
     }
 
-    pub fn i32_to_rbt() -> &'static HashMap<i32, RigidBodyType> {
-        static HASHMAP: OnceLock<HashMap<i32, RigidBodyType>> = OnceLock::new();
-        HASHMAP.get_or_init(|| [
-            (0, RigidBodyType::Dynamic),
-            (1, RigidBodyType::Fixed),
-            (2, RigidBodyType::KinematicPositionBased),
-            (3, RigidBodyType::KinematicVelocityBased)
-        ].into())
+    pub fn i32_to_rigid_body_type(i: i32) -> RigidBodyType {
+        match i {
+            0 => RigidBodyType::Dynamic,
+            1 => RigidBodyType::Fixed,
+            2 => RigidBodyType::KinematicPositionBased,
+            3 => RigidBodyType::KinematicVelocityBased,
+            _ => RigidBodyType::Dynamic,
+        }
     }
 }
 
@@ -46,7 +45,7 @@ impl Edit for RigidBody2D {
     fn set_data(&mut self, data: &ComponentData) {
         for v in &data.variants {
             match v.name.as_str() {
-                "body_type" => self.body_type = if let Value::Int32(v) = v.value { *Self::i32_to_rbt().get(&v).unwrap_or(&RigidBodyType::Dynamic) } else { RigidBodyType::Dynamic },
+                "body_type" => self.body_type = if let Value::Int32(i) = v.value { Self::i32_to_rigid_body_type(i) } else { RigidBodyType::Dynamic },
                 _ => (),
             }
         }
