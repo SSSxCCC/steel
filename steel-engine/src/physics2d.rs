@@ -1,7 +1,8 @@
+use glam::Vec2;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
-use steel_common::{ComponentData, Value, Variant};
+use steel_common::{ComponentData, Value, Variant, ValueMap};
 use crate::{Transform2D, Edit};
 
 #[derive(Component, Debug)]
@@ -80,6 +81,45 @@ impl Collider2D {
     pub fn new(shape: SharedShape, restitution: f32) -> Self {
         Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution }
     }
+
+    pub fn i32_to_shape_type(i: &i32) -> ShapeType {
+        match i {
+            0 => ShapeType::Ball,
+            1 => ShapeType::Cuboid,
+            2 => ShapeType::Capsule,
+            3 => ShapeType::Segment,
+            4 => ShapeType::Triangle,
+            _ => ShapeType::Ball, // TODO: support all shape type
+        }
+    }
+
+    fn get_shape_data(&self, variants: &mut Vec<Variant>) {
+        variants.push(Variant::new("shape_type", Value::Int32(self.shape.shape_type() as i32)));
+        if let Some(shape) = self.shape.as_ball() {
+            variants.push(Variant::new("radius", Value::Float32(shape.radius)));
+        } else if let Some(shape) = self.shape.as_cuboid() {
+            variants.push(Variant::new("size", Value::Vec2(Vec2::new(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0))));
+        } // TODO: support all shape type
+    }
+
+    fn set_shape_data(&mut self, value_map: &ValueMap) {
+        if let Some(Value::Int32(i)) = value_map.get("shape_type") {
+            let shape_type = Self::i32_to_shape_type(i);
+            match shape_type {
+                ShapeType::Ball => { // We have to create a new shape because SharedShape::as_shape_mut method can not compile
+                    let mut shape = if let Some(shape) = self.shape.as_ball() { *shape } else { Ball::new(0.5) };
+                    if let Some(Value::Float32(f)) = value_map.get("radius") { shape.radius = *f }
+                    self.shape = ShapeWrapper(SharedShape::new(shape));
+                },
+                ShapeType::Cuboid => {
+                    let mut shape = if let Some(shape) = self.shape.as_cuboid() { *shape } else { Cuboid::new([0.5, 0.5].into()) };
+                    if let Some(Value::Vec2(v)) = value_map.get("size") { (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0) }
+                    self.shape = ShapeWrapper(SharedShape::new(shape));
+                },
+                _ => (), // TODO: support all shape type
+            }
+        }
+    }
 }
 
 impl Default for Collider2D {
@@ -93,17 +133,15 @@ impl Edit for Collider2D {
 
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new(Self::name());
+        self.get_shape_data(&mut data.variants);
         data.variants.push(Variant::new("restitution", Value::Float32(self.restitution)));
         data
     }
 
     fn set_data(&mut self, data: &ComponentData) {
-        for v in &data.variants {
-            match v.name.as_str() {
-                "restitution" => if let Value::Float32(f) = v.value { self.restitution = f },
-                _ => (),
-            }
-        }
+        let value_map = data.value_map();
+        self.set_shape_data(&value_map);
+        if let Some(Value::Float32(f)) = value_map.get("restitution") { self.restitution = *f };
     }
 }
 

@@ -24,6 +24,9 @@ pub enum Value {
     Vec4(Vec4),
 }
 
+/// name -> value hash map
+pub type ValueMap<'a> = HashMap<&'a str, &'a Value>;
+
 #[derive(Debug)]
 pub struct Variant {
     // &'static str is too dangerous to be used here because
@@ -48,6 +51,10 @@ pub struct ComponentData {
 impl ComponentData {
     pub fn new(name: impl Into<String>) -> Self {
         ComponentData { name: name.into(), variants: Vec::new() }
+    }
+
+    pub fn value_map(&self) -> ValueMap {
+        HashMap::from_iter(self.variants.iter().map(|v| (v.name.as_str(), &v.value)))
     }
 }
 
