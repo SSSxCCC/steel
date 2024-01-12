@@ -17,7 +17,7 @@ impl RigidBody2D {
         RigidBody2D { handle: RigidBodyHandle::invalid(), body_type }
     }
 
-    pub fn i32_to_rigid_body_type(i: i32) -> RigidBodyType {
+    pub fn i32_to_rigid_body_type(i: &i32) -> RigidBodyType {
         match i {
             0 => RigidBodyType::Dynamic,
             1 => RigidBodyType::Fixed,
@@ -44,12 +44,8 @@ impl Edit for RigidBody2D {
     }
 
     fn set_data(&mut self, data: &ComponentData) {
-        for v in &data.variants {
-            match v.name.as_str() {
-                "body_type" => if let Value::Int32(i) = v.value { self.body_type = Self::i32_to_rigid_body_type(i) },
-                _ => (),
-            }
-        }
+        let value_map = data.value_map();
+        if let Some(Value::Int32(i)) = value_map.get("body_type") { self.body_type = Self::i32_to_rigid_body_type(i) }
     }
 }
 

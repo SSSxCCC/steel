@@ -107,13 +107,9 @@ impl Edit for Transform2D {
     }
 
     fn set_data(&mut self, data: &ComponentData) {
-        for v in &data.variants {
-            match v.name.as_str() {
-                "position" => if let Value::Vec3(v) = v.value { self.position = v },
-                "rotation" => if let Value::Float32(f) = v.value { self.rotation = f },
-                "scale" => if let Value::Vec2(v) = v.value { self.scale = v },
-                _ => (),
-            }
-        }
+        let value_map = data.value_map();
+        if let Some(Value::Vec3(v)) = value_map.get("position") { self.position = *v }
+        if let Some(Value::Float32(f)) = value_map.get("rotation") { self.rotation = *f }
+        if let Some(Value::Vec2(v)) = value_map.get("scale") { self.scale = *v }
     }
 }
