@@ -23,6 +23,8 @@ glam = "0.24.2"
 egui_winit_vulkano = "0.25.0"
 egui = "0.22.0"
 egui_demo_lib = "0.22.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 env_logger = "0.10.0"
