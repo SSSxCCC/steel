@@ -15,10 +15,10 @@ vulkano-win = "0.33.0"
 vulkano-util = "0.33.0"
 log = "0.4"
 winit = { version = "0.28.6", features = [ "android-game-activity" ] }
-shipyard = "0.6.2"
+shipyard = { version = "0.6.2", features = [ "serde1" ] }
 rayon = "1.8.0"
 rapier2d = "0.17.2"
-glam = "0.24.2"
+glam = { version = "0.24.2", features = [ "serde" ] }
 egui_winit_vulkano = "0.25.0"
 egui = "0.22.0"
 egui_demo_lib = "0.22.0"

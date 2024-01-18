@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 use glam::{Vec2, Vec3, Vec4};
+use serde::{Serialize, Deserialize};
 use shipyard::EntityId;
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
@@ -14,7 +15,7 @@ pub trait Engine {
     fn load(&mut self, world_data: &WorldData);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Value {
     Int32(i32),
     Float32(f32),
@@ -27,7 +28,7 @@ pub enum Value {
 /// name -> value hash map
 pub type ValueMap<'a> = HashMap<&'a str, &'a Value>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Variant {
     // &'static str is too dangerous to be used here because
     // its memory is no longer exist when steel.dll is unloaded!
@@ -42,7 +43,7 @@ impl Variant {
 }
 
 // ComponentData contains all variant in a component
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentData {
     pub name: String,
     pub variants: Vec<Variant>,
@@ -59,14 +60,14 @@ impl ComponentData {
 }
 
 // EntityData contains all component data in a entity, key is component name
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EntityData {
     pub id: EntityId,
     pub components: Vec<ComponentData>,
 }
 
 // WorldData contains all entity data in the world
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorldData {
     pub entities: Vec<EntityData>,
     pub id_index_map: HashMap<EntityId, usize>,
