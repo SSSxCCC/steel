@@ -70,12 +70,24 @@ pub struct EntityData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorldData {
     pub entities: Vec<EntityData>,
-    pub id_index_map: HashMap<EntityId, usize>,
+    entity_index_map: Option<HashMap<EntityId, usize>>,
 }
 
 impl WorldData {
     pub fn new() -> Self {
-        WorldData{entities: Vec::new(), id_index_map: HashMap::new()}
+        WorldData { entities: Vec::new(), entity_index_map: None }
+    }
+
+    pub fn entity_index_map(&mut self) -> &mut HashMap<EntityId, usize> {
+        self.entity_index_map.get_or_insert_with(|| Self::build_entity_index_map(&self.entities))
+    }
+
+    fn build_entity_index_map(entities: &Vec<EntityData>) -> HashMap<EntityId, usize> {
+        let mut entity_index_map = HashMap::new();
+        for (index, entity_data) in entities.iter().enumerate() {
+            entity_index_map.insert(entity_data.id, index);
+        }
+        entity_index_map
     }
 }
 

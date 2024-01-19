@@ -51,7 +51,8 @@ impl WorldDataExt for WorldData {
     fn add_component<T: Edit + Send + Sync>(&mut self, world: &World) {
         world.run(|c: View<T>| {
             for (e, c) in c.iter().with_id() {
-                let index = *self.id_index_map.entry(e).or_insert(self.entities.len());
+                let len = self.entities.len();
+                let index = *self.entity_index_map().entry(e).or_insert(len);
                 if index == self.entities.len() {
                     self.entities.push(EntityData { id: e, components: Vec::new() });
                 }

@@ -151,8 +151,9 @@ impl Editor {
             }
         });
 
-        if let Some(index) = world_data.id_index_map.get(&self.selected_entity) {
-            let entity_data = &mut world_data.entities[*index];
+        let index = world_data.entity_index_map().get(&self.selected_entity).map(|i| *i);
+        if let Some(index) = index {
+            let entity_data = &mut world_data.entities[index];
             egui::Window::new("Components").show(&ctx, |ui| {
                 for component_data in &mut entity_data.components {
                     ui.label(&component_data.name);
