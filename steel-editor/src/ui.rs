@@ -87,6 +87,18 @@ impl Editor {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
+                    if project.is_open() && !project.is_running() {
+                        if ui.button("Save").clicked() {
+                            log::info!("Menu->Project->Save");
+                            project.save_to_file();
+                            ui.close_menu();
+                        }
+                        if ui.button("Load").clicked() {
+                            log::info!("Menu->Project->Load");
+                            project.load_from_file();
+                            ui.close_menu();
+                        }
+                    }
                     if ui.button("Open").clicked() {
                         log::info!("Menu->Project->Open");
                         self.show_open_project_dialog = true;
@@ -115,9 +127,9 @@ impl Editor {
                         if ui.button(text).clicked() {
                             log::info!("Menu->Run->{text}");
                             if project.is_running() {
-                                project.load();
+                                project.load_from_memory();
                             } else {
-                                project.save();
+                                project.save_to_memory();
                             }
                             project.set_running(!project.is_running());
                             ui.close_menu();

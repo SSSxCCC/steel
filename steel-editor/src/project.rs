@@ -66,10 +66,10 @@ impl Project {
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
 
-            let data = Self::read_world_data(state.path.join("scene.json"));
+            let data = Self::_load_from_file(state.path.join("scene.json"));
             match &data {
                 Ok(_) => log::debug!("Loaded WorldData from scene.json"),
-                Err(e) => log::debug!("Failed to load WorldData from scene.json because {e}"),
+                Err(err) => log::debug!("Failed to load WorldData from scene.json because {err}"),
             }
             engine.init(data.as_ref().ok());
             let data = engine.save();
@@ -83,11 +83,6 @@ impl Project {
 
     pub fn is_compiled(&self) -> bool {
         return self.compiled_ref().is_some();
-    }
-
-    fn read_world_data(path: PathBuf) -> Result<WorldData, Box<dyn Error>> {
-        let s = fs::read_to_string(path)?;
-        Ok(serde_json::from_str::<WorldData>(&s)?)
     }
 
     pub fn engine(&mut self) -> Option<&mut Box<dyn Engine>> {
@@ -112,16 +107,54 @@ impl Project {
         self.compiled_ref().is_some_and(|compiled| compiled.running)
     }
 
-    pub fn save(&mut self) {
+    pub fn save_to_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
             compiled.data = compiled.engine.save();
         }
     }
 
-    pub fn load(&mut self) {
+    pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
             compiled.engine.load(&compiled.data);
         }
+    }
+
+    pub fn save_to_file(&mut self) {
+        if let Some(state) = &mut self.state {
+            let path = state.path.join("scene.json");
+            if let Some(compiled) = &mut state.compiled {
+                compiled.data = compiled.engine.save();
+                if let Some(err) = Self::_save_to_file(&compiled.data, path).err() {
+                    log::warn!("Failed to save WorldData to scene.json because {err}");
+                }
+            }
+        }
+    }
+
+    fn _save_to_file(data: &WorldData, path: PathBuf) -> Result<(), Box<dyn Error>> {
+        let s = serde_json::to_string(data)?;
+        fs::write(path, s)?;
+        Ok(())
+    }
+
+    pub fn load_from_file(&mut self) {
+        if let Some(state) = &mut self.state {
+            let path = state.path.join("scene.json");
+            if let Some(compiled) = &mut state.compiled {
+                match Self::_load_from_file(path) {
+                    Ok(data) => {
+                        compiled.data = data;
+                        compiled.engine.load(&compiled.data);
+                    }
+                    Err(err) => log::warn!("Failed to load WorldData from scene.json because {err}"),
+                }
+            }
+        }
+    }
+
+    fn _load_from_file(path: PathBuf) -> Result<WorldData, Box<dyn Error>> {
+        let s = fs::read_to_string(path)?;
+        Ok(serde_json::from_str::<WorldData>(&s)?)
     }
 }
 
