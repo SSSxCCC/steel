@@ -1,0 +1,151 @@
+{
+  "entities": [
+    {
+      "id": {
+        "index": 0,
+        "gen": 5
+      },
+      "components": [
+        {
+          "name": "Transform2D",
+          "variants": [
+            {
+              "name": "position",
+              "value": {
+                "Vec3": [
+                  0.0,
+                  10.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "name": "rotation",
+              "value": {
+                "Float32": 0.0
+              }
+            },
+            {
+              "name": "scale",
+              "value": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RigidBody2D",
+          "variants": [
+            {
+              "name": "body_type",
+              "value": {
+                "Int32": 0
+              }
+            }
+          ]
+        },
+        {
+          "name": "Collider2D",
+          "variants": [
+            {
+              "name": "shape_type",
+              "value": {
+                "Int32": 1
+              }
+            },
+            {
+              "name": "size",
+              "value": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              }
+            },
+            {
+              "name": "restitution",
+              "value": {
+                "Float32": 0.7
+              }
+            }
+          ]
+        },
+        {
+          "name": "Renderer2D",
+          "variants": []
+        }
+      ]
+    },
+    {
+      "id": {
+        "index": 1,
+        "gen": 5
+      },
+      "components": [
+        {
+          "name": "Transform2D",
+          "variants": [
+            {
+              "name": "position",
+              "value": {
+                "Vec3": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "name": "rotation",
+              "value": {
+                "Float32": 0.0
+              }
+            },
+            {
+              "name": "scale",
+              "value": {
+                "Vec2": [
+                  20.0,
+                  0.2
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Collider2D",
+          "variants": [
+            {
+              "name": "shape_type",
+              "value": {
+                "Int32": 1
+              }
+            },
+            {
+              "name": "size",
+              "value": {
+                "Vec2": [
+                  20.0,
+                  0.2
+                ]
+              }
+            },
+            {
+              "name": "restitution",
+              "value": {
+                "Float32": 0.7
+              }
+            }
+          ]
+        },
+        {
+          "name": "Renderer2D",
+          "variants": []
+        }
+      ]
+    }
+  ]
+}

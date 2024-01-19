@@ -70,6 +70,7 @@ pub struct EntityData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorldData {
     pub entities: Vec<EntityData>,
+    #[serde(skip)]
     entity_index_map: Option<HashMap<EntityId, usize>>,
 }
 

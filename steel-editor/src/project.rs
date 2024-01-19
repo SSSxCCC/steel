@@ -132,7 +132,7 @@ impl Project {
     }
 
     fn _save_to_file(data: &WorldData, path: PathBuf) -> Result<(), Box<dyn Error>> {
-        let s = serde_json::to_string(data)?;
+        let s = serde_json::to_string_pretty(data)?;
         fs::write(path, s)?;
         Ok(())
     }
