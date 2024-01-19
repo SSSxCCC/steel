@@ -6,7 +6,7 @@ use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
 pub trait Engine {
-    fn init(&mut self);
+    fn init(&mut self, world_data: Option<&WorldData>);
     fn maintain(&mut self);
     fn update(&mut self);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;

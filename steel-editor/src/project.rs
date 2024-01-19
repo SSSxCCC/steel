@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::Command, error::Error};
+use std::{path::PathBuf, process::Command, error::Error, fs};
 use steel_common::{Engine, WorldData};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
@@ -66,8 +66,13 @@ impl Project {
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
 
-            engine.init();
-            let data = engine.save(); // TODO: load WorldData from file
+            let data = Self::read_world_data(state.path.join("scene.json"));
+            match &data {
+                Ok(_) => log::debug!("Loaded WorldData from scene.json"),
+                Err(e) => log::debug!("Failed to load WorldData from scene.json because {e}"),
+            }
+            engine.init(data.as_ref().ok());
+            let data = engine.save();
 
             state.compiled = Some(ProjectCompiledState { engine, library, data, running: false });
             Ok(())
@@ -78,6 +83,11 @@ impl Project {
 
     pub fn is_compiled(&self) -> bool {
         return self.compiled_ref().is_some();
+    }
+
+    fn read_world_data(path: PathBuf) -> Result<WorldData, Box<dyn Error>> {
+        let s = fs::read_to_string(path)?;
+        Ok(serde_json::from_str::<WorldData>(&s)?)
     }
 
     pub fn engine(&mut self) -> Option<&mut Box<dyn Engine>> {

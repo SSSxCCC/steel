@@ -15,18 +15,21 @@ impl EngineImpl {
 }
 
 impl Engine for EngineImpl {
-    fn init(&mut self) {
+    fn init(&mut self, world_data: Option<&WorldData>) {
         log::debug!("Engine::init");
+        self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
 
-        self.world.add_unique(Physics2DManager::new());
-
-        self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
-                RigidBody2D::new(RigidBodyType::Dynamic),
-                Collider2D::new(SharedShape::cuboid(0.5, 0.5), 0.7),
-                Renderer2D));
-        self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: 0.0, scale: Vec2 { x: 20.0, y: 0.2 } },
-                Collider2D::new(SharedShape::cuboid(10.0, 0.1), 0.7),
-                Renderer2D));
+        if let Some(world_data) = world_data { // load from world_data
+            self.load(world_data);
+        } else { // create empty scene
+            self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
+                    RigidBody2D::new(RigidBodyType::Dynamic),
+                    Collider2D::new(SharedShape::cuboid(0.5, 0.5), 0.7),
+                    Renderer2D));
+            self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: 0.0, scale: Vec2 { x: 20.0, y: 0.2 } },
+                    Collider2D::new(SharedShape::cuboid(10.0, 0.1), 0.7),
+                    Renderer2D));
+        }
     }
 
     fn maintain(&mut self) {
