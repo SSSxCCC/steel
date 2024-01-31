@@ -20,7 +20,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
 
         if let Some(world_data) = world_data { // load from world_data
-            self.load(world_data);
+            self.reload(world_data);
         } else { // create empty scene
             self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
                     RigidBody2D::new(RigidBodyType::Dynamic),
@@ -60,8 +60,13 @@ impl Engine for EngineImpl {
         WorldData::with_core_components(&self.world)
     }
 
-    fn load(&mut self, world_data: &WorldData) {
+    fn load(&mut self, world_data: &mut WorldData) { // TODO: remove mut in world_data
         log::trace!("Engine::load");
-        self.world.create_components(world_data);
+        self.world.load_core_components(world_data);
+    }
+
+    fn reload(&mut self, world_data: &WorldData) {
+        log::debug!("Engine::reload");
+        self.world.recreate_core_components(world_data);
     }
 }

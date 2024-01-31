@@ -162,7 +162,7 @@ impl Editor {
                             ui.label(&variant.name);
                             match &mut variant.value {
                                 Value::Float32(v) => {
-                                    ui.label(format!("{}", v));
+                                    ui.add(egui::DragValue::new(v));
                                 }
                                 Value::Int32(v) => {
                                     ui.label(format!("{}", v));

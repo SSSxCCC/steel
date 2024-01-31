@@ -94,6 +94,7 @@ fn _main(event_loop: EventLoop<()>) {
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
+                    if let Some(world_data) = world_data.as_mut() { engine.load(world_data); }
                     engine.maintain();
                     if is_running {
                         engine.update();

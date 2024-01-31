@@ -115,7 +115,7 @@ impl Project {
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.load(&compiled.data);
+            compiled.engine.reload(&compiled.data);
         }
     }
 
@@ -144,7 +144,7 @@ impl Project {
                 match Self::_load_from_file(path) {
                     Ok(data) => {
                         compiled.data = data;
-                        compiled.engine.load(&compiled.data);
+                        compiled.engine.reload(&compiled.data);
                     }
                     Err(err) => log::warn!("Failed to load WorldData from scene.json because {err}"),
                 }

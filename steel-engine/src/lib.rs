@@ -7,7 +7,7 @@ pub use steel_common::*;
 use std::collections::HashMap;
 use render2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
-use shipyard::{Component, IntoIter, IntoWithId, View, World, EntityId};
+use shipyard::{Component, IntoIter, IntoWithId, View, World, EntityId, ViewMut, track::{Untracked, All}};
 use glam::{Vec3, Vec2};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -54,7 +54,7 @@ impl WorldDataExt for WorldData {
                 let len = self.entities.len();
                 let index = *self.entity_index_map().entry(e).or_insert(len);
                 if index == self.entities.len() {
-                    self.entities.push(EntityData { id: e, components: Vec::new() });
+                    self.entities.push(EntityData::new(e));
                 }
                 self.entities[index].components.push(c.get_data());
             }
@@ -63,12 +63,55 @@ impl WorldDataExt for WorldData {
 }
 
 pub trait WorldExt {
-    fn create_components(&mut self, data: &WorldData);
+    fn load_core_components(&mut self, world_data: &mut WorldData);
+    // Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157
+    // TODO: find a way to write only one generic load_component function to cover all tracking type
+    fn load_component_untracked<T: Edit<Tracking = Untracked> + Send + Sync>(&mut self, world_data: &mut WorldData);
+    fn load_component_trackall<T: Edit<Tracking = All> + Send + Sync>(&mut self, world_data: &mut WorldData);
+    fn load_component<T: Edit>(id: EntityId, t: &mut T, world_data: &mut WorldData);
+    fn recreate_core_components(&mut self, data: &WorldData);
     fn create_component<T: Edit + Send + Sync>(&mut self, id: EntityId, data: &ComponentData);
 }
 
 impl WorldExt for World {
-    fn create_components(&mut self, data: &WorldData) {
+    fn load_core_components(&mut self, world_data: &mut WorldData) {
+        self.load_component_untracked::<Transform2D>(world_data);
+        self.load_component_trackall::<RigidBody2D>(world_data);
+        self.load_component_trackall::<Collider2D>(world_data);
+        self.load_component_untracked::<Renderer2D>(world_data);
+    }
+
+    fn load_component_untracked<T: Edit<Tracking = Untracked> + Send + Sync>(&mut self, world_data: &mut WorldData) {
+        self.run(|mut t: ViewMut<T>| {
+            for (id, t) in (&mut t).iter().with_id() {
+                Self::load_component(id, t, world_data);
+            }
+        })
+    }
+
+    fn load_component_trackall<T: Edit<Tracking = All> + Send + Sync>(&mut self, world_data: &mut WorldData) {
+        self.run(|mut t: ViewMut<T>| {
+            for (id, mut t) in (&mut t).iter().with_id() {
+                Self::load_component(id, t.as_mut(), world_data);
+            }
+        })
+    }
+
+    fn load_component<T: Edit>(id: EntityId, t: &mut T, world_data: &mut WorldData) {
+        let len = world_data.entities.len();
+        let index = *world_data.entity_index_map().get(&id).unwrap_or(&len);
+        if index < len {
+            let entity_data = &mut world_data.entities[index];
+            let len = entity_data.components.len();
+            let index = *entity_data.component_index_map().get(T::name()).unwrap_or(&len);
+            if index < len {
+                let component_data = &entity_data.components[index];
+                t.set_data(component_data);
+            }
+        }
+    }
+
+    fn recreate_core_components(&mut self, data: &WorldData) {
         self.clear();
         let mut old_id_to_new_id = HashMap::new();
         for entity_data in &data.entities {

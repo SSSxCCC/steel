@@ -12,7 +12,8 @@ pub trait Engine {
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn draw_editor(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn save(&self) -> WorldData;
-    fn load(&mut self, world_data: &WorldData);
+    fn load(&mut self, world_data: &mut WorldData);
+    fn reload(&mut self, world_data: &WorldData);
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,6 +65,26 @@ impl ComponentData {
 pub struct EntityData {
     pub id: EntityId,
     pub components: Vec<ComponentData>,
+    #[serde(skip)]
+    component_index_map: Option<HashMap<String, usize>>,
+}
+
+impl EntityData {
+    pub fn new(id: EntityId) -> Self {
+        EntityData { id, components: Vec::new(), component_index_map: None }
+    }
+
+    pub fn component_index_map(&mut self) -> &HashMap<String, usize> {
+        self.component_index_map.get_or_insert_with(|| Self::build_component_index_map(&self.components))
+    }
+
+    fn build_component_index_map(components: &Vec<ComponentData>) -> HashMap<String, usize> {
+        let mut component_index_map = HashMap::new();
+        for (index, component) in components.iter().enumerate() {
+            component_index_map.insert(component.name.clone(), index);
+        }
+        component_index_map
+    }
 }
 
 // WorldData contains all entity data in the world
