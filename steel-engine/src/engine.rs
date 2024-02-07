@@ -1,4 +1,4 @@
-use crate::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}, WorldDataExt, WorldExt};
+use crate::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}, WorldDataExt, WorldExt, EntityInfo};
 use shipyard::World;
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
@@ -22,11 +22,13 @@ impl Engine for EngineImpl {
         if let Some(world_data) = world_data { // load from world_data
             self.reload(world_data);
         } else { // create empty scene
-            self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
+            self.world.add_entity((EntityInfo::new("Object"),
+                    Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
                     RigidBody2D::new(RigidBodyType::Dynamic),
                     Collider2D::new(SharedShape::cuboid(0.5, 0.5), 0.7),
                     Renderer2D));
-            self.world.add_entity((Transform2D { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: 0.0, scale: Vec2 { x: 20.0, y: 0.2 } },
+            self.world.add_entity((EntityInfo::new("Ground"),
+                    Transform2D { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: 0.0, scale: Vec2 { x: 20.0, y: 0.2 } },
                     Collider2D::new(SharedShape::cuboid(10.0, 0.1), 0.7),
                     Renderer2D));
         }

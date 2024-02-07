@@ -2,7 +2,7 @@ use std::{sync::Arc, path::PathBuf, fs, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::Vec2;
 use shipyard::EntityId;
-use steel_common::{WorldData, Value};
+use steel_common::{WorldData, Value, EntityData};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
@@ -145,7 +145,7 @@ impl Editor {
     fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
         egui::Window::new("Entities").show(&ctx, |ui| {
             for entity_data in &mut world_data.entities {
-                if ui.selectable_label(self.selected_entity == entity_data.id, format!("{:?}", entity_data.id)).clicked() {
+                if ui.selectable_label(self.selected_entity == entity_data.id, Self::entity_label(entity_data)).clicked() {
                     self.selected_entity = entity_data.id;
                 }
             }
@@ -165,27 +165,65 @@ impl Editor {
                                     ui.add(egui::DragValue::new(v));
                                 }
                                 Value::Int32(v) => {
-                                    ui.label(format!("{}", v));
+                                    ui.add(egui::DragValue::new(v));
                                 }
                                 Value::String(v) => {
-                                    ui.label(format!("{}", v));
+                                    ui.text_edit_singleline(v);
                                 }
                                 Value::Vec2(v) => {
-                                    ui.label(format!("{}", v));
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut v.x));
+                                        ui.add(egui::DragValue::new(&mut v.y));
+                                    });
                                 }
                                 Value::Vec3(v) => {
-                                    ui.label(format!("{}", v));
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut v.x));
+                                        ui.add(egui::DragValue::new(&mut v.y));
+                                        ui.add(egui::DragValue::new(&mut v.z));
+                                    });
                                 }
                                 Value::Vec4(v) => {
-                                    ui.label(format!("{}", v));
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut v.x));
+                                        ui.add(egui::DragValue::new(&mut v.y));
+                                        ui.add(egui::DragValue::new(&mut v.z));
+                                        ui.add(egui::DragValue::new(&mut v.w));
+                                    });
                                 }
                             }
+                        });
+                    }
+                    if component_data.name == "EntityInfo" {
+                        ui.horizontal(|ui| {
+                            ui.label("id");
+                            egui::Frame::none()
+                                .inner_margin(egui::style::Margin::symmetric(3.0, 1.0))
+                                .rounding(egui::Rounding::same(3.0))
+                                .fill(egui::Color32::BLACK)
+                                .show(ui, |ui| {
+                                    ui.label(format!("{:?}", entity_data.id));
+                                });
                         });
                     }
                     ui.separator();
                 }
             });
         }
+    }
+
+    fn entity_label(entity_data: &mut EntityData) -> impl Into<egui::WidgetText> {
+        let component_index_map = entity_data.component_index_map();
+        if let Some(i) = component_index_map.get("EntityInfo").map(|i| *i) {
+            let entity_info = &entity_data.components[i];
+            let value_map = entity_info.value_map();
+            if let Some(Value::String(s)) = value_map.get("name") {
+                if !s.is_empty() {
+                    return format!("{s}");
+                }
+            }
+        }
+        format!("{:?}", entity_data.id)
     }
 
     pub fn suspend(&mut self) {

@@ -41,6 +41,7 @@ pub trait WorldDataExt {
 impl WorldDataExt for WorldData {
     fn with_core_components(world: &World) -> Self {
         let mut world_data = WorldData::new();
+        world_data.add_component::<EntityInfo>(world);
         world_data.add_component::<Transform2D>(world);
         world_data.add_component::<RigidBody2D>(world);
         world_data.add_component::<Collider2D>(world);
@@ -75,6 +76,7 @@ pub trait WorldExt {
 
 impl WorldExt for World {
     fn load_core_components(&mut self, world_data: &mut WorldData) {
+        self.load_component_untracked::<EntityInfo>(world_data);
         self.load_component_untracked::<Transform2D>(world_data);
         self.load_component_trackall::<RigidBody2D>(world_data);
         self.load_component_trackall::<Collider2D>(world_data);
@@ -117,6 +119,7 @@ impl WorldExt for World {
         for entity_data in &data.entities {
             let id = *old_id_to_new_id.entry(entity_data.id).or_insert_with(|| self.add_entity(()));
             for component_data in &entity_data.components {
+                self.create_component::<EntityInfo>(id, component_data);
                 self.create_component::<Transform2D>(id, component_data);
                 self.create_component::<RigidBody2D>(id, component_data);
                 self.create_component::<Collider2D>(id, component_data);
@@ -155,5 +158,32 @@ impl Edit for Transform2D {
         if let Some(Value::Vec3(v)) = value_map.get("position") { self.position = *v }
         if let Some(Value::Float32(f)) = value_map.get("rotation") { self.rotation = *f }
         if let Some(Value::Vec2(v)) = value_map.get("scale") { self.scale = *v }
+    }
+}
+
+#[derive(Component, Debug, Default)]
+pub struct EntityInfo {
+    pub name: String,
+    // steel-editor can read EntityId from EntityData so that we don't need to store EntityId here
+}
+
+impl EntityInfo {
+    pub fn new(name: impl Into<String>) -> Self {
+        EntityInfo { name: name.into() }
+    }
+}
+
+impl Edit for EntityInfo {
+    fn name() -> &'static str { "EntityInfo" }
+
+    fn get_data(&self) -> ComponentData {
+        let mut data = ComponentData::new(Self::name());
+        data.variants.push(Variant::new("name", Value::String(self.name.clone())));
+        data
+    }
+
+    fn set_data(&mut self, data: &ComponentData) {
+        let value_map = data.value_map();
+        if let Some(Value::String(s)) = value_map.get("name") { self.name = s.clone() }
     }
 }

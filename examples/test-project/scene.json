@@ -7,6 +7,17 @@
       },
       "components": [
         {
+          "name": "EntityInfo",
+          "variants": [
+            {
+              "name": "name",
+              "value": {
+                "String": "Object"
+              }
+            }
+          ]
+        },
+        {
           "name": "Transform2D",
           "variants": [
             {
@@ -85,6 +96,17 @@
         "gen": 0
       },
       "components": [
+        {
+          "name": "EntityInfo",
+          "variants": [
+            {
+              "name": "name",
+              "value": {
+                "String": "Ground"
+              }
+            }
+          ]
+        },
         {
           "name": "Transform2D",
           "variants": [
