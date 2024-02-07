@@ -144,23 +144,21 @@ impl Editor {
 
     fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
         egui::Window::new("Entities").show(&ctx, |ui| {
-            for entity_data in &mut world_data.entities {
-                if ui.selectable_label(self.selected_entity == entity_data.id, Self::entity_label(entity_data)).clicked() {
-                    self.selected_entity = entity_data.id;
+            for (id, entity_data) in &world_data.entities {
+                if ui.selectable_label(self.selected_entity == *id, Self::entity_label(id, entity_data)).clicked() {
+                    self.selected_entity = *id;
                 }
             }
         });
 
-        let index = world_data.entity_index_map().get(&self.selected_entity).map(|i| *i);
-        if let Some(index) = index {
-            let entity_data = &mut world_data.entities[index];
+        if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
             egui::Window::new("Components").show(&ctx, |ui| {
-                for component_data in &mut entity_data.components {
-                    ui.label(&component_data.name);
-                    for variant in &mut component_data.variants {
+                for (component_name, component_data) in &mut entity_data.components {
+                    ui.label(component_name);
+                    for (name, value) in &mut component_data.values {
                         ui.horizontal(|ui| {
-                            ui.label(&variant.name);
-                            match &mut variant.value {
+                            ui.label(name);
+                            match value {
                                 Value::Float32(v) => {
                                     ui.add(egui::DragValue::new(v));
                                 }
@@ -194,7 +192,7 @@ impl Editor {
                             }
                         });
                     }
-                    if component_data.name == "EntityInfo" {
+                    if component_name == "EntityInfo" {
                         ui.horizontal(|ui| {
                             ui.label("id");
                             egui::Frame::none()
@@ -202,7 +200,7 @@ impl Editor {
                                 .rounding(egui::Rounding::same(3.0))
                                 .fill(egui::Color32::BLACK)
                                 .show(ui, |ui| {
-                                    ui.label(format!("{:?}", entity_data.id));
+                                    ui.label(format!("{:?}", self.selected_entity));
                                 });
                         });
                     }
@@ -212,18 +210,15 @@ impl Editor {
         }
     }
 
-    fn entity_label(entity_data: &mut EntityData) -> impl Into<egui::WidgetText> {
-        let component_index_map = entity_data.component_index_map();
-        if let Some(i) = component_index_map.get("EntityInfo").map(|i| *i) {
-            let entity_info = &entity_data.components[i];
-            let value_map = entity_info.value_map();
-            if let Some(Value::String(s)) = value_map.get("name") {
+    fn entity_label(id: &EntityId, entity_data: &EntityData) -> impl Into<egui::WidgetText> {
+        if let Some(entity_info) = entity_data.components.get("EntityInfo") {
+            if let Some(Value::String(s)) = entity_info.values.get("name") {
                 if !s.is_empty() {
                     return format!("{s}");
                 }
             }
         }
-        format!("{:?}", entity_data.id)
+        format!("{:?}", id)
     }
 
     pub fn suspend(&mut self) {

@@ -62,7 +62,7 @@ impl Engine for EngineImpl {
         WorldData::with_core_components(&self.world)
     }
 
-    fn load(&mut self, world_data: &mut WorldData) { // TODO: remove mut in world_data
+    fn load(&mut self, world_data: &WorldData) {
         log::trace!("Engine::load");
         self.world.load_core_components(world_data);
     }

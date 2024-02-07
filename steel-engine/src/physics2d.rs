@@ -1,8 +1,9 @@
 use glam::Vec2;
+use indexmap::IndexMap;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
-use steel_common::{ComponentData, Value, Variant, ValueMap};
+use steel_common::{ComponentData, Value};
 use crate::{Transform2D, Edit};
 
 #[derive(Component, Debug)]
@@ -38,14 +39,13 @@ impl Edit for RigidBody2D {
     fn name() -> &'static str { "RigidBody2D" }
 
     fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new(Self::name());
-        data.variants.push(Variant::new("body_type", Value::Int32(self.body_type as i32)));
+        let mut data = ComponentData::new();
+        data.values.insert("body_type".into(), Value::Int32(self.body_type as i32));
         data
     }
 
     fn set_data(&mut self, data: &ComponentData) {
-        let value_map = data.value_map();
-        if let Some(Value::Int32(i)) = value_map.get("body_type") { self.body_type = Self::i32_to_rigid_body_type(i) }
+        if let Some(Value::Int32(i)) = data.values.get("body_type") { self.body_type = Self::i32_to_rigid_body_type(i) }
     }
 }
 
@@ -89,27 +89,27 @@ impl Collider2D {
         }
     }
 
-    fn get_shape_data(&self, variants: &mut Vec<Variant>) {
-        variants.push(Variant::new("shape_type", Value::Int32(self.shape.shape_type() as i32)));
+    fn get_shape_data(&self, values: &mut IndexMap<String, Value>) {
+        values.insert("shape_type".into(), Value::Int32(self.shape.shape_type() as i32));
         if let Some(shape) = self.shape.as_ball() {
-            variants.push(Variant::new("radius", Value::Float32(shape.radius)));
+            values.insert("radius".into(), Value::Float32(shape.radius));
         } else if let Some(shape) = self.shape.as_cuboid() {
-            variants.push(Variant::new("size", Value::Vec2(Vec2::new(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0))));
+            values.insert("size".into(), Value::Vec2(Vec2::new(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0)));
         } // TODO: support all shape type
     }
 
-    fn set_shape_data(&mut self, value_map: &ValueMap) {
-        if let Some(Value::Int32(i)) = value_map.get("shape_type") {
+    fn set_shape_data(&mut self, values: &IndexMap<String, Value>) {
+        if let Some(Value::Int32(i)) = values.get("shape_type") {
             let shape_type = Self::i32_to_shape_type(i);
             match shape_type {
                 ShapeType::Ball => { // We have to create a new shape because SharedShape::as_shape_mut method can not compile
                     let mut shape = if let Some(shape) = self.shape.as_ball() { *shape } else { Ball::new(0.5) };
-                    if let Some(Value::Float32(f)) = value_map.get("radius") { shape.radius = *f }
+                    if let Some(Value::Float32(f)) = values.get("radius") { shape.radius = *f }
                     self.shape = ShapeWrapper(SharedShape::new(shape));
                 },
                 ShapeType::Cuboid => {
                     let mut shape = if let Some(shape) = self.shape.as_cuboid() { *shape } else { Cuboid::new([0.5, 0.5].into()) };
-                    if let Some(Value::Vec2(v)) = value_map.get("size") { (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0) }
+                    if let Some(Value::Vec2(v)) = values.get("size") { (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0) }
                     self.shape = ShapeWrapper(SharedShape::new(shape));
                 },
                 _ => (), // TODO: support all shape type
@@ -128,16 +128,15 @@ impl Edit for Collider2D {
     fn name() -> &'static str { "Collider2D" }
 
     fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new(Self::name());
-        self.get_shape_data(&mut data.variants);
-        data.variants.push(Variant::new("restitution", Value::Float32(self.restitution)));
+        let mut data = ComponentData::new();
+        self.get_shape_data(&mut data.values);
+        data.values.insert("restitution".into(), Value::Float32(self.restitution));
         data
     }
 
     fn set_data(&mut self, data: &ComponentData) {
-        let value_map = data.value_map();
-        self.set_shape_data(&value_map);
-        if let Some(Value::Float32(f)) = value_map.get("restitution") { self.restitution = *f };
+        self.set_shape_data(&data.values);
+        if let Some(Value::Float32(f)) = data.values.get("restitution") { self.restitution = *f };
     }
 }
 

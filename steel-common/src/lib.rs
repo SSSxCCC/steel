@@ -1,5 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use glam::{Vec2, Vec3, Vec4};
+use indexmap::IndexMap;
 use serde::{Serialize, Deserialize};
 use shipyard::EntityId;
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
@@ -12,10 +13,11 @@ pub trait Engine {
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn draw_editor(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn save(&self) -> WorldData;
-    fn load(&mut self, world_data: &mut WorldData);
+    fn load(&mut self, world_data: &WorldData);
     fn reload(&mut self, world_data: &WorldData);
 }
 
+/// Value is a data store in component
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Value {
     Int32(i32),
@@ -26,90 +28,42 @@ pub enum Value {
     Vec4(Vec4),
 }
 
-/// name -> value hash map
-pub type ValueMap<'a> = HashMap<&'a str, &'a Value>;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Variant {
-    // &'static str is too dangerous to be used here because
-    // its memory is no longer exist when steel.dll is unloaded!
-    pub name: String,
-    pub value: Value,
-}
-
-impl Variant {
-    pub fn new(name: impl Into<String>, value: Value) -> Self {
-        Variant { name: name.into(), value }
-    }
-}
-
-// ComponentData contains all variant in a component
+/// ComponentData contains all Value in a component
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentData {
-    pub name: String,
-    pub variants: Vec<Variant>,
+    // &'static str is too dangerous to be used in here because
+    // its memory is no longer exist when steel.dll is unloaded!
+    pub values: IndexMap<String, Value>,
 }
 
 impl ComponentData {
-    pub fn new(name: impl Into<String>) -> Self {
-        ComponentData { name: name.into(), variants: Vec::new() }
-    }
-
-    pub fn value_map(&self) -> ValueMap {
-        HashMap::from_iter(self.variants.iter().map(|v| (v.name.as_str(), &v.value)))
+    pub fn new() -> Self {
+        ComponentData { values: IndexMap::new() }
     }
 }
 
-// EntityData contains all component data in a entity, key is component name
+/// EntityData contains all ComponentData in a entity
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EntityData {
-    pub id: EntityId,
-    pub components: Vec<ComponentData>,
-    #[serde(skip)]
-    component_index_map: Option<HashMap<String, usize>>,
+    pub components: IndexMap<String, ComponentData>,
 }
 
 impl EntityData {
-    pub fn new(id: EntityId) -> Self {
-        EntityData { id, components: Vec::new(), component_index_map: None }
-    }
-
-    pub fn component_index_map(&mut self) -> &HashMap<String, usize> {
-        self.component_index_map.get_or_insert_with(|| Self::build_component_index_map(&self.components))
-    }
-
-    fn build_component_index_map(components: &Vec<ComponentData>) -> HashMap<String, usize> {
-        let mut component_index_map = HashMap::new();
-        for (index, component) in components.iter().enumerate() {
-            component_index_map.insert(component.name.clone(), index);
-        }
-        component_index_map
+    pub fn new() -> Self {
+        EntityData { components: IndexMap::new() }
     }
 }
 
-// WorldData contains all entity data in the world
+/// WorldData contains all EntityData in the world
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorldData {
-    pub entities: Vec<EntityData>,
-    #[serde(skip)]
-    entity_index_map: Option<HashMap<EntityId, usize>>,
+    #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
+    pub entities: IndexMap<EntityId, EntityData>,
 }
 
 impl WorldData {
     pub fn new() -> Self {
-        WorldData { entities: Vec::new(), entity_index_map: None }
-    }
-
-    pub fn entity_index_map(&mut self) -> &mut HashMap<EntityId, usize> {
-        self.entity_index_map.get_or_insert_with(|| Self::build_entity_index_map(&self.entities))
-    }
-
-    fn build_entity_index_map(entities: &Vec<EntityData>) -> HashMap<EntityId, usize> {
-        let mut entity_index_map = HashMap::new();
-        for (index, entity_data) in entities.iter().enumerate() {
-            entity_index_map.insert(entity_data.id, index);
-        }
-        entity_index_map
+        WorldData { entities: IndexMap::new() }
     }
 }
 
@@ -119,4 +73,31 @@ pub struct DrawInfo<'a> {
     pub renderer: &'a VulkanoWindowRenderer,
     pub image: Arc<dyn ImageViewAbstract>, // the image we will draw
     pub window_size: Vec2,
+}
+
+pub mod vectorize {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::iter::FromIterator;
+
+    pub fn serialize<'a, T, K, V, S>(target: T, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: IntoIterator<Item = (&'a K, &'a V)>,
+        K: Serialize + 'a,
+        V: Serialize + 'a,
+    {
+        let container: Vec<_> = target.into_iter().collect();
+        serde::Serialize::serialize(&container, ser)
+    }
+
+    pub fn deserialize<'de, T, K, V, D>(des: D) -> Result<T, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: FromIterator<(K, V)>,
+        K: Deserialize<'de>,
+        V: Deserialize<'de>,
+    {
+        let container: Vec<_> = serde::Deserialize::deserialize(des)?;
+        Ok(T::from_iter(container.into_iter()))
+    }
 }
