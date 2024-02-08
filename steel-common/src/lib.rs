@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use glam::{Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use serde::{Serialize, Deserialize};
@@ -15,6 +15,44 @@ pub trait Engine {
     fn save(&self) -> WorldData;
     fn load(&mut self, world_data: &WorldData);
     fn reload(&mut self, world_data: &WorldData);
+}
+
+/// Define min and max value in a range
+#[derive(Debug)]
+pub struct Range<T> {
+    pub min: T,
+    pub max: T,
+    pub min_include: bool,
+    pub max_include: bool,
+}
+
+/// Limit Value in a range or in several enum
+#[derive(Debug)]
+pub enum Limit {
+    Int32Range(Range<i32>),
+    /// limit i32 value to serval values and use String to display them
+    Int32Enum(Vec<(i32, String)>),
+    /// limit f32 value to [0, 2π) and display in [0, 360)
+    Float32Rotation,
+    Float32Range(Range<f32>),
+    Vec2Range {
+        x: Range<f32>,
+        y: Range<f32>,
+    },
+    Vec3Range {
+        x: Range<f32>,
+        y: Range<f32>,
+        z: Range<f32>,
+    },
+    Vec4Range {
+        x: Range<f32>,
+        y: Range<f32>,
+        z: Range<f32>,
+        w: Range<f32>,
+    },
+    /// display String in multiline text edit
+    StringMultiline,
+    // TODO: ReadOnly
 }
 
 /// Value is a data store in component
@@ -34,11 +72,19 @@ pub struct ComponentData {
     // &'static str is too dangerous to be used in here because
     // its memory is no longer exist when steel.dll is unloaded!
     pub values: IndexMap<String, Value>,
+    #[serde(skip)]
+    pub limits: HashMap<String, Limit>,
 }
 
 impl ComponentData {
     pub fn new() -> Self {
-        ComponentData { values: IndexMap::new() }
+        ComponentData { values: IndexMap::new(), limits: HashMap::new() }
+    }
+
+    pub fn add(&mut self, name: impl Into<String>, value: Value, limit: Limit) {
+        let name = name.into();
+        self.values.insert(name.clone(), value);
+        self.limits.insert(name, limit);
     }
 }
 

@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
-use steel_common::{ComponentData, Value};
+use steel_common::{ComponentData, Limit, Value};
 use crate::{Transform2D, Edit};
 
 #[derive(Component, Debug)]
@@ -40,7 +40,9 @@ impl Edit for RigidBody2D {
 
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new();
-        data.values.insert("body_type".into(), Value::Int32(self.body_type as i32));
+        data.add("body_type", Value::Int32(self.body_type as i32),
+            Limit::Int32Enum(vec![(0, "Dynamic".into()), (1, "Fixed".into()),
+            (2, "KinematicPositionBased".into()), (3, "KinematicVelocityBased".into())]));
         data
     }
 
@@ -89,12 +91,13 @@ impl Collider2D {
         }
     }
 
-    fn get_shape_data(&self, values: &mut IndexMap<String, Value>) {
-        values.insert("shape_type".into(), Value::Int32(self.shape.shape_type() as i32));
+    fn get_shape_data(&self, data: &mut ComponentData) {
+        data.add("shape_type", Value::Int32(self.shape.shape_type() as i32),
+            Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into()), (2, "Capsule".into()), (3, "Segment".into()), (4, "Triangle".into())]));
         if let Some(shape) = self.shape.as_ball() {
-            values.insert("radius".into(), Value::Float32(shape.radius));
+            data.values.insert("radius".into(), Value::Float32(shape.radius));
         } else if let Some(shape) = self.shape.as_cuboid() {
-            values.insert("size".into(), Value::Vec2(Vec2::new(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0)));
+            data.values.insert("size".into(), Value::Vec2(Vec2::new(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0)));
         } // TODO: support all shape type
     }
 
@@ -129,7 +132,7 @@ impl Edit for Collider2D {
 
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new();
-        self.get_shape_data(&mut data.values);
+        self.get_shape_data(&mut data);
         data.values.insert("restitution".into(), Value::Float32(self.restitution));
         data
     }

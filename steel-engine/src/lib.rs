@@ -138,7 +138,7 @@ impl Edit for Transform2D {
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new();
         data.values.insert("position".into(), Value::Vec3(self.position));
-        data.values.insert("rotation".into(), Value::Float32(self.rotation));
+        data.add("rotation", Value::Float32(self.rotation), Limit::Float32Rotation);
         data.values.insert("scale".into(), Value::Vec2(self.scale));
         data
     }
