@@ -52,7 +52,8 @@ pub enum Limit {
     },
     /// display String in multiline text edit
     StringMultiline,
-    // TODO: ReadOnly
+    /// can not set value
+    ReadOnly,
 }
 
 /// Value is a data store in component

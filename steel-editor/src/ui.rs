@@ -158,84 +158,95 @@ impl Editor {
                     for (name, value) in &mut component_data.values {
                         ui.horizontal(|ui| {
                             ui.label(name);
-                            match value {
-                                Value::Int32(v) => {
-                                    if let Some(Limit::Int32Enum(int_enum)) = component_data.limits.get(name) {
-                                        if int_enum.len() > 0 {
-                                            let mut i = int_enum.iter().enumerate().find_map(|(i, (int, s))| {
-                                                if v == int { Some(i) } else { None }
-                                            }).unwrap_or(0);
-                                            // Use entity + component_name + value_name as id to make sure that every id is unique
-                                            egui::ComboBox::from_id_source(format!("{:?} {} {}", self.selected_entity, component_name, name))
-                                                .show_index(ui, &mut i, int_enum.len(), |i| &int_enum[i].1);
-                                            *v = int_enum[i].0;
+                            if let Some(Limit::ReadOnly) = component_data.limits.get(name) {
+                                Self::color_label(ui, egui::Color32::BLACK, match value {
+                                    Value::Int32(v) => format!("{v}"),
+                                    Value::Float32(v) => format!("{v}"),
+                                    Value::String(v) => format!("{v}"),
+                                    Value::Vec2(v) => format!("{v}"),
+                                    Value::Vec3(v) => format!("{v}"),
+                                    Value::Vec4(v) => format!("{v}"),
+                                });
+                            } else {
+                                match value {
+                                    Value::Int32(v) => {
+                                        if let Some(Limit::Int32Enum(int_enum)) = component_data.limits.get(name) {
+                                            if int_enum.len() > 0 {
+                                                let mut i = int_enum.iter().enumerate().find_map(|(i, (int, s))| {
+                                                    if v == int { Some(i) } else { None }
+                                                }).unwrap_or(0);
+                                                // Use entity + component_name + value_name as id to make sure that every id is unique
+                                                egui::ComboBox::from_id_source(format!("{:?} {} {}", self.selected_entity, component_name, name))
+                                                    .show_index(ui, &mut i, int_enum.len(), |i| &int_enum[i].1);
+                                                *v = int_enum[i].0;
+                                            } else {
+                                                Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
+                                            }
                                         } else {
-                                            Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
+                                            let mut drag_value = egui::DragValue::new(v);
+                                            if let Some(Limit::Int32Range(range)) = component_data.limits.get(name) {
+                                                let min = if range.min_include { range.min } else { range.min + 1 };
+                                                let max = if range.max_include { range.max } else { range.max - 1 };
+                                                drag_value = drag_value.clamp_range(min..=max);
+                                            }
+                                            ui.add(drag_value);
                                         }
-                                    } else {
-                                        let mut drag_value = egui::DragValue::new(v);
-                                        if let Some(Limit::Int32Range(range)) = component_data.limits.get(name) {
-                                            let min = if range.min_include { range.min } else { range.min + 1 };
-                                            let max = if range.max_include { range.max } else { range.max - 1 };
-                                            drag_value = drag_value.clamp_range(min..=max);
-                                        }
-                                        ui.add(drag_value);
                                     }
-                                }
-                                Value::String(v) => {
-                                    if let Some(Limit::StringMultiline) = component_data.limits.get(name) {
-                                        ui.text_edit_multiline(v);
-                                    } else {
-                                        ui.text_edit_singleline(v);
-                                    }
-                                }
-                                Value::Float32(v) => {
-                                    if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
-                                        ui.drag_angle(v);
-                                        if *v < 0.0 {
-                                            *v += 2.0 * std::f32::consts::PI;
-                                        } else if *v >= 2.0 * std::f32::consts::PI {
-                                            *v -= 2.0 * std::f32::consts::PI;
+                                    Value::String(v) => {
+                                        if let Some(Limit::StringMultiline) = component_data.limits.get(name) {
+                                            ui.text_edit_multiline(v);
+                                        } else {
+                                            ui.text_edit_singleline(v);
                                         }
-                                    } else {
-                                        Self::drag_float32(ui, v, match component_data.limits.get(name) {
-                                            Some(Limit::Float32Range(range)) => Some(range),
-                                            _ => None,
+                                    }
+                                    Value::Float32(v) => {
+                                        if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
+                                            ui.drag_angle(v);
+                                            if *v < 0.0 {
+                                                *v += 2.0 * std::f32::consts::PI;
+                                            } else if *v >= 2.0 * std::f32::consts::PI {
+                                                *v -= 2.0 * std::f32::consts::PI;
+                                            }
+                                        } else {
+                                            Self::drag_float32(ui, v, match component_data.limits.get(name) {
+                                                Some(Limit::Float32Range(range)) => Some(range),
+                                                _ => None,
+                                            });
+                                        }
+                                    }
+                                    Value::Vec2(v) => {
+                                        ui.horizontal(|ui| {
+                                            let (range_x, range_y) = match component_data.limits.get(name) {
+                                                Some(Limit::Vec2Range { x, y }) => (Some(x), Some(y)),
+                                                _ => (None, None),
+                                            };
+                                            Self::drag_float32(ui, &mut v.x, range_x);
+                                            Self::drag_float32(ui, &mut v.y, range_y);
                                         });
                                     }
-                                }
-                                Value::Vec2(v) => {
-                                    ui.horizontal(|ui| {
-                                        let (range_x, range_y) = match component_data.limits.get(name) {
-                                            Some(Limit::Vec2Range { x, y }) => (Some(x), Some(y)),
-                                            _ => (None, None),
-                                        };
-                                        Self::drag_float32(ui, &mut v.x, range_x);
-                                        Self::drag_float32(ui, &mut v.y, range_y);
-                                    });
-                                }
-                                Value::Vec3(v) => {
-                                    ui.horizontal(|ui| {
-                                        let (range_x, range_y, range_z) = match component_data.limits.get(name) {
-                                            Some(Limit::Vec3Range { x, y, z }) => (Some(x), Some(y), Some(z)),
-                                            _ => (None, None, None),
-                                        };
-                                        Self::drag_float32(ui, &mut v.x, range_x);
-                                        Self::drag_float32(ui, &mut v.y, range_y);
-                                        Self::drag_float32(ui, &mut v.z, range_z);
-                                    });
-                                }
-                                Value::Vec4(v) => {
-                                    ui.horizontal(|ui| {
-                                        let (range_x, range_y, range_z, range_w) = match component_data.limits.get(name) {
-                                            Some(Limit::Vec4Range { x, y, z, w }) => (Some(x), Some(y), Some(z), Some(w)),
-                                            _ => (None, None, None, None),
-                                        };
-                                        Self::drag_float32(ui, &mut v.x, range_x);
-                                        Self::drag_float32(ui, &mut v.y, range_y);
-                                        Self::drag_float32(ui, &mut v.z, range_z);
-                                        Self::drag_float32(ui, &mut v.w, range_w);
-                                    });
+                                    Value::Vec3(v) => {
+                                        ui.horizontal(|ui| {
+                                            let (range_x, range_y, range_z) = match component_data.limits.get(name) {
+                                                Some(Limit::Vec3Range { x, y, z }) => (Some(x), Some(y), Some(z)),
+                                                _ => (None, None, None),
+                                            };
+                                            Self::drag_float32(ui, &mut v.x, range_x);
+                                            Self::drag_float32(ui, &mut v.y, range_y);
+                                            Self::drag_float32(ui, &mut v.z, range_z);
+                                        });
+                                    }
+                                    Value::Vec4(v) => {
+                                        ui.horizontal(|ui| {
+                                            let (range_x, range_y, range_z, range_w) = match component_data.limits.get(name) {
+                                                Some(Limit::Vec4Range { x, y, z, w }) => (Some(x), Some(y), Some(z), Some(w)),
+                                                _ => (None, None, None, None),
+                                            };
+                                            Self::drag_float32(ui, &mut v.x, range_x);
+                                            Self::drag_float32(ui, &mut v.y, range_y);
+                                            Self::drag_float32(ui, &mut v.z, range_z);
+                                            Self::drag_float32(ui, &mut v.w, range_w);
+                                        });
+                                    }
                                 }
                             }
                         });

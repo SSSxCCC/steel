@@ -40,6 +40,7 @@ impl Edit for RigidBody2D {
 
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new();
+        data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
         data.add("body_type", Value::Int32(self.body_type as i32),
             Limit::Int32Enum(vec![(0, "Dynamic".into()), (1, "Fixed".into()),
             (2, "KinematicPositionBased".into()), (3, "KinematicVelocityBased".into())]));
@@ -132,6 +133,7 @@ impl Edit for Collider2D {
 
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new();
+        data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
         self.get_shape_data(&mut data);
         data.values.insert("restitution".into(), Value::Float32(self.restitution));
         data
