@@ -7,7 +7,7 @@ use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
 use winit::{
-    event::{Event, WindowEvent},
+    event::{Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
 use winit_input_helper::WinitInputHelper;
@@ -119,6 +119,7 @@ fn _main(event_loop: EventLoop<()>) {
                             window_size: editor.game_size(),
                         })).boxed();
                     }
+                    update_editor_camera(&mut editor_camera, &input);
                     gpu_future = gpu_future.join(engine.draw_editor(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
@@ -138,4 +139,31 @@ fn _main(event_loop: EventLoop<()>) {
         }
         _ => (),
     });
+}
+
+fn update_editor_camera(editor_camera: &mut EditorCamera, input: &WinitInputHelper) {
+    if input.key_pressed(VirtualKeyCode::Home) {
+        editor_camera.position = Vec3::ZERO;
+        editor_camera.height = 20.0;
+    }
+
+    if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
+        editor_camera.position.x -= 1.0; // TODO: * move_speed * delta_time
+    }
+    if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
+        editor_camera.position.x += 1.0;
+    }
+    if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
+        editor_camera.position.y += 1.0;
+    }
+    if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
+        editor_camera.position.y -= 1.0;
+    }
+
+    let scroll_diff = input.scroll_diff();
+    if scroll_diff > 0.0 {
+        editor_camera.height /= 1.1;
+    } else if scroll_diff < 0.0 {
+        editor_camera.height *= 1.1;
+    }
 }
