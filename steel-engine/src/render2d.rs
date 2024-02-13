@@ -2,7 +2,7 @@ use std::sync::Arc;
 use vulkano::{format::Format, render_pass::{FramebufferCreateInfo, Framebuffer, Subpass}, buffer::{BufferContents, Buffer, BufferCreateInfo, BufferUsage}, pipeline::{graphics::{vertex_input::Vertex, viewport::{Viewport, ViewportState}, input_assembly::InputAssemblyState}, GraphicsPipeline, Pipeline}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassContents, PrimaryAutoCommandBuffer}, device::{Device, Queue}, image::ImageViewAbstract};
 use shipyard::{View, IntoIter, Unique, UniqueView, Component};
 use glam::{Vec2, Vec3, Mat4, Quat};
-use crate::{Transform2D, Edit};
+use crate::{camera::CameraInfo, Edit, Transform2D};
 
 #[derive(Component, Default, Debug)]
 pub struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
@@ -28,7 +28,7 @@ impl RenderInfo {
     }
 }
 
-pub fn render2d_system(info: UniqueView<RenderInfo>, transform2d: View<Transform2D>, renderer2d: View<Renderer2D>) -> PrimaryAutoCommandBuffer {
+pub fn render2d_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, transform2d: View<Transform2D>, renderer2d: View<Renderer2D>) -> PrimaryAutoCommandBuffer {
     let render_pass = vulkano::single_pass_renderpass!(
         info.device.clone(),
         attachments: {
@@ -94,17 +94,13 @@ pub fn render2d_system(info: UniqueView<RenderInfo>, transform2d: View<Transform
         .unwrap()
         .bind_pipeline_graphics(pipeline.clone());
 
-    let camera_pos = Vec3::ZERO;
-    let view = Mat4::look_at_lh(camera_pos, camera_pos + Vec3::NEG_Z, Vec3::Y);
-    let half_height = 10.0;
-    let half_width = half_height * info.window_size.x / info.window_size.y as f32;
-    let projection = Mat4::orthographic_lh(half_width, -half_width, half_height, -half_height, -1000.0, 1000.0);
+    let projection_view = camera.projection_view(&info.window_size);
 
     for (transform2d, renderer2d) in (&transform2d, &renderer2d).iter() {
         let model = Mat4::from_scale_rotation_translation(Vec3 { x: transform2d.scale.x, y: transform2d.scale.y, z: 1.0 },
                 Quat::from_axis_angle(Vec3::Z, transform2d.rotation), transform2d.position);
 
-        let push_constants = vs::PushConstants { projection_view: (projection * view).to_cols_array_2d(), model: model.to_cols_array_2d() };
+        let push_constants = vs::PushConstants { projection_view: projection_view.to_cols_array_2d(), model: model.to_cols_array_2d() };
 
         let vertex1 = MyVertex {
             position: [-0.5, -0.5],

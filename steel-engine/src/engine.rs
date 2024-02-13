@@ -1,4 +1,4 @@
-use crate::{physics2d::{Physics2DManager, RigidBody2D, Collider2D, physics2d_maintain_system, physics2d_update_system}, Transform2D, Engine, WorldData, DrawInfo, render2d::{RenderInfo, render2d_system, Renderer2D}, WorldDataExt, WorldExt, EntityInfo};
+use crate::{camera::CameraInfo, physics2d::{physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{render2d_system, RenderInfo, Renderer2D}, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
 use shipyard::World;
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
@@ -18,6 +18,7 @@ impl Engine for EngineImpl {
     fn init(&mut self, world_data: Option<&WorldData>) {
         log::debug!("Engine::init");
         self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
+        self.world.add_unique(CameraInfo::new());
 
         if let Some(world_data) = world_data { // load from world_data
             self.reload(world_data);
