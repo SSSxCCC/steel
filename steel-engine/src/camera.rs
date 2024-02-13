@@ -1,6 +1,6 @@
 use glam::{Mat4, Vec2, Vec3};
 use shipyard::{AddComponent, Component, Get, IntoIter, IntoWithId, Unique, UniqueViewMut, View, ViewMut};
-use steel_common::{ComponentData, Value};
+use steel_common::{ComponentData, EditorCamera, Value};
 use crate::{Edit, Transform2D};
 
 #[derive(Unique)]
@@ -20,6 +20,11 @@ impl CameraInfo {
         let half_width = half_height * window_size.x / window_size.y as f32;
         let projection = Mat4::orthographic_lh(half_width, -half_width, half_height, -half_height, -1000.0, 1000.0);
         projection * view
+    }
+
+    pub fn set(&mut self, editor_camera: &EditorCamera) {
+        self.position = editor_camera.position;
+        self.height = editor_camera.height;
     }
 }
 

@@ -11,7 +11,7 @@ pub trait Engine {
     fn maintain(&mut self);
     fn update(&mut self);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
-    fn draw_editor(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
+    fn draw_editor(&mut self, info: DrawInfo, camera: &EditorCamera) -> Box<dyn GpuFuture>;
     fn save(&self) -> WorldData;
     fn load(&mut self, world_data: &WorldData);
     fn reload(&mut self, world_data: &WorldData);
@@ -120,6 +120,12 @@ pub struct DrawInfo<'a> {
     pub renderer: &'a VulkanoWindowRenderer,
     pub image: Arc<dyn ImageViewAbstract>, // the image we will draw
     pub window_size: Vec2,
+}
+
+/// Camera info for editor window
+pub struct EditorCamera {
+    pub position: Vec3,
+    pub height: f32,
 }
 
 pub mod vectorize {

@@ -1,7 +1,8 @@
 mod ui;
 mod project;
 
-use steel_common::DrawInfo;
+use glam::Vec3;
+use steel_common::{DrawInfo, EditorCamera};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
@@ -37,6 +38,7 @@ fn _main(event_loop: EventLoop<()>) {
     // graphics
     let context = VulkanoContext::default();
     let mut windows = VulkanoWindows::default();
+    let mut editor_camera = EditorCamera { position: Vec3::ZERO, height: 20.0 };
 
     // egui
     let mut gui = None;
@@ -122,7 +124,7 @@ fn _main(event_loop: EventLoop<()>) {
                         context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(),
                         window_size: editor.scene_size(),
-                    })).boxed();
+                    }, &editor_camera)).boxed();
                 }
 
                 let gpu_future = gui.draw_on_image(gpu_future, renderer.swapchain_image_view());

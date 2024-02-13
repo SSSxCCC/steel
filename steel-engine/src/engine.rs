@@ -1,7 +1,8 @@
 use crate::{camera::{camera_maintain_system, Camera, CameraInfo}, physics2d::{physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{render2d_system, RenderInfo, Renderer2D}, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
-use shipyard::World;
+use shipyard::{UniqueViewMut, World};
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
+use steel_common::EditorCamera;
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 
 pub struct EngineImpl {
@@ -58,7 +59,10 @@ impl Engine for EngineImpl {
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
     }
 
-    fn draw_editor(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
+    fn draw_editor(&mut self, info: DrawInfo, camera: &EditorCamera) -> Box<dyn GpuFuture> {
+        self.world.run(|mut camera_info: UniqueViewMut<CameraInfo>| {
+            camera_info.set(camera);
+        });
         self.draw(info)
     }
 
