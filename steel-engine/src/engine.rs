@@ -1,4 +1,4 @@
-use crate::{camera::CameraInfo, physics2d::{physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{render2d_system, RenderInfo, Renderer2D}, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
+use crate::{camera::{camera_maintain_system, Camera, CameraInfo}, physics2d::{physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{render2d_system, RenderInfo, Renderer2D}, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
 use shipyard::World;
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
@@ -23,6 +23,9 @@ impl Engine for EngineImpl {
         if let Some(world_data) = world_data { // load from world_data
             self.reload(world_data);
         } else { // create empty scene
+            self.world.add_entity((EntityInfo::new("Camera"),
+                    Transform2D::default(),
+                    Camera { height: 20.0 }));
             self.world.add_entity((EntityInfo::new("Object"),
                     Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
                     RigidBody2D::new(RigidBodyType::Dynamic),
@@ -36,6 +39,7 @@ impl Engine for EngineImpl {
     }
 
     fn maintain(&mut self) {
+        self.world.run(camera_maintain_system);
         self.world.run(physics2d_maintain_system);
     }
 

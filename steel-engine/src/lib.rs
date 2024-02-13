@@ -5,6 +5,7 @@ pub mod render2d;
 
 pub use steel_common::*;
 
+use camera::Camera;
 use std::collections::HashMap;
 use render2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
@@ -44,6 +45,7 @@ impl WorldDataExt for WorldData {
         let mut world_data = WorldData::new();
         world_data.add_component::<EntityInfo>(world);
         world_data.add_component::<Transform2D>(world);
+        world_data.add_component::<Camera>(world);
         world_data.add_component::<RigidBody2D>(world);
         world_data.add_component::<Collider2D>(world);
         world_data.add_component::<Renderer2D>(world);
@@ -75,6 +77,7 @@ impl WorldExt for World {
     fn load_core_components(&mut self, world_data: &WorldData) {
         self.load_component_untracked::<EntityInfo>(world_data);
         self.load_component_untracked::<Transform2D>(world_data);
+        self.load_component_untracked::<Camera>(world_data);
         self.load_component_trackall::<RigidBody2D>(world_data);
         self.load_component_trackall::<Collider2D>(world_data);
         self.load_component_untracked::<Renderer2D>(world_data);
@@ -112,6 +115,7 @@ impl WorldExt for World {
             for (component_name, component_data) in &entity_data.components {
                 self.create_component::<EntityInfo>(new_id, component_name, component_data);
                 self.create_component::<Transform2D>(new_id, component_name, component_data);
+                self.create_component::<Camera>(new_id, component_name, component_data);
                 self.create_component::<RigidBody2D>(new_id, component_name, component_data);
                 self.create_component::<Collider2D>(new_id, component_name, component_data);
                 self.create_component::<Renderer2D>(new_id, component_name, component_data);

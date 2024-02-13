@@ -10,6 +10,50 @@
           "EntityInfo": {
             "values": {
               "name": {
+                "String": "Camera"
+              }
+            }
+          },
+          "Transform2D": {
+            "values": {
+              "position": {
+                "Vec3": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "rotation": {
+                "Float32": 0.0
+              },
+              "scale": {
+                "Vec2": [
+                  0.0,
+                  0.0
+                ]
+              }
+            }
+          },
+          "Camera": {
+            "values": {
+              "height": {
+                "Float32": 20.0
+              }
+            }
+          }
+        }
+      }
+    ],
+    [
+      {
+        "index": 1,
+        "gen": 0
+      },
+      {
+        "components": {
+          "EntityInfo": {
+            "values": {
+              "name": {
                 "String": "Object"
               }
             }
@@ -36,6 +80,9 @@
           },
           "RigidBody2D": {
             "values": {
+              "handle": {
+                "String": "RigidBodyHandle(Index { index: 0, generation: 0 })"
+              },
               "body_type": {
                 "Int32": 0
               }
@@ -43,6 +90,9 @@
           },
           "Collider2D": {
             "values": {
+              "handle": {
+                "String": "ColliderHandle(Index { index: 0, generation: 0 })"
+              },
               "shape_type": {
                 "Int32": 1
               },
@@ -65,7 +115,7 @@
     ],
     [
       {
-        "index": 1,
+        "index": 2,
         "gen": 0
       },
       {
@@ -99,6 +149,9 @@
           },
           "Collider2D": {
             "values": {
+              "handle": {
+                "String": "ColliderHandle(Index { index: 1, generation: 0 })"
+              },
               "shape_type": {
                 "Int32": 1
               },
