@@ -1,7 +1,7 @@
 mod ui;
 mod project;
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use steel_common::{DrawInfo, EditorCamera};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
@@ -110,6 +110,7 @@ fn _main(event_loop: EventLoop<()>) {
                 if let Some(engine) = project.engine() {
                     if let Some(world_data) = world_data.as_mut() { engine.load(world_data); }
                     engine.maintain();
+
                     if is_running {
                         engine.update();
                         gpu_future = gpu_future.join(engine.draw(DrawInfo {
@@ -119,12 +120,14 @@ fn _main(event_loop: EventLoop<()>) {
                             window_size: editor.game_size(),
                         })).boxed();
                     }
-                    update_editor_camera(&mut editor_camera, &input);
+
+                    let scene_window_size = editor.scene_size();
+                    update_editor_camera(&mut editor_camera, &input, &scene_window_size, renderer.window().scale_factor());
                     gpu_future = gpu_future.join(engine.draw_editor(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(),
-                        window_size: editor.scene_size(),
+                        window_size: scene_window_size,
                     }, &editor_camera)).boxed();
                 }
 
@@ -141,7 +144,7 @@ fn _main(event_loop: EventLoop<()>) {
     });
 }
 
-fn update_editor_camera(editor_camera: &mut EditorCamera, input: &WinitInputHelper) {
+fn update_editor_camera(editor_camera: &mut EditorCamera, input: &WinitInputHelper, window_size: &Vec2, scale_factor: f64) {
     if input.key_pressed(VirtualKeyCode::Home) {
         editor_camera.position = Vec3::ZERO;
         editor_camera.height = 20.0;
@@ -165,5 +168,12 @@ fn update_editor_camera(editor_camera: &mut EditorCamera, input: &WinitInputHelp
         editor_camera.height /= 1.1;
     } else if scroll_diff < 0.0 {
         editor_camera.height *= 1.1;
+    }
+
+    if input.mouse_held(1) {
+        let screen_to_world = editor_camera.height / window_size.y / scale_factor as f32;
+        let mouse_diff = input.mouse_diff();
+        editor_camera.position.x -= mouse_diff.0 * screen_to_world;
+        editor_camera.position.y += mouse_diff.1 * screen_to_world;
     }
 }
