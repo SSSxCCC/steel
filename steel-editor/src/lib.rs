@@ -122,7 +122,9 @@ fn _main(event_loop: EventLoop<()>) {
                     }
 
                     let scene_window_size = editor.scene_size();
-                    update_editor_camera(&mut editor_camera, &input, &scene_window_size, renderer.window().scale_factor());
+                    if editor.scene_focus() {
+                        update_editor_camera(&mut editor_camera, &input, &scene_window_size, renderer.window().scale_factor());
+                    }
                     gpu_future = gpu_future.join(engine.draw_editor(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,

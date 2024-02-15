@@ -43,6 +43,8 @@ impl Editor {
             self.menu_bars(&ctx, gui, project);
 
             if project.is_compiled() {
+                self.scene_window.layer = None;
+                self.game_window.layer = None;
                 self.scene_window.ui(&ctx, gui, context, renderer);
                 if project.is_running() {
                     self.game_window.ui(&ctx, gui, context, renderer);
@@ -313,12 +315,20 @@ impl Editor {
         self.scene_window.size
     }
 
+    pub fn scene_focus(&self) -> bool {
+        self.scene_window.layer.is_some_and(|this| !self.game_window.layer.is_some_and(|other| other > this))
+    }
+
     pub fn game_image(&self) -> &Option<Arc<dyn ImageViewAbstract + Send + Sync>> {
         &self.game_window.image
     }
 
     pub fn game_size(&self) -> Vec2 {
         self.game_window.size
+    }
+
+    pub fn game_focus(&self) -> bool {
+        self.game_window.layer.is_some_and(|this| !self.scene_window.layer.is_some_and(|other| other > this))
     }
 }
 
@@ -350,11 +360,12 @@ struct ImageWindow {
     image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>, // TODO: use multi-buffering
     texture_id: Option<egui::TextureId>,
     size: Vec2,
+    layer: Option<usize>, // Warning: the value of layer is undefined if !project.is_compiled()
 }
 
 impl ImageWindow {
     fn new(title: impl Into<String>) -> Self {
-        ImageWindow { title: title.into(), image: None, texture_id: None, size: Vec2::ZERO }
+        ImageWindow { title: title.into(), image: None, texture_id: None, size: Vec2::ZERO, layer: None }
     }
 
     fn ui(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
@@ -374,7 +385,8 @@ impl ImageWindow {
                     self.image.as_ref().unwrap().clone(), Default::default()));
                 log::info!("ImageWindow({}): image created, size={}", self.title, self.size);
             }
-            ui.image(self.texture_id.unwrap(), available_size);
+            let r = ui.image(self.texture_id.unwrap(), available_size);
+            self.layer = ctx.memory(|mem| mem.layer_ids().position(|layer_id| layer_id == r.layer_id));
         });
     }
 
