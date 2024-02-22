@@ -15,6 +15,12 @@ pub trait Engine {
     fn save(&self) -> WorldData;
     fn load(&mut self, world_data: &WorldData);
     fn reload(&mut self, world_data: &WorldData);
+    fn command(&mut self, cmd: Command);
+}
+
+pub enum Command {
+    CreateEntity,
+    DestroyEntity(EntityId),
 }
 
 /// Define min and max value in a range

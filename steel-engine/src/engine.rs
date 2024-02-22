@@ -2,7 +2,7 @@ use crate::{camera::{camera_maintain_system, Camera, CameraInfo}, physics2d::{ph
 use shipyard::{UniqueViewMut, World};
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
-use steel_common::EditorCamera;
+use steel_common::{Command, EditorCamera};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 
 pub struct EngineImpl {
@@ -79,5 +79,18 @@ impl Engine for EngineImpl {
     fn reload(&mut self, world_data: &WorldData) {
         log::debug!("Engine::reload");
         self.world.recreate_core_components(world_data);
+    }
+
+    fn command(&mut self, cmd: Command) {
+        match cmd {
+            Command::CreateEntity => {
+                self.world.add_entity((EntityInfo::new("New Entity"),
+                    Transform2D::default(),
+                    Renderer2D));
+            },
+            Command::DestroyEntity(id) => {
+                self.world.delete_entity(id);
+            },
+        }
     }
 }

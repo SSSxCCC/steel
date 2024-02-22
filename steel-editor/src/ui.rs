@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::Vec2;
 use shipyard::EntityId;
-use steel_common::{EntityData, Limit, Range, Value, WorldData};
+use steel_common::{Command, Engine, EntityData, Limit, Range, Value, WorldData};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
@@ -54,7 +54,11 @@ impl Editor {
             }
 
             if let Some(world_data) = world_data {
-                self.entity_component_view(&ctx, world_data);
+                if let Some(engine) = project.engine() {
+                    self.entity_component_view(&ctx, world_data, engine);
+                } else {
+                    log::warn!("We have world_data but we do not have engine, this should not happened!");
+                }
             }
         });
     }
@@ -144,12 +148,21 @@ impl Editor {
         });
     }
 
-    fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
+    fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
         egui::Window::new("Entities").show(&ctx, |ui| {
-            for (id, entity_data) in &world_data.entities {
-                if ui.selectable_label(self.selected_entity == *id, Self::entity_label(id, entity_data)).clicked() {
-                    self.selected_entity = *id;
+            egui::Grid::new("Entities").show(ui, |ui| {
+                for (id, entity_data) in &world_data.entities {
+                    if ui.selectable_label(self.selected_entity == *id, Self::entity_label(id, entity_data)).clicked() {
+                        self.selected_entity = *id;
+                    }
+                    if ui.button("-").clicked() {
+                        engine.command(Command::DestroyEntity(*id));
+                    }
+                    ui.end_row();
                 }
+            });
+            if ui.button("+").clicked() {
+                engine.command(Command::CreateEntity);
             }
         });
 

@@ -130,11 +130,17 @@ impl WorldExt for World {
     }
 }
 
-#[derive(Component, Debug, Default)]
+#[derive(Component, Debug)]
 pub struct Transform2D {
     pub position: Vec3,
     pub rotation: f32, // radian
     pub scale: Vec2
+}
+
+impl Default for Transform2D {
+    fn default() -> Self {
+        Self { position: Default::default(), rotation: Default::default(), scale: Vec2::ONE }
+    }
 }
 
 impl Edit for Transform2D {
