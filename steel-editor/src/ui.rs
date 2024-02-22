@@ -415,7 +415,12 @@ impl ImageWindow {
                 log::info!("ImageWindow({}): image created, size={}", self.title, self.size);
             }
             let r = ui.image(self.texture_id.unwrap(), available_size);
-            self.layer = ctx.memory(|mem| mem.layer_ids().position(|layer_id| layer_id == r.layer_id));
+            self.layer = ctx.memory(|mem| {
+                match mem.focus() {
+                    Some(_) => None, // We should not have focus if any widget has keyboard focus
+                    None => mem.layer_ids().position(|layer_id| layer_id == r.layer_id),
+                }
+            });
         });
     }
 
