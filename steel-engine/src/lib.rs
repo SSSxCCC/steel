@@ -6,6 +6,7 @@ pub mod render2d;
 pub use steel_common::*;
 
 use camera::Camera;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use render2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
@@ -127,6 +128,31 @@ impl WorldExt for World {
         if T::name() == name {
             self.add_component(id, (T::from(data),));
         }
+    }
+}
+
+pub struct ComponentFn {
+    pub create: fn(&mut World, EntityId),
+    pub destroy: fn(&mut World, EntityId),
+}
+
+impl ComponentFn {
+    pub fn with_core_components() -> IndexMap<&'static str, ComponentFn> {
+        let mut component_fn = IndexMap::new();
+        Self::add_component::<EntityInfo>(&mut component_fn);
+        Self::add_component::<Transform2D>(&mut component_fn);
+        Self::add_component::<Camera>(&mut component_fn);
+        Self::add_component::<RigidBody2D>(&mut component_fn);
+        Self::add_component::<Collider2D>(&mut component_fn);
+        Self::add_component::<Renderer2D>(&mut component_fn);
+        component_fn
+    }
+
+    pub fn add_component<T: Edit + Send + Sync>(component_fn: &mut IndexMap<&'static str, ComponentFn>) {
+        component_fn.insert(T::name(), ComponentFn {
+            create: |world, entity| world.add_component(entity, (T::default(),)),
+            destroy: |world, entity| world.delete_component::<T>(entity),
+        });
     }
 }
 

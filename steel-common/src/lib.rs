@@ -18,9 +18,13 @@ pub trait Engine {
     fn command(&mut self, cmd: Command);
 }
 
-pub enum Command {
+pub enum Command<'a> {
     CreateEntity,
     DestroyEntity(EntityId),
+
+    GetComponents(&'a mut Vec<&'static str>),
+    CreateComponent(EntityId, &'static str),
+    DestroyComponent(EntityId, &'a String),
 }
 
 /// Define min and max value in a range

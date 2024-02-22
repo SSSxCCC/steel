@@ -1,4 +1,5 @@
-use crate::{camera::{camera_maintain_system, Camera, CameraInfo}, physics2d::{physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{render2d_system, RenderInfo, Renderer2D}, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
+use crate::{camera::{camera_maintain_system, Camera, CameraInfo}, physics2d::{physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{render2d_system, RenderInfo, Renderer2D}, ComponentFn, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
+use indexmap::IndexMap;
 use shipyard::{UniqueViewMut, World};
 use rapier2d::prelude::*;
 use glam::{Vec2, Vec3};
@@ -7,11 +8,12 @@ use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 
 pub struct EngineImpl {
     pub world: World, // ecs world, also contains resources and managers
+    pub component_fn: IndexMap<&'static str, ComponentFn>,
 }
 
 impl EngineImpl {
     pub fn new() -> Self {
-        EngineImpl { world: World::new() }
+        EngineImpl { world: World::new(), component_fn: ComponentFn::with_core_components() }
     }
 }
 
@@ -90,6 +92,19 @@ impl Engine for EngineImpl {
             },
             Command::DestroyEntity(id) => {
                 self.world.delete_entity(id);
+            },
+            Command::GetComponents(components) => {
+                *components = self.component_fn.keys().map(|s| *s).collect(); // TODO: cache components
+            },
+            Command::CreateComponent(id, component_name) => {
+                if let Some(component_fn) = self.component_fn.get(component_name) {
+                    (component_fn.create)(&mut self.world, id);
+                }
+            },
+            Command::DestroyComponent(id, component_name) => {
+                if let Some(component_fn) = self.component_fn.get(component_name.as_str()) {
+                    (component_fn.destroy)(&mut self.world, id);
+                }
             },
         }
     }

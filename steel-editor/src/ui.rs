@@ -169,7 +169,12 @@ impl Editor {
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
             egui::Window::new("Components").show(&ctx, |ui| {
                 for (component_name, component_data) in &mut entity_data.components {
-                    ui.label(component_name);
+                    ui.horizontal(|ui| {
+                        ui.label(component_name);
+                        if ui.button("-").clicked() {
+                            engine.command(Command::DestroyComponent(self.selected_entity, component_name));
+                        }
+                    });
                     for (name, value) in &mut component_data.values {
                         ui.horizontal(|ui| {
                             ui.label(name);
@@ -273,7 +278,18 @@ impl Editor {
                         });
                     }
                     ui.separator();
-                }
+                } // for entity_data.components
+
+                let mut components = Vec::new();
+                engine.command(Command::GetComponents(&mut components));
+                ui.menu_button("+", |ui| {
+                    for component in components {
+                        if ui.button(component).clicked() {
+                            engine.command(Command::CreateComponent(self.selected_entity, component));
+                            ui.close_menu();
+                        }
+                    }
+                });
             });
         }
     }
