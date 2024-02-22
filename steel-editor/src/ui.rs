@@ -37,7 +37,8 @@ impl Editor {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
 
-            self.demo_windows.ui(&ctx);
+            // display egui demo windows
+            //self.demo_windows.ui(&ctx);
 
             self.open_project_dialog(&ctx, gui, project);
             self.menu_bars(&ctx, gui, project);
