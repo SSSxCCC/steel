@@ -1,10 +1,10 @@
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use indexmap::IndexMap;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::{ComponentData, Limit, Value};
-use crate::{Transform2D, Edit};
+use crate::{render2d::Canvas, Edit, Transform2D};
 
 #[derive(Component, Debug)]
 #[track(All)]
@@ -160,6 +160,7 @@ pub struct Physics2DManager {
     ccd_solver: CCDSolver,
     physics_hooks: Box<dyn PhysicsHooks>,
     event_handler: Box<dyn EventHandler>,
+    debug_render_pipeline: DebugRenderPipeline,
 }
 
 impl Physics2DManager {
@@ -168,7 +169,8 @@ impl Physics2DManager {
             integration_parameters: IntegrationParameters::default(), physics_pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(), broad_phase: BroadPhase::new(), narrow_phase: NarrowPhase::new(),
             impulse_joint_set: ImpulseJointSet::new(), multibody_joint_set: MultibodyJointSet::new(),
-            ccd_solver: CCDSolver::new(), physics_hooks: Box::new(()), event_handler: Box::new(()) }
+            ccd_solver: CCDSolver::new(), physics_hooks: Box::new(()), event_handler: Box::new(()),
+            debug_render_pipeline: DebugRenderPipeline::default() }
     }
 
     pub fn update(&mut self) {
@@ -281,4 +283,30 @@ pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DMan
         transform2d.position.y = rigid_body.translation().y;
         transform2d.rotation = rigid_body.rotation().angle();
     });
+}
+
+struct DebugRenderer<'a> {
+    canvas: &'a mut Canvas
+}
+
+impl DebugRenderBackend for DebugRenderer<'_> {
+    fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
+        // currently we use a big z value to make sure that debug render content can be seen
+        // TODO: find a better way to make sure the visiblity of debug render content
+        self.canvas.lines.push([Vec3::new(a.x, a.y, 1000.0), Vec3::new(b.x, b.y, 1000.0)]);
+        // TODO: set color
+    }
+}
+
+pub fn physics2d_debug_render_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>, mut canvas: UniqueViewMut<Canvas>) {
+    let physics2d_manager = physics2d_manager.as_mut();
+    let mut debug_render_backend = DebugRenderer { canvas: &mut canvas };
+    physics2d_manager.debug_render_pipeline.render(
+        &mut debug_render_backend,
+        &physics2d_manager.rigid_body_set,
+        &physics2d_manager.collider_set,
+        &physics2d_manager.impulse_joint_set,
+        &physics2d_manager.multibody_joint_set,
+        &physics2d_manager.narrow_phase
+    );
 }

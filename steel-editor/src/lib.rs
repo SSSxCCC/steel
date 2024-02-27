@@ -5,7 +5,7 @@ use glam::{Vec2, Vec3};
 use steel_common::{DrawInfo, EditorCamera};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
-use vulkano_util::{window::{VulkanoWindows, WindowDescriptor}, context::VulkanoContext};
+use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{
     event::{Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
@@ -36,7 +36,9 @@ fn main() {
 
 fn _main(event_loop: EventLoop<()>) {
     // graphics
-    let context = VulkanoContext::default();
+    let mut config = VulkanoConfig::default();
+    config.device_features.fill_mode_non_solid = true;
+    let context = VulkanoContext::new(config);
     let mut windows = VulkanoWindows::default();
     let mut editor_camera = EditorCamera { position: Vec3::ZERO, height: 20.0 };
 
@@ -113,7 +115,12 @@ fn _main(event_loop: EventLoop<()>) {
 
                     if is_running {
                         engine.update();
-                        gpu_future = gpu_future.join(engine.draw(DrawInfo {
+                    }
+
+                    engine.draw();
+
+                    if is_running {
+                        gpu_future = gpu_future.join(engine.draw_game(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
                             image: editor.game_image().as_ref().unwrap().clone(),
