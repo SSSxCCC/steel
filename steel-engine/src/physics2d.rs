@@ -1,10 +1,10 @@
-use glam::{Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use indexmap::IndexMap;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::{ComponentData, Limit, Value};
-use crate::{render::Canvas, Edit, transform::Transform2D};
+use crate::{render::Canvas, Edit, transform::Transform};
 
 #[derive(Component, Debug)]
 #[track(All)]
@@ -194,7 +194,7 @@ impl Physics2DManager {
 
 pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>,
-        mut transform2d: ViewMut<Transform2D>) {
+        mut transform: ViewMut<Transform>) {
     let physics2d_manager = physics2d_manager.as_mut();
 
     for e in rb2d.removed() {
@@ -230,13 +230,13 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
         if let Some(rigid_body) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
             rigid_body.set_body_type(rb2d.body_type, true);
         } else {
-            if !transform2d.contains(e) {
-                transform2d.add_component_unchecked(e, Transform2D::default());
+            if !transform.contains(e) {
+                transform.add_component_unchecked(e, Transform::default());
             }
-            let transform2d = transform2d.get(e).unwrap();
+            let transform = transform.get(e).unwrap();
             let rigid_body = RigidBodyBuilder::new(rb2d.body_type)
-                    .translation(vector![transform2d.position.x, transform2d.position.y])
-                    .rotation(transform2d.rotation).build();
+                    .translation(vector![transform.position.x, transform.position.y])
+                    .rotation(transform.rotation.to_scaled_axis().z).build();
             rb2d.handle = physics2d_manager.rigid_body_set.insert(rigid_body);
         }
 
@@ -252,17 +252,17 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
             collider.set_shape(col2d.shape.clone());
             collider.set_restitution(col2d.restitution);
         } else {
-            if !transform2d.contains(e) {
-                transform2d.add_component_unchecked(e, Transform2D::default());
+            if !transform.contains(e) {
+                transform.add_component_unchecked(e, Transform::default());
             }
-            let transform2d = transform2d.get(e).unwrap();
+            let transform = transform.get(e).unwrap();
             let mut collider = ColliderBuilder::new(col2d.shape.clone()).restitution(col2d.restitution).build();
             if let Ok(rb2d) = &rb2d.get(e) {
                 // TODO: add position and rotation relative to parent
                 col2d.handle = physics2d_manager.collider_set.insert_with_parent(collider, rb2d.handle, &mut physics2d_manager.rigid_body_set);
             } else {
-                collider.set_translation(vector![transform2d.position.x, transform2d.position.y]);
-                //collider.set_rotation(transform2d.rotation); TODO: how to set_rotation?
+                collider.set_translation(vector![transform.position.x, transform.position.y]);
+                //collider.set_rotation(transform.rotation); TODO: how to set_rotation?
                 col2d.handle = physics2d_manager.collider_set.insert(collider);
             }
         }
@@ -275,13 +275,15 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
 }
 
 pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
-        rb2d: View<RigidBody2D>, mut transform2d: ViewMut<Transform2D>) {
+        rb2d: View<RigidBody2D>, mut transform: ViewMut<Transform>) {
     physics2d_manager.update();
-    (&rb2d, &mut transform2d).par_iter().for_each(|(rb2d, mut transform2d)| {
+    (&rb2d, &mut transform).par_iter().for_each(|(rb2d, mut transform)| {
         let rigid_body = &physics2d_manager.rigid_body_set[rb2d.handle];
-        transform2d.position.x = rigid_body.translation().x;
-        transform2d.position.y = rigid_body.translation().y;
-        transform2d.rotation = rigid_body.rotation().angle();
+        transform.position.x = rigid_body.translation().x;
+        transform.position.y = rigid_body.translation().y;
+        let mut rotation = transform.rotation.to_scaled_axis();
+        rotation.z = rigid_body.rotation().angle();
+        transform.rotation = Quat::from_scaled_axis(rotation);
     });
 }
 

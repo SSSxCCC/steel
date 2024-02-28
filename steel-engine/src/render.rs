@@ -122,7 +122,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 
         let vertices = canvas.lines.iter()
             .flatten()
-            .map(|v| { MyVertex { position: [v.x, v.y], color: [1.0, 0.0, 0.0, 1.0] } })
+            .map(|v| { MyVertex { position: [v.x, v.y, v.z], color: [1.0, 0.0, 0.0, 1.0] } })
             .collect::<Vec<_>>();
 
         let vertex_buffer = Buffer::from_iter(
@@ -147,7 +147,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 
         let vertices = canvas.rectangles.iter()
             .flatten()
-            .map(|v| { MyVertex { position: [v.x, v.y], color: [1.0, 1.0, 1.0, 1.0] } })
+            .map(|v| { MyVertex { position: [v.x, v.y, v.z], color: [1.0, 1.0, 1.0, 1.0] } })
             .collect::<Vec<_>>();
 
         let indices = canvas.rectangles.iter()
@@ -187,8 +187,8 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 #[derive(BufferContents, Vertex)]
 #[repr(C)]
 struct MyVertex {
-    #[format(R32G32_SFLOAT)]
-    position: [f32; 2],
+    #[format(R32G32B32_SFLOAT)]
+    position: [f32; 3],
     #[format(R32G32B32A32_SFLOAT)]
     color: [f32; 4],
 }
@@ -204,13 +204,13 @@ mod vs {
                 mat4 model;
             } pcs;
 
-            layout(location = 0) in vec2 position;
+            layout(location = 0) in vec3 position;
             layout(location = 1) in vec4 color;
 
             layout(location = 0) out vec4 out_color;
 
             void main() {
-                gl_Position = pcs.projection_view * pcs.model * vec4(position, 0.0, 1.0);
+                gl_Position = pcs.projection_view * pcs.model * vec4(position, 1.0);
                 out_color = color;
             }
         ",

@@ -44,6 +44,7 @@ pub enum Limit {
     /// limit i32 value to serval values and use String to display them
     Int32Enum(Vec<(i32, String)>),
     /// limit f32 value to [0, 2π) and display in [0, 360)
+    /// Float32Rotation can be used in Vec types to apply to all values
     Float32Rotation,
     Float32Range(Range<f32>),
     Vec2Range {

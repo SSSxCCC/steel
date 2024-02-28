@@ -14,7 +14,7 @@
               }
             }
           },
-          "Transform2D": {
+          "Transform": {
             "values": {
               "position": {
                 "Vec3": [
@@ -24,12 +24,17 @@
                 ]
               },
               "rotation": {
-                "Float32": 0.0
-              },
-              "scale": {
-                "Vec2": [
+                "Vec3": [
+                  0.0,
                   0.0,
                   0.0
+                ]
+              },
+              "scale": {
+                "Vec3": [
+                  1.0,
+                  1.0,
+                  1.0
                 ]
               }
             }
@@ -58,7 +63,7 @@
               }
             }
           },
-          "Transform2D": {
+          "Transform": {
             "values": {
               "position": {
                 "Vec3": [
@@ -68,10 +73,15 @@
                 ]
               },
               "rotation": {
-                "Float32": 0.0
+                "Vec3": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
               },
               "scale": {
-                "Vec2": [
+                "Vec3": [
+                  1.0,
                   1.0,
                   1.0
                 ]
@@ -127,7 +137,7 @@
               }
             }
           },
-          "Transform2D": {
+          "Transform": {
             "values": {
               "position": {
                 "Vec3": [
@@ -137,12 +147,17 @@
                 ]
               },
               "rotation": {
-                "Float32": 0.0
+                "Vec3": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
               },
               "scale": {
-                "Vec2": [
+                "Vec3": [
                   20.0,
-                  0.2
+                  0.2,
+                  1.0
                 ]
               }
             }

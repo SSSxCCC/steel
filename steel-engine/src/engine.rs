@@ -1,8 +1,8 @@
-use crate::{camera::{Camera, CameraInfo}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{Canvas, RenderInfo}, renderer2d::Renderer2D, ComponentFn, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
+use crate::{camera::{Camera, CameraInfo}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{Canvas, RenderInfo}, renderer2d::Renderer2D, ComponentFn, DrawInfo, Engine, EntityInfo, Transform, WorldData, WorldDataExt, WorldExt};
 use indexmap::IndexMap;
 use shipyard::{UniqueViewMut, World};
 use rapier2d::prelude::*;
-use glam::{Vec2, Vec3};
+use glam::{Quat, Vec3};
 use steel_common::{Command, EditorCamera};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 
@@ -28,15 +28,15 @@ impl Engine for EngineImpl {
             self.reload(world_data);
         } else { // create empty scene
             self.world.add_entity((EntityInfo::new("Camera"),
-                    Transform2D::default(),
+                    Transform::default(),
                     Camera { height: 20.0 }));
             self.world.add_entity((EntityInfo::new("Object"),
-                    Transform2D { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: 0.0, scale: Vec2::ONE },
+                    Transform { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: Quat::IDENTITY, scale: Vec3::ONE },
                     RigidBody2D::new(RigidBodyType::Dynamic),
                     Collider2D::new(SharedShape::cuboid(0.5, 0.5), 0.7),
                     Renderer2D));
             self.world.add_entity((EntityInfo::new("Ground"),
-                    Transform2D { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: 0.0, scale: Vec2 { x: 20.0, y: 0.2 } },
+                    Transform { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: Quat::IDENTITY, scale: Vec3 { x: 20.0, y: 0.2, z: 1.0 } },
                     Collider2D::new(SharedShape::cuboid(10.0, 0.1), 0.7),
                     Renderer2D));
         }
@@ -94,7 +94,7 @@ impl Engine for EngineImpl {
         match cmd {
             Command::CreateEntity => {
                 self.world.add_entity((EntityInfo::new("New Entity"),
-                    Transform2D::default(),
+                    Transform::default(),
                     Renderer2D));
             },
             Command::DestroyEntity(id) => {

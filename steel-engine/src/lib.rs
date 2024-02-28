@@ -9,7 +9,7 @@ pub use steel_common::*;
 
 use camera::Camera;
 use indexmap::IndexMap;
-use transform::Transform2D;
+use transform::Transform;
 use std::collections::HashMap;
 use renderer2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
@@ -73,7 +73,7 @@ impl WorldDataExt for WorldData {
     fn with_core_components(world: &World) -> Self {
         let mut world_data = WorldData::new();
         world_data.add_component::<EntityInfo>(world);
-        world_data.add_component::<Transform2D>(world);
+        world_data.add_component::<Transform>(world);
         world_data.add_component::<Camera>(world);
         world_data.add_component::<RigidBody2D>(world);
         world_data.add_component::<Collider2D>(world);
@@ -105,7 +105,7 @@ pub trait WorldExt {
 impl WorldExt for World {
     fn load_core_components(&mut self, world_data: &WorldData) {
         self.load_component_untracked::<EntityInfo>(world_data);
-        self.load_component_untracked::<Transform2D>(world_data);
+        self.load_component_untracked::<Transform>(world_data);
         self.load_component_untracked::<Camera>(world_data);
         self.load_component_trackall::<RigidBody2D>(world_data);
         self.load_component_trackall::<Collider2D>(world_data);
@@ -143,7 +143,7 @@ impl WorldExt for World {
             let new_id = *old_id_to_new_id.entry(old_id).or_insert_with(|| self.add_entity(()));
             for (component_name, component_data) in &entity_data.components {
                 self.create_component::<EntityInfo>(new_id, component_name, component_data);
-                self.create_component::<Transform2D>(new_id, component_name, component_data);
+                self.create_component::<Transform>(new_id, component_name, component_data);
                 self.create_component::<Camera>(new_id, component_name, component_data);
                 self.create_component::<RigidBody2D>(new_id, component_name, component_data);
                 self.create_component::<Collider2D>(new_id, component_name, component_data);
@@ -168,7 +168,7 @@ impl ComponentFn {
     pub fn with_core_components() -> IndexMap<&'static str, ComponentFn> {
         let mut component_fn = IndexMap::new();
         Self::add_component::<EntityInfo>(&mut component_fn);
-        Self::add_component::<Transform2D>(&mut component_fn);
+        Self::add_component::<Transform>(&mut component_fn);
         Self::add_component::<Camera>(&mut component_fn);
         Self::add_component::<RigidBody2D>(&mut component_fn);
         Self::add_component::<Collider2D>(&mut component_fn);

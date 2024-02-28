@@ -237,35 +237,53 @@ impl Editor {
                                     }
                                     Value::Vec2(v) => {
                                         ui.horizontal(|ui| {
-                                            let (range_x, range_y) = match component_data.limits.get(name) {
-                                                Some(Limit::Vec2Range { x, y }) => (Some(x), Some(y)),
-                                                _ => (None, None),
-                                            };
-                                            Self::drag_float32(ui, &mut v.x, range_x);
-                                            Self::drag_float32(ui, &mut v.y, range_y);
+                                            if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
+                                                ui.drag_angle(&mut v.x);
+                                                ui.drag_angle(&mut v.y);
+                                            } else {
+                                                let (range_x, range_y) = match component_data.limits.get(name) {
+                                                    Some(Limit::Vec2Range { x, y }) => (Some(x), Some(y)),
+                                                    _ => (None, None),
+                                                };
+                                                Self::drag_float32(ui, &mut v.x, range_x);
+                                                Self::drag_float32(ui, &mut v.y, range_y);
+                                            }
                                         });
                                     }
                                     Value::Vec3(v) => {
                                         ui.horizontal(|ui| {
-                                            let (range_x, range_y, range_z) = match component_data.limits.get(name) {
-                                                Some(Limit::Vec3Range { x, y, z }) => (Some(x), Some(y), Some(z)),
-                                                _ => (None, None, None),
-                                            };
-                                            Self::drag_float32(ui, &mut v.x, range_x);
-                                            Self::drag_float32(ui, &mut v.y, range_y);
-                                            Self::drag_float32(ui, &mut v.z, range_z);
+                                            if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
+                                                ui.drag_angle(&mut v.x);
+                                                ui.drag_angle(&mut v.y);
+                                                ui.drag_angle(&mut v.z);
+                                            } else {
+                                                let (range_x, range_y, range_z) = match component_data.limits.get(name) {
+                                                    Some(Limit::Vec3Range { x, y, z }) => (Some(x), Some(y), Some(z)),
+                                                    _ => (None, None, None),
+                                                };
+                                                Self::drag_float32(ui, &mut v.x, range_x);
+                                                Self::drag_float32(ui, &mut v.y, range_y);
+                                                Self::drag_float32(ui, &mut v.z, range_z);
+                                            }
                                         });
                                     }
                                     Value::Vec4(v) => {
                                         ui.horizontal(|ui| {
-                                            let (range_x, range_y, range_z, range_w) = match component_data.limits.get(name) {
-                                                Some(Limit::Vec4Range { x, y, z, w }) => (Some(x), Some(y), Some(z), Some(w)),
-                                                _ => (None, None, None, None),
-                                            };
-                                            Self::drag_float32(ui, &mut v.x, range_x);
-                                            Self::drag_float32(ui, &mut v.y, range_y);
-                                            Self::drag_float32(ui, &mut v.z, range_z);
-                                            Self::drag_float32(ui, &mut v.w, range_w);
+                                            if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
+                                                ui.drag_angle(&mut v.x);
+                                                ui.drag_angle(&mut v.y);
+                                                ui.drag_angle(&mut v.z);
+                                                ui.drag_angle(&mut v.w);
+                                            } else {
+                                                let (range_x, range_y, range_z, range_w) = match component_data.limits.get(name) {
+                                                    Some(Limit::Vec4Range { x, y, z, w }) => (Some(x), Some(y), Some(z), Some(w)),
+                                                    _ => (None, None, None, None),
+                                                };
+                                                Self::drag_float32(ui, &mut v.x, range_x);
+                                                Self::drag_float32(ui, &mut v.y, range_y);
+                                                Self::drag_float32(ui, &mut v.z, range_z);
+                                                Self::drag_float32(ui, &mut v.w, range_w);
+                                            }
                                         });
                                     }
                                 }
