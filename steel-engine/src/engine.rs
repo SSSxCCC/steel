@@ -1,4 +1,4 @@
-use crate::{camera::{camera_maintain_system, Camera, CameraInfo}, physics2d::{physics2d_debug_render_system, physics2d_maintain_system, physics2d_update_system, Collider2D, Physics2DManager, RigidBody2D}, render2d::{canvas_clear_system, canvas_render_system, renderer2d_to_canvas_system, Canvas, RenderInfo, Renderer2D}, ComponentFn, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
+use crate::{camera::{Camera, CameraInfo}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{Canvas, RenderInfo}, renderer2d::Renderer2D, ComponentFn, DrawInfo, Engine, EntityInfo, Transform2D, WorldData, WorldDataExt, WorldExt};
 use indexmap::IndexMap;
 use shipyard::{UniqueViewMut, World};
 use rapier2d::prelude::*;
@@ -43,18 +43,18 @@ impl Engine for EngineImpl {
     }
 
     fn maintain(&mut self) {
-        self.world.run(canvas_clear_system);
-        self.world.run(camera_maintain_system);
-        self.world.run(physics2d_maintain_system);
+        self.world.run(crate::render::canvas_clear_system);
+        self.world.run(crate::camera::camera_maintain_system);
+        self.world.run(crate::physics2d::physics2d_maintain_system);
     }
 
     fn update(&mut self) {
         log::trace!("Engine::update");
-        self.world.run(physics2d_update_system);
+        self.world.run(crate::physics2d::physics2d_update_system);
     }
 
     fn draw(&mut self) {
-        self.world.run(renderer2d_to_canvas_system);
+        self.world.run(crate::renderer2d::renderer2d_to_canvas_system);
     }
 
     fn draw_game(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
@@ -62,7 +62,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(RenderInfo::new(info.context.device().clone(),
             info.context.graphics_queue().clone(), info.context.memory_allocator().clone(),
             info.window_size, info.image, info.renderer.swapchain_format()));
-        let command_buffer = self.world.run(canvas_render_system);
+        let command_buffer = self.world.run(crate::render::canvas_render_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
     }
@@ -71,7 +71,7 @@ impl Engine for EngineImpl {
         self.world.run(|mut camera_info: UniqueViewMut<CameraInfo>| {
             camera_info.set(camera);
         });
-        self.world.run(physics2d_debug_render_system);
+        self.world.run(crate::physics2d::physics2d_debug_render_system);
         self.draw_game(info)
     }
 

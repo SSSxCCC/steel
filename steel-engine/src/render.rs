@@ -1,15 +1,8 @@
 use std::sync::Arc;
+use glam::{Mat4, Vec2, Vec3};
 use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{depth_stencil::DepthStencilState, input_assembly::InputAssemblyState, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
-use shipyard::{Component, IntoIter, Unique, UniqueView, UniqueViewMut, View};
-use glam::{Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
-use crate::{camera::CameraInfo, Edit, Transform2D};
-
-#[derive(Component, Default, Debug)]
-pub struct Renderer2D; // can only render cuboid currently. TODO: render multiple shape
-
-impl Edit for Renderer2D {
-    fn name() -> &'static str { "Renderer2D" }
-}
+use shipyard::{Unique, UniqueView, UniqueViewMut};
+use crate::camera::CameraInfo;
 
 #[derive(Unique)]
 pub struct RenderInfo {
@@ -52,18 +45,6 @@ impl Canvas {
 
 pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
-}
-
-pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transform2d: View<Transform2D>, mut canvas: UniqueViewMut<Canvas>) {
-    for (transform2d, renderer2d) in (&transform2d, &renderer2d).iter() {
-        let model = Mat4::from_scale_rotation_translation(Vec3 { x: transform2d.scale.x, y: transform2d.scale.y, z: 1.0 },
-            Quat::from_axis_angle(Vec3::Z, transform2d.rotation), transform2d.position);
-        let vertex = [(model * Vec4::new(-0.5, -0.5, 0.0, 1.0)).xyz(),
-            (model * Vec4::new(-0.5, 0.5, 0.0, 1.0)).xyz(),
-            (model * Vec4::new(0.5, 0.5, 0.0, 1.0)).xyz(),
-            (model * Vec4::new(0.5, -0.5, 0.0, 1.0)).xyz()];
-        canvas.rectangles.push(vertex);
-    }
 }
 
 pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>) -> PrimaryAutoCommandBuffer {

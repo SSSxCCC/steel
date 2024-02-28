@@ -1,17 +1,19 @@
-pub mod camera;
 pub mod engine;
+pub mod transform;
+pub mod camera;
 pub mod physics2d;
-pub mod render2d;
+pub mod renderer2d;
+pub mod render;
 
 pub use steel_common::*;
 
 use camera::Camera;
 use indexmap::IndexMap;
+use transform::Transform2D;
 use std::collections::HashMap;
-use render2d::Renderer2D;
+use renderer2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
 use shipyard::{Component, IntoIter, IntoWithId, View, World, EntityId, ViewMut, track::{Untracked, All}};
-use glam::{Vec3, Vec2};
 use log::{Log, LevelFilter, SetLoggerError};
 
 #[no_mangle]
@@ -33,6 +35,32 @@ pub trait Edit: Component + Default {
         let mut e = Self::default();
         e.set_data(data);
         e
+    }
+}
+
+#[derive(Component, Debug, Default)]
+pub struct EntityInfo {
+    pub name: String,
+    // steel-editor can read EntityId from EntityData so that we don't need to store EntityId here
+}
+
+impl EntityInfo {
+    pub fn new(name: impl Into<String>) -> Self {
+        EntityInfo { name: name.into() }
+    }
+}
+
+impl Edit for EntityInfo {
+    fn name() -> &'static str { "EntityInfo" }
+
+    fn get_data(&self) -> ComponentData {
+        let mut data = ComponentData::new();
+        data.values.insert("name".into(), Value::String(self.name.clone()));
+        data
+    }
+
+    fn set_data(&mut self, data: &ComponentData) {
+        if let Some(Value::String(s)) = data.values.get("name") { self.name = s.clone() }
     }
 }
 
@@ -153,62 +181,5 @@ impl ComponentFn {
             create: |world, entity| world.add_component(entity, (T::default(),)),
             destroy: |world, entity| world.delete_component::<T>(entity),
         });
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct Transform2D {
-    pub position: Vec3,
-    pub rotation: f32, // radian
-    pub scale: Vec2
-}
-
-impl Default for Transform2D {
-    fn default() -> Self {
-        Self { position: Default::default(), rotation: Default::default(), scale: Vec2::ONE }
-    }
-}
-
-impl Edit for Transform2D {
-    fn name() -> &'static str { "Transform2D" }
-
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
-        data.values.insert("position".into(), Value::Vec3(self.position));
-        data.add("rotation", Value::Float32(self.rotation), Limit::Float32Rotation);
-        data.values.insert("scale".into(), Value::Vec2(self.scale));
-        data
-    }
-
-    fn set_data(&mut self, data: &ComponentData) {
-        if let Some(Value::Vec3(v)) = data.values.get("position") { self.position = *v }
-        if let Some(Value::Float32(f)) = data.values.get("rotation") { self.rotation = *f }
-        if let Some(Value::Vec2(v)) = data.values.get("scale") { self.scale = *v }
-    }
-}
-
-#[derive(Component, Debug, Default)]
-pub struct EntityInfo {
-    pub name: String,
-    // steel-editor can read EntityId from EntityData so that we don't need to store EntityId here
-}
-
-impl EntityInfo {
-    pub fn new(name: impl Into<String>) -> Self {
-        EntityInfo { name: name.into() }
-    }
-}
-
-impl Edit for EntityInfo {
-    fn name() -> &'static str { "EntityInfo" }
-
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
-        data.values.insert("name".into(), Value::String(self.name.clone()));
-        data
-    }
-
-    fn set_data(&mut self, data: &ComponentData) {
-        if let Some(Value::String(s)) = data.values.get("name") { self.name = s.clone() }
     }
 }
