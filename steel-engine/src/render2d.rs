@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::ImageViewAbstract, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{input_assembly::InputAssemblyState, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
+use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{depth_stencil::DepthStencilState, input_assembly::InputAssemblyState, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Component, IntoIter, Unique, UniqueView, UniqueViewMut, View};
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
 use crate::{camera::CameraInfo, Edit, Transform2D};
@@ -66,32 +66,34 @@ pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transform2d: Vi
     }
 }
 
-pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, mut canvas: UniqueViewMut<Canvas>) -> PrimaryAutoCommandBuffer {
+pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>) -> PrimaryAutoCommandBuffer {
+    let depth_stencil_image = StorageImage::general_purpose_image_view(
+        info.memory_allocator.as_ref(),
+        info.graphics_queue.clone(),
+        [info.window_size.x as u32, info.window_size.y as u32],
+        Format::D32_SFLOAT,
+        ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+    ).unwrap();
+
     let render_pass = vulkano::single_pass_renderpass!(
         info.device.clone(),
         attachments: {
-            color: {
-                load: Clear,
-                store: Store,
-                format: info.format, // set the format the same as the swapchain
-                samples: 1,
-            },
+            color: { load: Clear, store: Store, format: info.format, samples: 1 },
+            depth_stencil: { load: Clear, store: DontCare, format: Format::D32_SFLOAT, samples: 1 },
         },
         pass: {
-            color: [color],
-            depth_stencil: {},
+            color: [ color ],
+            depth_stencil: { depth_stencil },
         },
-    )
-    .unwrap();
+    ).unwrap();
 
     let framebuffer = Framebuffer::new(
         render_pass.clone(),
         FramebufferCreateInfo {
-            attachments: vec![info.image.clone()],
+            attachments: vec![info.image.clone(), depth_stencil_image],
             ..Default::default()
         },
-    )
-    .unwrap();
+    ).unwrap();
 
     let vs = vs::load(info.device.clone()).expect("failed to create shader module");
     let fs = fs::load(info.device.clone()).expect("failed to create shader module");
@@ -108,17 +110,15 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         &command_buffer_allocator,
         info.graphics_queue.queue_family_index(),
         CommandBufferUsage::MultipleSubmit,
-    )
-    .unwrap();
+    ).unwrap();
 
     command_buffer_builder.begin_render_pass(
         RenderPassBeginInfo {
-            clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into())],
+            clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into()), Some(1.0.into())],
             ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
         },
         SubpassContents::Inline,
-    )
-    .unwrap();
+    ).unwrap();
 
     let projection_view = camera.projection_view(&info.window_size);
     let model = Mat4::IDENTITY; // TODO: remove this
@@ -130,18 +130,18 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         .input_assembly_state(InputAssemblyState::new())
         .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
         .fragment_shader(fs.entry_point("main").unwrap(), ())
-        .render_pass(Subpass::from(render_pass, 0).unwrap());
+        .render_pass(Subpass::from(render_pass, 0).unwrap())
+        .depth_stencil_state(DepthStencilState::simple_depth_test());
 
     if !canvas.lines.is_empty() {
         let pipeline = pipeline_builder.clone()
             .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
             .build(info.device.clone())
             .unwrap();
-        command_buffer_builder.bind_pipeline_graphics(pipeline.clone());
 
         let vertices = canvas.lines.iter()
             .flatten()
-            .map(|v| { MyVertex { position: [v.x, v.y] } })
+            .map(|v| { MyVertex { position: [v.x, v.y], color: [1.0, 0.0, 0.0, 1.0] } })
             .collect::<Vec<_>>();
 
         let vertex_buffer = Buffer::from_iter(
@@ -152,6 +152,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         ).unwrap();
 
         command_buffer_builder
+            .bind_pipeline_graphics(pipeline.clone())
             .push_constants(pipeline.layout().clone(), 0, push_constants)
             .bind_vertex_buffers(0, vertex_buffer.clone())
             .draw(vertex_buffer.len() as u32, 1, 0, 0)
@@ -162,11 +163,10 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         let pipeline = pipeline_builder.clone()
             .build(info.device.clone())
             .unwrap();
-        command_buffer_builder.bind_pipeline_graphics(pipeline.clone());
 
         let vertices = canvas.rectangles.iter()
             .flatten()
-            .map(|v| { MyVertex { position: [v.x, v.y] } })
+            .map(|v| { MyVertex { position: [v.x, v.y], color: [1.0, 1.0, 1.0, 1.0] } })
             .collect::<Vec<_>>();
 
         let indices = canvas.rectangles.iter()
@@ -191,6 +191,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         ).unwrap();
 
         command_buffer_builder
+            .bind_pipeline_graphics(pipeline.clone())
             .push_constants(pipeline.layout().clone(), 0, push_constants)
             .bind_vertex_buffers(0, vertex_buffer.clone())
             .bind_index_buffer(index_buffer.clone())
@@ -207,6 +208,8 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 struct MyVertex {
     #[format(R32G32_SFLOAT)]
     position: [f32; 2],
+    #[format(R32G32B32A32_SFLOAT)]
+    color: [f32; 4],
 }
 
 mod vs {
@@ -221,9 +224,13 @@ mod vs {
             } pcs;
 
             layout(location = 0) in vec2 position;
+            layout(location = 1) in vec4 color;
+
+            layout(location = 0) out vec4 out_color;
 
             void main() {
                 gl_Position = pcs.projection_view * pcs.model * vec4(position, 0.0, 1.0);
+                out_color = color;
             }
         ",
     }
@@ -235,10 +242,12 @@ mod fs {
         src: r"
             #version 460
 
+            layout(location = 0) in vec4 in_color;
+
             layout(location = 0) out vec4 f_color;
 
             void main() {
-                f_color = vec4(1.0, 0.0, 0.0, 1.0);
+                f_color = in_color;
             }
         ",
     }
