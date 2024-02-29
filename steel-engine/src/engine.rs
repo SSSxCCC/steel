@@ -34,11 +34,11 @@ impl Engine for EngineImpl {
                     Transform { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: Quat::IDENTITY, scale: Vec3::ONE },
                     RigidBody2D::new(RigidBodyType::Dynamic),
                     Collider2D::new(SharedShape::cuboid(0.5, 0.5), 0.7),
-                    Renderer2D));
+                    Renderer2D::default()));
             self.world.add_entity((EntityInfo::new("Ground"),
                     Transform { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: Quat::IDENTITY, scale: Vec3 { x: 20.0, y: 0.2, z: 1.0 } },
                     Collider2D::new(SharedShape::cuboid(10.0, 0.1), 0.7),
-                    Renderer2D));
+                    Renderer2D::default()));
         }
     }
 
@@ -95,7 +95,7 @@ impl Engine for EngineImpl {
             Command::CreateEntity => {
                 self.world.add_entity((EntityInfo::new("New Entity"),
                     Transform::default(),
-                    Renderer2D));
+                    Renderer2D::default()));
             },
             Command::DestroyEntity(id) => {
                 self.world.delete_entity(id);

@@ -1,4 +1,4 @@
-use glam::{Quat, Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
 use rapier2d::prelude::*;
@@ -295,8 +295,8 @@ impl DebugRenderBackend for DebugRenderer<'_> {
     fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
         // currently we use a big z value to make sure that debug render content can be seen
         // TODO: find a better way to make sure the visiblity of debug render content
-        self.canvas.lines.push([Vec3::new(a.x, a.y, 1000.0), Vec3::new(b.x, b.y, 1000.0)]);
-        // TODO: set color
+        let color = Vec4::from_array(color);
+        self.canvas.lines.push([(Vec3::new(a.x, a.y, 1000.0), color), (Vec3::new(b.x, b.y, 1000.0), color)]);
     }
 }
 

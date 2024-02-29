@@ -56,12 +56,16 @@ pub enum Limit {
         y: Range<f32>,
         z: Range<f32>,
     },
+    /// rgb color picker
+    Vec3Color,
     Vec4Range {
         x: Range<f32>,
         y: Range<f32>,
         z: Range<f32>,
         w: Range<f32>,
     },
+    /// rgba color picker
+    Vec4Color,
     /// display String in multiline text edit
     StringMultiline,
     /// can not set value

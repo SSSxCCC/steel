@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use glam::{Mat4, Vec2, Vec3};
-use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{depth_stencil::DepthStencilState, input_assembly::InputAssemblyState, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
+use glam::{Mat4, Vec2, Vec3, Vec4};
+use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::InputAssemblyState, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
 
@@ -23,11 +23,11 @@ impl RenderInfo {
 
 #[derive(Unique)]
 pub struct Canvas {
-    pub points: Vec<Vec3>,
-    pub lines: Vec<[Vec3; 2]>,
-    pub triangles: Vec<[Vec3; 3]>,
+    pub points: Vec<(Vec3, Vec4)>,
+    pub lines: Vec<[(Vec3, Vec4); 2]>,
+    pub triangles: Vec<[(Vec3, Vec4); 3]>,
     /// the index buffer: [0, 1, 2, 2, 3, 0]
-    pub rectangles: Vec<[Vec3; 4]>,
+    pub rectangles: Vec<[(Vec3, Vec4); 4]>,
 }
 
 impl Canvas {
@@ -112,7 +112,8 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
         .fragment_shader(fs.entry_point("main").unwrap(), ())
         .render_pass(Subpass::from(render_pass, 0).unwrap())
-        .depth_stencil_state(DepthStencilState::simple_depth_test());
+        .depth_stencil_state(DepthStencilState::simple_depth_test())
+        .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
 
     if !canvas.lines.is_empty() {
         let pipeline = pipeline_builder.clone()
@@ -122,7 +123,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 
         let vertices = canvas.lines.iter()
             .flatten()
-            .map(|v| { MyVertex { position: [v.x, v.y, v.z], color: [1.0, 0.0, 0.0, 1.0] } })
+            .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
             .collect::<Vec<_>>();
 
         let vertex_buffer = Buffer::from_iter(
@@ -147,7 +148,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 
         let vertices = canvas.rectangles.iter()
             .flatten()
-            .map(|v| { MyVertex { position: [v.x, v.y, v.z], color: [1.0, 1.0, 1.0, 1.0] } })
+            .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
             .collect::<Vec<_>>();
 
         let indices = canvas.rectangles.iter()

@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
-use glam::Vec2;
+use glam::{Vec2, Vec3, Vec4};
 use shipyard::EntityId;
 use steel_common::{Command, Engine, EntityData, Limit, Range, Value, WorldData};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
@@ -252,7 +252,11 @@ impl Editor {
                                     }
                                     Value::Vec3(v) => {
                                         ui.horizontal(|ui| {
-                                            if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
+                                            if let Some(Limit::Vec3Color) = component_data.limits.get(name) {
+                                                let mut color = v.to_array();
+                                                ui.color_edit_button_rgb(&mut color);
+                                                *v = Vec3::from_array(color);
+                                            } else if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
                                                 ui.drag_angle(&mut v.x);
                                                 ui.drag_angle(&mut v.y);
                                                 ui.drag_angle(&mut v.z);
@@ -269,7 +273,11 @@ impl Editor {
                                     }
                                     Value::Vec4(v) => {
                                         ui.horizontal(|ui| {
-                                            if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
+                                            if let Some(Limit::Vec4Color) = component_data.limits.get(name) {
+                                                let mut color = v.to_array();
+                                                ui.color_edit_button_rgba_unmultiplied(&mut color);
+                                                *v = Vec4::from_array(color);
+                                            } else if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
                                                 ui.drag_angle(&mut v.x);
                                                 ui.drag_angle(&mut v.y);
                                                 ui.drag_angle(&mut v.z);
