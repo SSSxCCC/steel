@@ -1,7 +1,7 @@
 use shipyard::{Component, IntoIter, UniqueViewMut, View};
 use glam::{Vec4, Vec4Swizzles};
 use steel_common::{ComponentData, Limit, Value};
-use crate::{render::Canvas, Edit, transform::Transform};
+use crate::{render::canvas::Canvas, Edit, transform::Transform};
 
 #[derive(Component, Debug)]
 pub struct Renderer2D { // can only render cuboid currently. TODO: render multiple shape

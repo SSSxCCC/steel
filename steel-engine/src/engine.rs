@@ -1,4 +1,4 @@
-use crate::{camera::{Camera, CameraInfo}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{Canvas, RenderInfo}, renderer2d::Renderer2D, ComponentFn, DrawInfo, Engine, EntityInfo, Transform, WorldData, WorldDataExt, WorldExt};
+use crate::{camera::{Camera, CameraInfo}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, ComponentFn, DrawInfo, Engine, EntityInfo, Transform, WorldData, WorldDataExt, WorldExt};
 use indexmap::IndexMap;
 use shipyard::{UniqueViewMut, World};
 use rapier2d::prelude::*;
@@ -43,7 +43,7 @@ impl Engine for EngineImpl {
     }
 
     fn maintain(&mut self) {
-        self.world.run(crate::render::canvas_clear_system);
+        self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
         self.world.run(crate::physics2d::physics2d_maintain_system);
     }
@@ -54,7 +54,7 @@ impl Engine for EngineImpl {
     }
 
     fn draw(&mut self) {
-        self.world.run(crate::renderer2d::renderer2d_to_canvas_system);
+        self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
     }
 
     fn draw_game(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
@@ -62,7 +62,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(RenderInfo::new(info.context.device().clone(),
             info.context.graphics_queue().clone(), info.context.memory_allocator().clone(),
             info.window_size, info.image, info.renderer.swapchain_format()));
-        let command_buffer = self.world.run(crate::render::canvas_render_system);
+        let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
     }

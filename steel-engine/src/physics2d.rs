@@ -4,7 +4,7 @@ use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, 
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::{ComponentData, Limit, Value};
-use crate::{render::Canvas, Edit, transform::Transform};
+use crate::{render::canvas::Canvas, Edit, transform::Transform};
 
 #[derive(Component, Debug)]
 #[track(All)]

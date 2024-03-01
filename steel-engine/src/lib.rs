@@ -2,7 +2,6 @@ pub mod engine;
 pub mod transform;
 pub mod camera;
 pub mod physics2d;
-pub mod renderer2d;
 pub mod render;
 
 pub use steel_common::*;
@@ -11,7 +10,7 @@ use camera::Camera;
 use indexmap::IndexMap;
 use transform::Transform;
 use std::collections::HashMap;
-use renderer2d::Renderer2D;
+use render::renderer2d::Renderer2D;
 use physics2d::{RigidBody2D, Collider2D};
 use shipyard::{Component, IntoIter, IntoWithId, View, World, EntityId, ViewMut, track::{Untracked, All}};
 use log::{Log, LevelFilter, SetLoggerError};
