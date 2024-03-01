@@ -3,6 +3,7 @@ members = [
     "steel-engine",
     "steel-common",
     "steel-editor",
+    "steel-client",
 ]
 exclude = [
     "examples/test-project"

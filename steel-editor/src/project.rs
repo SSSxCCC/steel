@@ -52,7 +52,8 @@ impl Project {
             }
 
             let mut complie_process = Command::new("cargo")
-                .arg("build")
+                .arg("rustc")
+                .arg("--crate-type=cdylib")
                 .current_dir(&state.path)
                 .spawn()?;
 

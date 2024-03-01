@@ -1935,6 +1935,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "steel-project"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "indexmap 2.2.2",
+ "log",
+ "rapier2d",
+ "rayon",
+ "serde",
+ "serde_json",
+ "shipyard",
+ "steel",
+ "vulkano",
+ "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
 name = "str-buf"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1975,32 +2001,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "test-project"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "egui",
- "egui_demo_lib",
- "egui_winit_vulkano",
- "env_logger",
- "glam",
- "indexmap 2.2.2",
- "log",
- "rapier2d",
- "rayon",
- "serde",
- "serde_json",
- "shipyard",
- "steel",
- "vulkano",
- "vulkano-shaders",
- "vulkano-util",
- "vulkano-win",
- "winit",
- "winit_input_helper",
 ]
 
 [[package]]

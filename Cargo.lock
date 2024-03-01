@@ -1910,6 +1910,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "steel-client"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "indexmap 2.2.2",
+ "log",
+ "rapier2d",
+ "rayon",
+ "serde",
+ "serde_json",
+ "shipyard",
+ "steel-common",
+ "steel-project",
+ "vulkano",
+ "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
 name = "steel-common"
 version = "0.1.0"
 dependencies = [
@@ -1953,6 +1980,32 @@ dependencies = [
  "serde_json",
  "shipyard",
  "steel-common",
+ "vulkano",
+ "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
+name = "steel-project"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "indexmap 2.2.2",
+ "log",
+ "rapier2d",
+ "rayon",
+ "serde",
+ "serde_json",
+ "shipyard",
+ "steel",
  "vulkano",
  "vulkano-shaders",
  "vulkano-util",
