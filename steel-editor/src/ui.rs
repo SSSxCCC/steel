@@ -94,7 +94,7 @@ impl Editor {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
-                    if project.is_open() && !project.is_running() {
+                    if project.is_compiled() && !project.is_running() {
                         if ui.button("Save").clicked() {
                             log::info!("Menu->Project->Save");
                             project.save_to_file();
@@ -126,6 +126,16 @@ impl Editor {
                             project.compile();
                             ui.close_menu();
                         }
+                    }
+                    if project.is_compiled() && !project.is_running() {
+                        ui.menu_button("Export", |ui| {
+                            if ui.button("Windows").clicked() {
+                                log::info!("Menu->Project->Export->Windows");
+                                project.export();
+                                // TODO: display a dialog to show export result
+                                ui.close_menu();
+                            }
+                        });
                     }
                 });
                 if project.is_compiled() {

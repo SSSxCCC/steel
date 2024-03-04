@@ -39,7 +39,7 @@ impl Project {
 
     pub fn compile(&mut self) {
         if let Some(error) = self._compile().err() {
-            log::error!("Project compile failed: {}", error);
+            log::error!("Project compile failed: {error}");
         }
     }
 
@@ -48,7 +48,7 @@ impl Project {
             state.compiled = None; // prevent steel.dll from being loaded twice at same time
             let lib_path = state.path.join("target/debug/steel.dll");
             if lib_path.exists() {
-                std::fs::remove_file(&lib_path)?;
+                fs::remove_file(&lib_path)?;
             }
 
             let mut complie_process = Command::new("cargo")
@@ -57,7 +57,7 @@ impl Project {
                 .current_dir(&state.path)
                 .spawn()?;
 
-            complie_process.wait()?;
+            complie_process.wait()?; // TODO: non-blocking wait
 
             let library: Library = unsafe { Library::new(&lib_path)? };
 
@@ -78,7 +78,7 @@ impl Project {
             state.compiled = Some(ProjectCompiledState { engine, library, data, running: false });
             Ok(())
         } else {
-            Err(Box::new(CompileError { message: "No open project".into() }))
+            Err(Box::new(ProjectError { message: "No open project".into() }))
         }
     }
 
@@ -96,6 +96,40 @@ impl Project {
 
     fn compiled_mut(&mut self) -> Option<&mut ProjectCompiledState> {
         self.state.as_mut()?.compiled.as_mut()
+    }
+
+    pub fn export(&mut self) {
+        if let Some(error) = self._export().err() {
+            log::error!("Project export failed: {error}");
+        }
+    }
+
+    fn _export(&mut self) -> Result<(), Box<dyn Error>> {
+        if let Some(state) = self.state.as_mut() {
+            let exe_path = PathBuf::from("target/debug/steel-client.exe");
+            if exe_path.exists() {
+                fs::remove_file(&exe_path)?;
+            }
+
+            let mut complie_process = Command::new("cargo")
+                .arg("build")
+                .arg("-p").arg("steel-client")
+                .arg("-F").arg("desktop")
+                .spawn()?;
+
+            complie_process.wait()?; // TODO: non-blocking wait
+
+            if !exe_path.exists() {
+                return Err(Box::new(ProjectError { message: "Failed to build steel-client, please see earlier logs to find results".into() }));
+            }
+
+            let exe_export_path = state.path.join("build/windows/steel-client.exe");
+            fs::create_dir_all(exe_export_path.parent().unwrap())?;
+            fs::copy(exe_path, exe_export_path)?;
+            Ok(())
+        } else {
+            Err(Box::new(ProjectError { message: "No open project".into() }))
+        }
     }
 
     pub fn set_running(&mut self, running: bool) {
@@ -160,16 +194,14 @@ impl Project {
 }
 
 #[derive(Debug)]
-struct CompileError {
+struct ProjectError {
     message: String,
 }
 
-impl std::fmt::Display for CompileError {
+impl std::fmt::Display for ProjectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CompileError({})", self.message)
+        write!(f, "ProjectError({})", self.message)
     }
 }
 
-impl Error for CompileError {
-
-}
+impl Error for ProjectError {}

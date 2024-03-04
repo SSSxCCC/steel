@@ -42,6 +42,6 @@ name = "main"
 crate_type = ["cdylib"]
 
 [[bin]]
-name = "steel-editor"
+name = "steel-client"
 path="src/lib.rs"
 required-features = [ "desktop" ]
