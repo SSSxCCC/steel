@@ -98,34 +98,99 @@ impl Project {
         self.state.as_mut()?.compiled.as_mut()
     }
 
-    pub fn export(&mut self) {
-        if let Some(error) = self._export().err() {
-            log::error!("Project export failed: {error}");
+    pub fn export_windows(&self) {
+        if let Some(error) = self._export_windows().err() {
+            log::error!("Project export windows failed: {error}");
         }
     }
 
-    fn _export(&mut self) -> Result<(), Box<dyn Error>> {
-        if let Some(state) = self.state.as_mut() {
+    fn _export_windows(&self) -> Result<(), Box<dyn Error>> {
+        if let Some(state) = self.state.as_ref() {
             let exe_path = PathBuf::from("target/debug/steel-client.exe");
             if exe_path.exists() {
                 fs::remove_file(&exe_path)?;
             }
 
-            let mut complie_process = Command::new("cargo")
+            // cargo build -p steel-client -F desktop
+            Command::new("cargo")
                 .arg("build")
                 .arg("-p").arg("steel-client")
                 .arg("-F").arg("desktop")
-                .spawn()?;
-
-            complie_process.wait()?; // TODO: non-blocking wait
+                .spawn()?
+                .wait()?; // TODO: non-blocking wait
 
             if !exe_path.exists() {
-                return Err(Box::new(ProjectError { message: "Failed to build steel-client, please see earlier logs to find results".into() }));
+                return Err(Box::new(ProjectError { message: format!("No file: {exe_path:?}") }));
             }
 
             let exe_export_path = state.path.join("build/windows/steel-client.exe");
             fs::create_dir_all(exe_export_path.parent().unwrap())?;
             fs::copy(exe_path, exe_export_path)?;
+            Ok(())
+        } else {
+            Err(Box::new(ProjectError { message: "No open project".into() }))
+        }
+    }
+
+    pub fn export_android(&self) {
+        if let Some(error) = self._export_android().err() {
+            log::error!("Project export android failed: {error}");
+        }
+    }
+
+    fn _export_android(&self) -> Result<(), Box<dyn Error>> {
+        if let Some(state) = self.state.as_ref() {
+            let so_path = PathBuf::from("steel-client/android-project/app/src/main/jniLibs/arm64-v8a/libmain.so");
+            if so_path.exists() {
+                fs::remove_file(&so_path)?;
+            }
+
+            // cargo ndk -t arm64-v8a -o steel-client/android-project/app/src/main/jniLibs/ build -p steel-client
+            Command::new("cargo")
+                .arg("ndk")
+                .arg("-t").arg("arm64-v8a")
+                .arg("-o").arg("steel-client/android-project/app/src/main/jniLibs/")
+                .arg("build")
+                .arg("-p").arg("steel-client")
+                .spawn()?
+                .wait()?; // TODO: non-blocking wait
+
+            if !so_path.exists() {
+                return Err(Box::new(ProjectError { message: format!("No file: {so_path:?}") }));
+            }
+
+            let apk_path = PathBuf::from("steel-client/android-project/app/build/outputs/apk/debug/app-debug.apk");
+            if apk_path.exists() {
+                fs::remove_file(&apk_path)?;
+            }
+
+            let mut android_project_dir = fs::canonicalize("steel-client/android-project").unwrap();
+            // the windows path prefix "\\?\" makes bat fail to run in std::process::Command
+            const WINDOWS_PATH_PREFIX: &str = r#"\\?\"#;
+            if android_project_dir.display().to_string().starts_with(WINDOWS_PATH_PREFIX) {
+                // TODO: convert PathBuf to String and back to PathBuf may lose data, find a better way to do this
+                android_project_dir = PathBuf::from(&android_project_dir.display().to_string()[WINDOWS_PATH_PREFIX.len()..]);
+            };
+
+            Command::new("steel-client/android-project/gradlew.bat")
+                .arg("build")
+                .current_dir(&android_project_dir)
+                .spawn()?
+                .wait()?; // TODO: non-blocking wait
+
+            if !apk_path.exists() {
+                return Err(Box::new(ProjectError { message: format!("No file: {apk_path:?}") }));
+            }
+
+            Command::new("steel-client/android-project/gradlew.bat")
+                .arg("installDebug")
+                .current_dir(&android_project_dir)
+                .spawn()?
+                .wait()?; // TODO: non-blocking wait
+
+            let apk_export_path = state.path.join("build/android/steel-client.apk");
+            fs::create_dir_all(apk_export_path.parent().unwrap())?;
+            fs::copy(apk_path, apk_export_path)?;
             Ok(())
         } else {
             Err(Box::new(ProjectError { message: "No open project".into() }))

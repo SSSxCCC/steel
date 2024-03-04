@@ -131,7 +131,13 @@ impl Editor {
                         ui.menu_button("Export", |ui| {
                             if ui.button("Windows").clicked() {
                                 log::info!("Menu->Project->Export->Windows");
-                                project.export();
+                                project.export_windows();
+                                // TODO: display a dialog to show export result
+                                ui.close_menu();
+                            }
+                            if ui.button("Android").clicked() {
+                                log::info!("Menu->Project->Export->Android");
+                                project.export_android();
                                 // TODO: display a dialog to show export result
                                 ui.close_menu();
                             }
