@@ -1,5 +1,6 @@
 mod ui;
 mod project;
+mod utils;
 
 use glam::{Vec2, Vec3};
 use steel_common::{DrawInfo, EditorCamera};
@@ -13,6 +14,9 @@ use winit::{
 use winit_input_helper::WinitInputHelper;
 
 use crate::{ui::Editor, project::Project};
+
+// Currently we can not use cargo in android, so that running steel-editor in android is useless
+// TODO: remove android code in steel-editor, or find a way to make steel-editor work in android
 
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;

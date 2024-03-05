@@ -22,11 +22,8 @@ impl Editor {
     pub fn new() -> Self {
         let mut project_path = fs::canonicalize("examples/test-project").unwrap();
         // the windows path prefix "\\?\" makes cargo build fail in std::process::Command
-        const WINDOWS_PATH_PREFIX: &str = r#"\\?\"#;
-        if project_path.display().to_string().starts_with(WINDOWS_PATH_PREFIX) {
-            // TODO: convert PathBuf to String and back to PathBuf may lose data, find a better way to do this
-            project_path = PathBuf::from(&project_path.display().to_string()[WINDOWS_PATH_PREFIX.len()..]);
-        };
+        crate::utils::delte_windows_path_prefix(&mut project_path);
+
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
             project_path, fps_counter: FpsCounter::new(), selected_entity: EntityId::dead() }
