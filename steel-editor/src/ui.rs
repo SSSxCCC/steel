@@ -11,7 +11,7 @@ use crate::project::Project;
 pub struct Editor {
     scene_window: ImageWindow,
     game_window: ImageWindow,
-    demo_windows: egui_demo_lib::DemoWindows,
+    #[allow(unused)] demo_windows: egui_demo_lib::DemoWindows,
     show_open_project_dialog: bool,
     project_path: PathBuf,
     fps_counter: FpsCounter,
@@ -206,7 +206,7 @@ impl Editor {
                                     Value::Int32(v) => {
                                         if let Some(Limit::Int32Enum(int_enum)) = component_data.limits.get(name) {
                                             if int_enum.len() > 0 {
-                                                let mut i = int_enum.iter().enumerate().find_map(|(i, (int, s))| {
+                                                let mut i = int_enum.iter().enumerate().find_map(|(i, (int, _))| {
                                                     if v == int { Some(i) } else { None }
                                                 }).unwrap_or(0);
                                                 // Use entity + component_name + value_name as id to make sure that every id is unique
@@ -396,6 +396,7 @@ impl Editor {
         self.game_window.size
     }
 
+    #[allow(unused)]
     pub fn game_focus(&self) -> bool {
         self.game_window.layer.is_some_and(|this| !self.scene_window.layer.is_some_and(|other| other > this))
     }

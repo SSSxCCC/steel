@@ -28,7 +28,7 @@ pub trait Edit: Component + Default {
         ComponentData::new()
     }
 
-    fn set_data(&mut self, data: &ComponentData) { }
+    fn set_data(&mut self, #[allow(unused)] data: &ComponentData) { }
 
     fn from(data: &ComponentData) -> Self {
         let mut e = Self::default();

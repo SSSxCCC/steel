@@ -5,7 +5,7 @@ use log::{Log, LevelFilter, SetLoggerError};
 
 struct ProjectCompiledState {
     engine: Box<dyn Engine>,
-    library: Library, // Library must be destroyed after Engine
+    #[allow(unused)] library: Library, // Library must be destroyed after Engine
 
     data: WorldData,
     running: bool,
