@@ -1,6 +1,9 @@
-use std::{collections::HashMap, sync::Arc};
+pub mod platform;
+
+use std::{collections::HashMap, error::Error, path::Path, sync::Arc};
 use glam::{Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
+use platform::Platform;
 use serde::{Serialize, Deserialize};
 use shipyard::EntityId;
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
@@ -127,6 +130,21 @@ pub struct WorldData {
 impl WorldData {
     pub fn new() -> Self {
         WorldData { entities: IndexMap::new() }
+    }
+
+    pub fn load_from_file(file: impl AsRef<Path>, platform: &Platform) -> Option<WorldData> {
+        match Self::_load_from_file(file.as_ref(), &platform) {
+            Ok(world_data) => Some(world_data),
+            Err(error) => {
+                log::warn!("Failed to load world_data, file={}, error={error}", file.as_ref().display());
+                None
+            }
+        }
+    }
+
+    fn _load_from_file(file: impl AsRef<Path>, platform: &Platform) -> Result<WorldData, Box<dyn Error>> {
+        let s = platform.read_to_string(file)?;
+        Ok(serde_json::from_str::<WorldData>(&s)?)
     }
 }
 

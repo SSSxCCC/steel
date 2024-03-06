@@ -128,7 +128,18 @@ impl Project {
             let exe_export_path = state.path.join("build/windows/steel-client.exe");
             fs::create_dir_all(exe_export_path.parent().unwrap())?;
             fs::copy(exe_path, &exe_export_path)?;
-            log::info!("Exported: {exe_export_path:?}");
+            log::info!("Exported: {}", exe_export_path.display());
+
+            let scene_export_path = state.path.join("build/windows/scene.json");
+            if scene_export_path.exists() {
+                fs::remove_file(&scene_export_path)?;
+            }
+            let scene_path = state.path.join("scene.json");
+            if scene_path.exists() {
+                fs::copy(scene_path, &scene_export_path)?;
+                log::info!("Exported: {}", scene_export_path.display());
+            }
+
             Ok(())
         } else {
             Err(Box::new(ProjectError { message: "No open project".into() }))
@@ -166,6 +177,19 @@ impl Project {
 
             if !so_path.exists() {
                 return Err(Box::new(ProjectError { message: format!("No output file: {so_path:?}") }));
+            }
+
+            let assets_dir = PathBuf::from("steel-client/android-project/app/src/main/assets");
+            if assets_dir.exists() {
+                fs::remove_dir_all(&assets_dir)?;
+            }
+            fs::create_dir(&assets_dir)?;
+
+            let scene_export_path = assets_dir.join("scene.json");
+            let scene_path = state.path.join("scene.json");
+            if scene_path.exists() {
+                fs::copy(scene_path, &scene_export_path)?;
+                log::info!("Exported: {}", scene_export_path.display());
             }
 
             let apk_path = PathBuf::from("steel-client/android-project/app/build/outputs/apk/debug/app-debug.apk");

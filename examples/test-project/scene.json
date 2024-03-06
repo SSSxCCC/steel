@@ -118,7 +118,16 @@
             }
           },
           "Renderer2D": {
-            "values": {}
+            "values": {
+              "color": {
+                "Vec4": [
+                  0.0,
+                  1.0,
+                  2.3841858e-7,
+                  1.0
+                ]
+              }
+            }
           }
         }
       }
@@ -182,7 +191,99 @@
             }
           },
           "Renderer2D": {
-            "values": {}
+            "values": {
+              "color": {
+                "Vec4": [
+                  1.0,
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    [
+      {
+        "index": 3,
+        "gen": 0
+      },
+      {
+        "components": {
+          "EntityInfo": {
+            "values": {
+              "name": {
+                "String": "Object2"
+              }
+            }
+          },
+          "Transform": {
+            "values": {
+              "position": {
+                "Vec3": [
+                  0.0,
+                  6.0,
+                  0.0
+                ]
+              },
+              "rotation": {
+                "Vec3": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "scale": {
+                "Vec3": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            }
+          },
+          "RigidBody2D": {
+            "values": {
+              "handle": {
+                "String": "RigidBodyHandle(Index { index: 1, generation: 0 })"
+              },
+              "body_type": {
+                "Int32": 0
+              }
+            }
+          },
+          "Collider2D": {
+            "values": {
+              "handle": {
+                "String": "ColliderHandle(Index { index: 2, generation: 0 })"
+              },
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
+              "restitution": {
+                "Float32": 0.7
+              }
+            }
+          },
+          "Renderer2D": {
+            "values": {
+              "color": {
+                "Vec4": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              }
+            }
           }
         }
       }

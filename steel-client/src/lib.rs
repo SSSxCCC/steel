@@ -1,5 +1,5 @@
 use glam::Vec2;
-use steel_common::DrawInfo;
+use steel_common::{platform::Platform, DrawInfo, WorldData};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{
     event::{Event, WindowEvent},
@@ -15,8 +15,9 @@ use winit::platform::android::activity::AndroidApp;
 fn android_main(app: AndroidApp) {
     android_logger::init_once(android_logger::Config::default().with_max_level(log::LevelFilter::Trace));
     use winit::platform::android::EventLoopBuilderExtAndroid;
-    let event_loop = EventLoopBuilder::new().with_android_app(app).build();
-    _main(event_loop);
+    let event_loop = EventLoopBuilder::new().with_android_app(app.clone()).build();
+    let platform = Platform::new(app);
+    _main(event_loop, platform);
 }
 
 #[cfg(not(target_os = "android"))]
@@ -24,10 +25,11 @@ fn android_main(app: AndroidApp) {
 fn main() {
     env_logger::builder().filter_level(log::LevelFilter::Debug).parse_default_env().init();
     let event_loop = EventLoopBuilder::new().build();
-    _main(event_loop);
+    let platform = Platform::new();
+    _main(event_loop, platform);
 }
 
-fn _main(event_loop: EventLoop<()>) {
+fn _main(event_loop: EventLoop<()>, platform: Platform) {
     // graphics
     let mut config = VulkanoConfig::default();
     config.device_features.fill_mode_non_solid = true;
@@ -39,8 +41,9 @@ fn _main(event_loop: EventLoop<()>) {
     let mut events = Vec::new();
 
     // engine
+    let world_data = WorldData::load_from_file("scene.json", &platform);
     let mut engine = steel::create();
-    engine.init(None); // TODO: read world_data from scene.json
+    engine.init(world_data.as_ref());
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
