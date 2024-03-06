@@ -106,84 +106,95 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
     let push_constants = vs::PushConstants { projection_view: projection_view.to_cols_array_2d(), model: model.to_cols_array_2d() };
 
     let pipeline_builder = GraphicsPipeline::start()
+        .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
         .vertex_input_state(MyVertex::per_vertex())
         .vertex_shader(vs.entry_point("main").unwrap(), ())
-        .input_assembly_state(InputAssemblyState::new())
-        .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
         .fragment_shader(fs.entry_point("main").unwrap(), ())
         .render_pass(Subpass::from(render_pass, 0).unwrap())
         .depth_stencil_state(DepthStencilState::simple_depth_test())
         .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
 
-    if !canvas.lines.is_empty() {
-        let pipeline = pipeline_builder.clone()
-            .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
-            .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
-            .build(info.device.clone())
-            .unwrap();
+    let pipeline = pipeline_builder.clone()
+        .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
+        .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
+        .build(info.device.clone())
+        .unwrap();
+    draw_lines(&canvas.lines, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
 
-        let vertices = canvas.lines.iter()
-            .flatten()
-            .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
-            .collect::<Vec<_>>();
-
-        let vertex_buffer = Buffer::from_iter(
-            info.memory_allocator.as_ref(),
-            BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
-            AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
-            vertices.into_iter()
-        ).unwrap();
-
-        command_buffer_builder
-            .bind_pipeline_graphics(pipeline.clone())
-            .push_constants(pipeline.layout().clone(), 0, push_constants)
-            .bind_vertex_buffers(0, vertex_buffer.clone())
-            .draw(vertex_buffer.len() as u32, 1, 0, 0)
-            .unwrap();
-    }
-
-    if !canvas.rectangles.is_empty() {
-        let pipeline = pipeline_builder.clone()
-            .build(info.device.clone())
-            .unwrap();
-
-        let vertices = canvas.rectangles.iter()
-            .flatten()
-            .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
-            .collect::<Vec<_>>();
-
-        let indices = canvas.rectangles.iter()
-            .enumerate()
-            .map(|(i, _)| [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 2, i * 4 + 3, i * 4])
-            .flatten()
-            .map(|i| i as u16)
-            .collect::<Vec<_>>();
-
-        let vertex_buffer = Buffer::from_iter(
-            info.memory_allocator.as_ref(),
-            BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
-            AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
-            vertices.into_iter()
-        ).unwrap();
-
-        let index_buffer = Buffer::from_iter(
-            info.memory_allocator.as_ref(),
-            BufferCreateInfo { usage: BufferUsage::INDEX_BUFFER, ..Default::default() },
-            AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
-            indices.into_iter()
-        ).unwrap();
-
-        command_buffer_builder
-            .bind_pipeline_graphics(pipeline.clone())
-            .push_constants(pipeline.layout().clone(), 0, push_constants)
-            .bind_vertex_buffers(0, vertex_buffer.clone())
-            .bind_index_buffer(index_buffer.clone())
-            .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
-            .unwrap();
-    }
+    let pipeline = pipeline_builder.clone()
+        .build(info.device.clone())
+        .unwrap();
+    draw_rectangles(&canvas.rectangles, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
 
     command_buffer_builder.end_render_pass().unwrap();
     command_buffer_builder.build().unwrap()
+}
+
+fn draw_lines(lines: &Vec<[(Vec3, Vec4); 2]>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
+        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, push_constants: vs::PushConstants) {
+    if lines.is_empty() {
+        return;
+    }
+
+    let vertices = lines.iter()
+        .flatten()
+        .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
+        .collect::<Vec<_>>();
+
+    let vertex_buffer = Buffer::from_iter(
+        memory_allocator.as_ref(),
+        BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
+        AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
+        vertices.into_iter()
+    ).unwrap();
+
+    command_buffer_builder
+        .bind_pipeline_graphics(pipeline.clone())
+        .push_constants(pipeline.layout().clone(), 0, push_constants)
+        .bind_vertex_buffers(0, vertex_buffer.clone())
+        .draw(vertex_buffer.len() as u32, 1, 0, 0)
+        .unwrap();
+}
+
+fn draw_rectangles(rectangles: &Vec<[(Vec3, Vec4); 4]>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
+        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, push_constants: vs::PushConstants) {
+    if rectangles.is_empty() {
+        return;
+    }
+
+    let vertices = rectangles.iter()
+        .flatten()
+        .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
+        .collect::<Vec<_>>();
+
+    let indices = rectangles.iter()
+        .enumerate()
+        .map(|(i, _)| [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 2, i * 4 + 3, i * 4])
+        .flatten()
+        .map(|i| i as u16)
+        .collect::<Vec<_>>();
+
+    let vertex_buffer = Buffer::from_iter(
+        memory_allocator.as_ref(),
+        BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
+        AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
+        vertices.into_iter()
+    ).unwrap();
+
+    let index_buffer = Buffer::from_iter(
+        memory_allocator.as_ref(),
+        BufferCreateInfo { usage: BufferUsage::INDEX_BUFFER, ..Default::default() },
+        AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
+        indices.into_iter()
+    ).unwrap();
+
+    command_buffer_builder
+        .bind_pipeline_graphics(pipeline.clone())
+        .push_constants(pipeline.layout().clone(), 0, push_constants)
+        .bind_vertex_buffers(0, vertex_buffer.clone())
+        .bind_index_buffer(index_buffer.clone())
+        .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
+        .unwrap();
 }
 
 #[derive(BufferContents, Vertex)]
