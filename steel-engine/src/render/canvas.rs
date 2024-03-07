@@ -115,6 +115,13 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
 
     let pipeline = pipeline_builder.clone()
+        .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::PointList))
+        .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Point))
+        .build(info.device.clone())
+        .unwrap();
+    draw_points(&canvas.points, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+
+    let pipeline = pipeline_builder.clone()
         .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
         .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
         .build(info.device.clone())
@@ -124,10 +131,24 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
     let pipeline = pipeline_builder.clone()
         .build(info.device.clone())
         .unwrap();
+    draw_triangles(&canvas.triangles, pipeline.clone(), info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
     draw_rectangles(&canvas.rectangles, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
 
     command_buffer_builder.end_render_pass().unwrap();
     command_buffer_builder.build().unwrap()
+}
+
+fn draw_points(points: &Vec<(Vec3, Vec4)>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
+        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, push_constants: vs::PushConstants) {
+    if points.is_empty() {
+        return;
+    }
+
+    let vertices = points.iter()
+        .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
+        .collect::<Vec<_>>();
+
+    draw_vertices(vertices, pipeline, memory_allocator, command_buffer_builder, push_constants);
 }
 
 fn draw_lines(lines: &Vec<[(Vec3, Vec4); 2]>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
@@ -141,6 +162,25 @@ fn draw_lines(lines: &Vec<[(Vec3, Vec4); 2]>, pipeline: Arc<GraphicsPipeline>, m
         .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
         .collect::<Vec<_>>();
 
+    draw_vertices(vertices, pipeline, memory_allocator, command_buffer_builder, push_constants);
+}
+
+fn draw_triangles(triangles: &Vec<[(Vec3, Vec4); 3]>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
+        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, push_constants: vs::PushConstants) {
+    if triangles.is_empty() {
+        return;
+    }
+
+    let vertices = triangles.iter()
+        .flatten()
+        .map(|(v, c)| { MyVertex { position: v.to_array(), color: c.to_array() } })
+        .collect::<Vec<_>>();
+
+    draw_vertices(vertices, pipeline, memory_allocator, command_buffer_builder, push_constants);
+}
+
+fn draw_vertices(vertices: Vec<MyVertex>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
+    command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, push_constants: vs::PushConstants) {
     let vertex_buffer = Buffer::from_iter(
         memory_allocator.as_ref(),
         BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
