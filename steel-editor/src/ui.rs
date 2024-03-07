@@ -64,9 +64,22 @@ impl Editor {
     fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
-            let mut path_str = self.project_path.display().to_string();
-            ui.text_edit_singleline(&mut path_str);
-            self.project_path = path_str.into();
+            ui.horizontal(|ui| {
+                let mut path_str = self.project_path.display().to_string();
+                ui.text_edit_singleline(&mut path_str);
+                self.project_path = path_str.into();
+
+                if ui.button("Browse").clicked() {
+                    log::info!("Open FileDialog");
+                    let folder = rfd::FileDialog::new()
+                        .set_directory(&self.project_path)
+                        .pick_folder();
+                    log::info!("Close FileDialog, folder={folder:?}");
+                    if let Some(folder) = folder {
+                        self.project_path = folder;
+                    }
+                }
+            });
             if ui.button("Open").clicked() {
                 log::info!("Open project, path={}", self.project_path.display());
                 self.scene_window.close(Some(gui));
