@@ -3,6 +3,8 @@ use steel_common::{Engine, WorldData};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
+use crate::utils::LocalData;
+
 struct ProjectCompiledState {
     engine: Box<dyn Engine>,
     #[allow(unused)] library: Library, // Library must be destroyed after Engine
@@ -25,10 +27,14 @@ impl Project {
         Project { state: None }
     }
 
-    pub fn open(&mut self, path: PathBuf) {
+    pub fn open(&mut self, path: PathBuf, local_data: &mut LocalData) {
         match Self::_open(&path) {
             Err(error) => log::error!("Failed to open project, path={}, error={error}", path.display()),
-            Ok(_) => self.state = Some(ProjectState { path, compiled: None }),
+            Ok(_) => {
+                local_data.last_open_project_path = path.clone();
+                local_data.save();
+                self.state = Some(ProjectState { path, compiled: None });
+            }
         }
     }
 

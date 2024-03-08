@@ -13,7 +13,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-use crate::{ui::Editor, project::Project};
+use crate::{project::Project, ui::Editor, utils::LocalData};
 
 // Currently we can not use cargo in android, so that running steel-editor in android is useless
 // TODO: remove android code in steel-editor, or find a way to make steel-editor work in android
@@ -39,6 +39,9 @@ fn main() {
 }
 
 fn _main(event_loop: EventLoop<()>) {
+    // local data
+    let mut local_data = LocalData::load();
+
     // graphics
     let mut config = VulkanoConfig::default();
     config.device_features.fill_mode_non_solid = true;
@@ -48,7 +51,7 @@ fn _main(event_loop: EventLoop<()>) {
 
     // egui
     let mut gui = None;
-    let mut editor = Editor::new();
+    let mut editor = Editor::new(&local_data);
 
     // project
     let mut project = Project::new();
@@ -108,7 +111,7 @@ fn _main(event_loop: EventLoop<()>) {
                 let gui = gui.as_mut().unwrap();
                 let mut world_data = project.engine().map(|e| { e.save() });
                 if let Some(world_data) = world_data.as_ref() { log::trace!("world_data={:?}", world_data); }
-                editor.ui(gui, &context, renderer, &mut project, world_data.as_mut());
+                editor.ui(gui, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
 
                 let mut gpu_future = renderer.acquire().unwrap();
 

@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, sync::Arc, time::Instant};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::{Vec2, Vec3, Vec4};
 use shipyard::EntityId;
@@ -6,7 +6,7 @@ use steel_common::{Command, Engine, EntityData, Limit, Range, Value, WorldData};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
-use crate::project::Project;
+use crate::{project::Project, utils::LocalData};
 
 pub struct Editor {
     scene_window: ImageWindow,
@@ -19,26 +19,22 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new() -> Self {
-        let mut project_path = fs::canonicalize("examples/test-project").unwrap();
-        // the windows path prefix "\\?\" makes cargo build fail in std::process::Command
-        crate::utils::delte_windows_path_prefix(&mut project_path);
-        // TODO: use last opened project path as initial path
-
+    pub fn new(local_data: &LocalData) -> Self {
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
-            project_path, fps_counter: FpsCounter::new(), selected_entity: EntityId::dead() }
+            project_path: local_data.last_open_project_path.clone(), fps_counter: FpsCounter::new(),
+            selected_entity: EntityId::dead() }
     }
 
     pub fn ui(&mut self, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
-            project: &mut Project, world_data: Option<&mut WorldData>) {
+            project: &mut Project, local_data: &mut LocalData, world_data: Option<&mut WorldData>) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
 
             // display egui demo windows
             //self.demo_windows.ui(&ctx);
 
-            self.open_project_dialog(&ctx, gui, project);
+            self.open_project_dialog(&ctx, gui, project, local_data);
             self.menu_bars(&ctx, gui, project);
 
             if project.is_compiled() {
@@ -62,7 +58,7 @@ impl Editor {
         });
     }
 
-    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project) {
+    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project, local_data: &mut LocalData) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
             ui.horizontal(|ui| {
@@ -85,7 +81,7 @@ impl Editor {
                 log::info!("Open project, path={}", self.project_path.display());
                 self.scene_window.close(Some(gui));
                 self.game_window.close(Some(gui));
-                project.open(self.project_path.clone());
+                project.open(self.project_path.clone(), local_data);
                 project.compile();
                 self.show_open_project_dialog = false;
             }
