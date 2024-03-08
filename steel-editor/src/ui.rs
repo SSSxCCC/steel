@@ -23,6 +23,7 @@ impl Editor {
         let mut project_path = fs::canonicalize("examples/test-project").unwrap();
         // the windows path prefix "\\?\" makes cargo build fail in std::process::Command
         crate::utils::delte_windows_path_prefix(&mut project_path);
+        // TODO: use last opened project path as initial path
 
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,

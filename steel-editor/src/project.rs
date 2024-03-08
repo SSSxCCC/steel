@@ -26,7 +26,52 @@ impl Project {
     }
 
     pub fn open(&mut self, path: PathBuf) {
-        self.state = Some(ProjectState { path, compiled: None });
+        match Self::_open(&path) {
+            Err(error) => log::error!("Failed to open project, path={}, error={error}", path.display()),
+            Ok(_) => self.state = Some(ProjectState { path, compiled: None }),
+        }
+    }
+
+    fn _open(path: &PathBuf) -> Result<(), Box<dyn Error>> {
+        if !path.is_dir() {
+            fs::create_dir_all(&path)?;
+            log::info!("Created directory: {}", path.display());
+        }
+
+        let gitignore_file = path.join(".gitignore");
+        if !gitignore_file.exists() {
+            fs::write(&gitignore_file, GITIGNORE)?;
+            log::info!("Created: {}", gitignore_file.display());
+        }
+
+        let cargo_toml_file = path.join("Cargo.toml");
+        if !cargo_toml_file.exists() {
+            let mut steel_engine_dir = fs::canonicalize("steel-engine")?;
+            crate::utils::delte_windows_path_prefix(&mut steel_engine_dir);
+            let steel_engine_dir = match steel_engine_dir.to_str() {
+                Some(s) => s,
+                None => return Err(Box::new(ProjectError { message: format!("{steel_engine_dir:?} to_str() returns None") })),
+            };
+            let steel_engine_dir = steel_engine_dir.replace("\\", "/");
+            fs::write(&cargo_toml_file, CARGO_TOML.replacen("../../steel-engine", steel_engine_dir.as_str(), 1))?;
+            log::info!("Created: {}", cargo_toml_file.display());
+        }
+
+        let src_dir = path.join("src");
+        if !src_dir.is_dir() {
+            fs::create_dir(&src_dir)?;
+            log::info!("Created directory: {}", src_dir.display());
+        }
+
+        let lib_rs_file = src_dir.join("lib.rs");
+        if !lib_rs_file.is_file() {
+            fs::write(&lib_rs_file, LIB_RS)?;
+            log::info!("Created: {}", lib_rs_file.display());
+        }
+
+        // TODO: git init
+
+        Ok(())
     }
 
     pub fn is_open(&self) -> bool {
@@ -303,3 +348,54 @@ impl std::fmt::Display for ProjectError {
 }
 
 impl Error for ProjectError {}
+
+const GITIGNORE: &'static str =
+"/target
+/build
+";
+
+const CARGO_TOML: &'static str =
+r#"[package]
+name = "steel-project"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "steel"
+
+[dependencies]
+steel = { path = "../../steel-engine" }
+
+vulkano = "0.33.0"
+vulkano-shaders = "0.33.0"
+vulkano-win = "0.33.0"
+vulkano-util = "0.33.0"
+log = "0.4"
+winit = { version = "0.28.6", features = [ "android-game-activity" ] }
+winit_input_helper = "0.14.1"
+shipyard = { version = "0.6.2", features = [ "serde1" ] }
+rayon = "1.8.0"
+rapier2d = { version = "0.17.2", features = [ "debug-render" ] }
+glam = { version = "0.24.2", features = [ "serde" ] }
+egui_winit_vulkano = "0.25.0"
+egui = "0.22.0"
+egui_demo_lib = "0.22.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+indexmap = { version = "2.2.2", features = [ "serde" ] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger = "0.10.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.13.3"
+"#;
+
+const LIB_RS: &'static str =
+"use steel::{Engine, engine::EngineImpl};
+
+#[no_mangle]
+pub fn create() -> Box<dyn Engine> {
+    Box::new(EngineImpl::new())
+}
+";
