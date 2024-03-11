@@ -48,6 +48,10 @@ impl Project {
         if !gitignore_file.exists() {
             fs::write(&gitignore_file, GITIGNORE)?;
             log::info!("Created: {}", gitignore_file.display());
+
+            if let Err(error) = Self::_init_git(path) {
+                log::warn!("Failed to init git, error={error}");
+            }
         }
 
         let cargo_toml_file = path.join("Cargo.toml");
@@ -73,8 +77,15 @@ impl Project {
             log::info!("Created: {}", lib_rs_file.display());
         }
 
-        // TODO: git init
+        Ok(())
+    }
 
+    fn _init_git(project_path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
+        Command::new("git")
+            .arg("init")
+            .current_dir(project_path)
+            .spawn()?
+            .wait()?;
         Ok(())
     }
 
