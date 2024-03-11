@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::Command, error::Error, fs};
+use std::{error::Error, fs, path::{Path, PathBuf}, process::Command};
 use steel_common::{Engine, WorldData};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
@@ -54,11 +54,9 @@ impl Project {
         if !cargo_toml_file.exists() {
             let mut steel_engine_dir = fs::canonicalize("steel-engine")?;
             crate::utils::delte_windows_path_prefix(&mut steel_engine_dir);
-            let steel_engine_dir = match steel_engine_dir.to_str() {
-                Some(s) => s,
-                None => return Err(Box::new(ProjectError { message: format!("{steel_engine_dir:?} to_str() returns None") })),
-            };
-            let steel_engine_dir = steel_engine_dir.replace("\\", "/");
+            let steel_engine_dir = steel_engine_dir.to_str()
+                .ok_or(ProjectError { message: format!("{} to_str() returns None", steel_engine_dir.display()) })?
+                .replace("\\", "/");
             fs::write(&cargo_toml_file, CARGO_TOML.replacen("../../steel-engine", steel_engine_dir.as_str(), 1))?;
             log::info!("Created: {}", cargo_toml_file.display());
         }
@@ -164,16 +162,10 @@ impl Project {
                 fs::remove_file(&exe_path)?;
             }
 
-            log::info!("$ cargo build -p steel-client -F desktop");
-            Command::new("cargo")
-                .arg("build")
-                .arg("-p").arg("steel-client")
-                .arg("-F").arg("desktop")
-                .spawn()?
-                .wait()?; // TODO: non-blocking wait
+            Self::_modify_scct_while_compiling(&state.path, Self::_build_steel_client_desktop)?;
 
             if !exe_path.exists() {
-                return Err(Box::new(ProjectError { message: format!("No output file: {exe_path:?}") }));
+                return Err(Box::new(ProjectError { message: format!("No output file: {}", exe_path.display()) }));
             }
 
             let exe_export_path = state.path.join("build/windows/steel-client.exe");
@@ -197,6 +189,39 @@ impl Project {
         }
     }
 
+    fn _build_steel_client_desktop() -> Result<(), Box<dyn Error>> {
+        log::info!("$ cargo build -p steel-client -F desktop");
+        Command::new("cargo")
+            .arg("build")
+            .arg("-p").arg("steel-client")
+            .arg("-F").arg("desktop")
+            .spawn()?
+            .wait()?; // TODO: non-blocking wait
+        Ok(())
+    }
+
+    // scct -> steel-client Cargo.toml
+    fn _modify_scct_while_compiling(project_path: impl AsRef<Path>, compile_fn: fn() -> Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
+        let scct_path = PathBuf::from("steel-client/Cargo.toml");
+        let scct_original_content = fs::read_to_string(&scct_path)?;
+        let num_match = scct_original_content.matches(TEST_PROJECT_PATH).collect::<Vec<_>>().len();
+        if num_match != 1 {
+            return Err(Box::new(ProjectError { message: format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
+                actual number of match: {num_match}", scct_path.display()) }));
+        }
+        let open_project_path = project_path.as_ref().to_str()
+            .ok_or(ProjectError { message: format!("{} to_str() returns None", project_path.as_ref().display()) })?
+            .replace("\\", "/");
+        let scct_content = scct_original_content.replacen(TEST_PROJECT_PATH, open_project_path.as_str(), 1);
+        fs::write(&scct_path, scct_content)?;
+        let compile_result = compile_fn();
+        if let Err(error) = fs::write(&scct_path, scct_original_content) {
+            log::error!("There is an error while writing original content back to {}! You have to restore this file by yourself, \
+                error={error}, compile_result={compile_result:?}", scct_path.display());
+        }
+        compile_result
+    }
+
     pub fn export_android(&self) {
         log::info!("Project::export_android start");
         match self._export_android() {
@@ -216,18 +241,10 @@ impl Project {
                 fs::remove_file(&so_path)?;
             }
 
-            log::info!("$ cargo ndk -t arm64-v8a -o steel-client/android-project/app/src/main/jniLibs/ build -p steel-client");
-            Command::new("cargo")
-                .arg("ndk")
-                .arg("-t").arg("arm64-v8a")
-                .arg("-o").arg("steel-client/android-project/app/src/main/jniLibs/")
-                .arg("build")
-                .arg("-p").arg("steel-client")
-                .spawn()?
-                .wait()?; // TODO: non-blocking wait
+            Self::_modify_scct_while_compiling(&state.path, Self::_build_steel_client_android)?;
 
             if !so_path.exists() {
-                return Err(Box::new(ProjectError { message: format!("No output file: {so_path:?}") }));
+                return Err(Box::new(ProjectError { message: format!("No output file: {}", so_path.display()) }));
             }
 
             let assets_dir = PathBuf::from("steel-client/android-project/app/src/main/assets");
@@ -260,7 +277,7 @@ impl Project {
                 .wait()?; // TODO: non-blocking wait
 
             if !apk_path.exists() {
-                return Err(Box::new(ProjectError { message: format!("No output file: {apk_path:?}") }));
+                return Err(Box::new(ProjectError { message: format!("No output file: {}", apk_path.display()) }));
             }
 
             // TODO: not run installDebug if no android device connected
@@ -274,11 +291,24 @@ impl Project {
             let apk_export_path = state.path.join("build/android/steel-client.apk");
             fs::create_dir_all(apk_export_path.parent().unwrap())?;
             fs::copy(apk_path, &apk_export_path)?;
-            log::info!("Exported: {apk_export_path:?}");
+            log::info!("Exported: {}", apk_export_path.display());
             Ok(())
         } else {
             Err(Box::new(ProjectError { message: "No open project".into() }))
         }
+    }
+
+    fn _build_steel_client_android() -> Result<(), Box<dyn Error>> {
+        log::info!("$ cargo ndk -t arm64-v8a -o steel-client/android-project/app/src/main/jniLibs/ build -p steel-client");
+        Command::new("cargo")
+            .arg("ndk")
+            .arg("-t").arg("arm64-v8a")
+            .arg("-o").arg("steel-client/android-project/app/src/main/jniLibs/")
+            .arg("build")
+            .arg("-p").arg("steel-client")
+            .spawn()?
+            .wait()?; // TODO: non-blocking wait
+        Ok(())
     }
 
     pub fn set_running(&mut self, running: bool) {
@@ -405,3 +435,5 @@ pub fn create() -> Box<dyn Engine> {
     Box::new(EngineImpl::new())
 }
 ";
+
+const TEST_PROJECT_PATH: &'static str = "../examples/test-project";

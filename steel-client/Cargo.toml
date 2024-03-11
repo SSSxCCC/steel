@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# steel-project is set to test-project for rust-analyzer, and is modified to open project temporily while compiling
 steel-project = { path = "../examples/test-project" }
 steel-common = { path = "../steel-common" }
 
