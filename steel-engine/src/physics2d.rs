@@ -85,16 +85,13 @@ impl Collider2D {
         match i {
             0 => ShapeType::Ball,
             1 => ShapeType::Cuboid,
-            2 => ShapeType::Capsule,
-            3 => ShapeType::Segment,
-            4 => ShapeType::Triangle,
             _ => ShapeType::Ball, // TODO: support all shape type
         }
     }
 
     fn get_shape_data(&self, data: &mut ComponentData) {
         data.add("shape_type", Value::Int32(self.shape.shape_type() as i32),
-            Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into()), (2, "Capsule".into()), (3, "Segment".into()), (4, "Triangle".into())]));
+            Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]));
         if let Some(shape) = self.shape.as_ball() {
             data.values.insert("radius".into(), Value::Float32(shape.radius));
         } else if let Some(shape) = self.shape.as_cuboid() {
