@@ -106,9 +106,34 @@ impl Project {
     fn _compile(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
             state.compiled = None; // prevent steel.dll from being loaded twice at same time
+
             let lib_path = state.path.join("target/debug/steel.dll");
             if lib_path.exists() {
                 fs::remove_file(&lib_path)?;
+            }
+
+            // There is a problem with compilation failure due to the pdb file being locked.
+            // We avoid this problem by rename it so that compiler can generate a new pdb file.
+            let pdb_dir = state.path.join("target/debug/deps");
+            let pdb_file = pdb_dir.join("steel.pdb");
+            if pdb_file.exists() {
+                let pdb_files = fs::read_dir(&pdb_dir)?
+                    .filter_map(|entry| entry.ok())
+                    .filter(|entry| entry.path().is_file())
+                    .filter_map(|entry| entry.file_name().into_string().ok())
+                    .filter(|file_name| file_name.starts_with("steel") && file_name.ends_with(".pdb"))
+                    .filter_map(|file_name| file_name[5..(file_name.len() - 4)].parse::<u32>().ok().map(|n| (file_name, n)))
+                    .filter(|(file_name, _)| fs::remove_file(pdb_dir.join(file_name)).is_err())
+                    .collect::<Vec<_>>();
+                let n = match pdb_files.iter().max_by(|(_, n1), (_, n2)| n1.cmp(n2)) {
+                    Some((_, n)) => n + 1,
+                    None => 1,
+                };
+                let to_pdb_file = pdb_dir.join(format!("steel{n}.pdb"));
+                log::info!("rename {} to {}, pdb_files={pdb_files:?}", pdb_file.display(), to_pdb_file.display());
+                if let Some(error) = fs::rename(pdb_file, to_pdb_file).err() {
+                    log::warn!("Failed to rename steel.pdb, error={error}");
+                }
             }
 
             log::info!("{}$ cargo rustc --crate-type=cdylib", state.path.display());
