@@ -452,7 +452,7 @@ glam = { version = "0.24.2", features = [ "serde" ] }
 egui_winit_vulkano = "0.25.0"
 egui = "0.22.0"
 egui_demo_lib = "0.22.0"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 indexmap = { version = "2.2.2", features = [ "serde" ] }
 
