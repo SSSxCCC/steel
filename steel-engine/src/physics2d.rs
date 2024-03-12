@@ -1,6 +1,6 @@
-use glam::{Quat, Vec2, Vec3, Vec4};
+use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
 use indexmap::IndexMap;
-use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, View, AddComponent, Get};
+use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::{ComponentData, Limit, Value};
@@ -11,11 +11,12 @@ use crate::{render::canvas::Canvas, Edit, transform::Transform};
 pub struct RigidBody2D {
     handle: RigidBodyHandle,
     body_type: RigidBodyType,
+    last_transform: Option<(Vec2, f32)>, // translation and rotation
 }
 
 impl RigidBody2D {
     pub fn new(body_type: RigidBodyType) -> Self {
-        RigidBody2D { handle: RigidBodyHandle::invalid(), body_type }
+        RigidBody2D { handle: RigidBodyHandle::invalid(), body_type, last_transform: None }
     }
 
     pub fn i32_to_rigid_body_type(i: &i32) -> RigidBodyType {
@@ -27,11 +28,23 @@ impl RigidBody2D {
             _ => RigidBodyType::Dynamic,
         }
     }
+
+    /// update last_transform and returns true if changed
+    fn update_last_transform(&mut self, transform: &Transform) -> bool {
+        let rotation = transform.rotation.to_scaled_axis().z;
+        if let Some(last_transform) = self.last_transform {
+            if last_transform.0 == transform.position.xy() && last_transform.1 == rotation {
+                return false;
+            }
+        }
+        self.last_transform = Some((transform.position.xy(), rotation));
+        true
+    }
 }
 
 impl Default for RigidBody2D {
     fn default() -> Self {
-        Self { handle: RigidBodyHandle::invalid(), body_type: RigidBodyType::Dynamic }
+        Self { handle: RigidBodyHandle::invalid(), body_type: RigidBodyType::Dynamic, last_transform: None }
     }
 }
 
@@ -74,11 +87,12 @@ pub struct Collider2D {
     handle: ColliderHandle,
     shape: ShapeWrapper,
     restitution: f32,
+    last_transform: Option<(Vec2, f32, Vec2)>, // translation, rotation and scale
 }
 
 impl Collider2D {
     pub fn new(shape: SharedShape, restitution: f32) -> Self {
-        Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution }
+        Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution, last_transform: None }
     }
 
     pub fn i32_to_shape_type(i: &i32) -> ShapeType {
@@ -117,11 +131,23 @@ impl Collider2D {
             }
         }
     }
+
+    /// update last_transform and returns true if changed
+    fn update_last_transform(&mut self, transform: &Transform) -> bool {
+        let rotation = transform.rotation.to_scaled_axis().z;
+        if let Some(last_transform) = self.last_transform {
+            if last_transform.0 == transform.position.xy() && last_transform.1 == rotation && last_transform.2 == transform.scale.xy() {
+                return false;
+            }
+        }
+        self.last_transform = Some((transform.position.xy(), rotation, transform.scale.xy()));
+        true
+    }
 }
 
 impl Default for Collider2D {
     fn default() -> Self {
-        Self { handle: ColliderHandle::invalid(), shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)), restitution: Default::default() }
+        Self { handle: ColliderHandle::invalid(), shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)), restitution: Default::default(), last_transform: None }
     }
 }
 
@@ -259,11 +285,15 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
                 col2d.handle = physics2d_manager.collider_set.insert_with_parent(collider, rb2d.handle, &mut physics2d_manager.rigid_body_set);
             } else {
                 collider.set_translation(vector![transform.position.x, transform.position.y]);
-                //collider.set_rotation(transform.rotation); TODO: how to set_rotation?
+                collider.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z));
                 col2d.handle = physics2d_manager.collider_set.insert(collider);
             }
         }
     }
+
+    // also call this in maintain system for steel-editor when update systems do not run
+    // TODO: do not call this when update systems are running
+    physics2d_update_from_transform(physics2d_manager, &transform, &mut rb2d, &mut col2d);
 
     rb2d.clear_all_removed_and_deleted();
     col2d.clear_all_removed_and_deleted();
@@ -271,16 +301,48 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
     col2d.clear_all_inserted_and_modified();
 }
 
+fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, transform: &ViewMut<Transform>,
+        rb2d: &mut ViewMut<RigidBody2D>, col2d: &mut ViewMut<Collider2D>) {
+    // TODO: find a way to use par_iter here (&mut physics2d_manager.rigid_body_set can not be passed to par_iter)
+    for (transform, mut rb2d) in (transform, rb2d).iter() {
+        if rb2d.update_last_transform(transform) {
+            if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
+                rb2d.set_translation(vector![transform.position.x, transform.position.y], true);
+                rb2d.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z), true);
+            }
+        }
+    }
+
+    for (transform, mut col2d) in (transform, col2d).iter() {
+        if col2d.update_last_transform(transform) {
+            if let Some(col2d) = physics2d_manager.collider_set.get_mut(col2d.handle) {
+                col2d.set_translation(vector![transform.position.x, transform.position.y]);
+                col2d.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z));
+                // TODO: scale
+            }
+        }
+    }
+}
+
 pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
-        rb2d: View<RigidBody2D>, mut transform: ViewMut<Transform>) {
+        mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>, mut transform: ViewMut<Transform>) {
+    let physics2d_manager = physics2d_manager.as_mut();
+    physics2d_update_from_transform(physics2d_manager, &transform, &mut rb2d, &mut col2d);
+
     physics2d_manager.update();
-    (&rb2d, &mut transform).par_iter().for_each(|(rb2d, mut transform)| {
+
+    (&mut rb2d, &mut transform).par_iter().for_each(|(mut rb2d, mut transform)| {
         let rigid_body = &physics2d_manager.rigid_body_set[rb2d.handle];
         transform.position.x = rigid_body.translation().x;
         transform.position.y = rigid_body.translation().y;
         let mut rotation = transform.rotation.to_scaled_axis();
         rotation.z = rigid_body.rotation().angle();
         transform.rotation = Quat::from_scaled_axis(rotation);
+        rb2d.update_last_transform(transform);
+    });
+
+    (&mut col2d, &transform).par_iter().for_each(|(mut col2d, transform)| {
+        col2d.update_last_transform(transform);
     });
 }
 
