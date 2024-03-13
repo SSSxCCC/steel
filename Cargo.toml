@@ -4,6 +4,7 @@ members = [
     "steel-common",
     "steel-editor",
     "steel-client",
+    "steel-dynlib",
 ]
 exclude = [
     "examples/test-project"

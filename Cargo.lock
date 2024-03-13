@@ -2566,6 +2566,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "steel-dynlib"
+version = "0.1.0"
+dependencies = [
+ "steel-project",
+]
+
+[[package]]
 name = "steel-editor"
 version = "0.1.0"
 dependencies = [

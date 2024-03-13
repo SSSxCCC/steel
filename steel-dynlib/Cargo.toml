@@ -1,0 +1,12 @@
+[package]
+name = "steel-dynlib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# steel-project is set to test-project for rust-analyzer, and is modified to open project temporily while compiling
+steel-project = { path = "../examples/test-project" }
+
+[lib]
+name = "steel"
+crate_type = [ "cdylib" ]

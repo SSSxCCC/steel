@@ -98,8 +98,10 @@ impl Project {
     }
 
     pub fn compile(&mut self) {
-        if let Some(error) = self._compile().err() {
-            log::error!("Project compile failed: {error}");
+        log::info!("Project::compile start");
+        match self._compile() {
+            Err(error) => log::error!("Project::compile error: {error}"),
+            Ok(_) => log::info!("Project::compile end"),
         }
     }
 
@@ -107,14 +109,14 @@ impl Project {
         if let Some(state) = self.state.as_mut() {
             state.compiled = None; // prevent steel.dll from being loaded twice at same time
 
-            let lib_path = state.path.join("target/debug/steel.dll");
+            let lib_path = PathBuf::from("target/debug/steel.dll");
             if lib_path.exists() {
                 fs::remove_file(&lib_path)?;
             }
 
             // There is a problem with compilation failure due to the pdb file being locked.
             // We avoid this problem by rename it so that compiler can generate a new pdb file.
-            let pdb_dir = state.path.join("target/debug/deps");
+            let pdb_dir = PathBuf::from("target/debug/deps");
             let pdb_file = pdb_dir.join("steel.pdb");
             if pdb_file.exists() {
                 let pdb_files = fs::read_dir(&pdb_dir)?
@@ -131,18 +133,12 @@ impl Project {
                 };
                 let to_pdb_file = pdb_dir.join(format!("steel{n}.pdb"));
                 log::info!("rename {} to {}, pdb_files={pdb_files:?}", pdb_file.display(), to_pdb_file.display());
-                if let Some(error) = fs::rename(pdb_file, to_pdb_file).err() {
+                if let Err(error) = fs::rename(pdb_file, to_pdb_file) {
                     log::warn!("Failed to rename steel.pdb, error={error}");
                 }
             }
 
-            log::info!("{}$ cargo rustc --crate-type=cdylib", state.path.display());
-            Command::new("cargo")
-                .arg("rustc")
-                .arg("--crate-type=cdylib")
-                .current_dir(&state.path)
-                .spawn()?
-                .wait()?; // TODO: non-blocking wait
+            Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_dynlib)?;
 
             let library: Library = unsafe { Library::new(&lib_path)? };
 
@@ -165,6 +161,66 @@ impl Project {
         } else {
             Err(Box::new(ProjectError { message: "No open project".into() }))
         }
+    }
+
+    fn _build_steel_dynlib() -> Result<(), Box<dyn Error>> {
+        log::info!("$ cargo build -p steel-dynlib");
+        Command::new("cargo")
+            .arg("build")
+            .arg("-p").arg("steel-dynlib")
+            .spawn()?
+            .wait()?; // TODO: non-blocking wait
+        Ok(())
+    }
+
+    fn _modify_cargo_toml_while_compiling(project_path: impl AsRef<Path>,
+            compile_fn: fn() -> Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
+        let cargo_toml_paths = [PathBuf::from("steel-client/Cargo.toml"), PathBuf::from("steel-dynlib/Cargo.toml")];
+
+        let mut original_contents = Vec::new();
+        for path in &cargo_toml_paths {
+            log::info!("Read {}", path.display());
+            let original_content = fs::read_to_string(path)?;
+            let num_match = original_content.matches(TEST_PROJECT_PATH).collect::<Vec<_>>().len();
+            if num_match != 1 {
+                return Err(Box::new(ProjectError { message: format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
+                    actual number of match: {num_match}", path.display()) }));
+            }
+            original_contents.push(original_content);
+        }
+
+        let open_project_path = project_path.as_ref().to_str()
+            .ok_or(ProjectError { message: format!("{} to_str() returns None", project_path.as_ref().display()) })?
+            .replace("\\", "/");
+
+        let new_contents = original_contents.iter()
+            .map(|original_content| original_content.replacen(TEST_PROJECT_PATH, open_project_path.as_str(), 1))
+            .collect::<Vec<_>>();
+
+        let mut num_modified = cargo_toml_paths.len();
+        for i in 0..cargo_toml_paths.len() {
+            log::info!("Modify {}", cargo_toml_paths[i].display());
+            if let Err(error) = fs::write(&cargo_toml_paths[i], &new_contents[i]) {
+                log::error!("Failed to modify {}, error={error}", cargo_toml_paths[i].display());
+                num_modified = i;
+                break;
+            }
+        }
+        let modify_success = num_modified == cargo_toml_paths.len();
+
+        let compile_result = if modify_success { compile_fn() } else {
+            Result::<_, Box<dyn Error>>::Err(Box::new(ProjectError { message: "Not compile due to previous modify error".into() }))
+        };
+
+        for i in 0..num_modified {
+            log::info!("Restore {}", cargo_toml_paths[i].display());
+            if let Err(error) = fs::write(&cargo_toml_paths[i], &original_contents[i]) {
+                log::error!("There is an error while writing original content back to {}! \
+                    You have to restore this file by yourself, error={error}", cargo_toml_paths[i].display());
+            }
+        }
+
+        compile_result
     }
 
     pub fn is_compiled(&self) -> bool {
@@ -198,7 +254,7 @@ impl Project {
                 fs::remove_file(&exe_path)?;
             }
 
-            Self::_modify_scct_while_compiling(&state.path, Self::_build_steel_client_desktop)?;
+            Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_desktop)?;
 
             if !exe_path.exists() {
                 return Err(Box::new(ProjectError { message: format!("No output file: {}", exe_path.display()) }));
@@ -236,28 +292,6 @@ impl Project {
         Ok(())
     }
 
-    // scct -> steel-client Cargo.toml
-    fn _modify_scct_while_compiling(project_path: impl AsRef<Path>, compile_fn: fn() -> Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
-        let scct_path = PathBuf::from("steel-client/Cargo.toml");
-        let scct_original_content = fs::read_to_string(&scct_path)?;
-        let num_match = scct_original_content.matches(TEST_PROJECT_PATH).collect::<Vec<_>>().len();
-        if num_match != 1 {
-            return Err(Box::new(ProjectError { message: format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
-                actual number of match: {num_match}", scct_path.display()) }));
-        }
-        let open_project_path = project_path.as_ref().to_str()
-            .ok_or(ProjectError { message: format!("{} to_str() returns None", project_path.as_ref().display()) })?
-            .replace("\\", "/");
-        let scct_content = scct_original_content.replacen(TEST_PROJECT_PATH, open_project_path.as_str(), 1);
-        fs::write(&scct_path, scct_content)?;
-        let compile_result = compile_fn();
-        if let Err(error) = fs::write(&scct_path, scct_original_content) {
-            log::error!("There is an error while writing original content back to {}! You have to restore this file by yourself, \
-                error={error}, compile_result={compile_result:?}", scct_path.display());
-        }
-        compile_result
-    }
-
     pub fn export_android(&self) {
         log::info!("Project::export_android start");
         match self._export_android() {
@@ -277,7 +311,7 @@ impl Project {
                 fs::remove_file(&so_path)?;
             }
 
-            Self::_modify_scct_while_compiling(&state.path, Self::_build_steel_client_android)?;
+            Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_android)?;
 
             if !so_path.exists() {
                 return Err(Box::new(ProjectError { message: format!("No output file: {}", so_path.display()) }));
@@ -374,7 +408,7 @@ impl Project {
             let path = state.path.join("scene.json");
             if let Some(compiled) = &mut state.compiled {
                 compiled.data = compiled.engine.save();
-                if let Some(err) = Self::_save_to_file(&compiled.data, path).err() {
+                if let Err(err) = Self::_save_to_file(&compiled.data, path) {
                     log::warn!("Failed to save WorldData to scene.json because {err}");
                 }
             }
