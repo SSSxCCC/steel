@@ -51,8 +51,6 @@ impl Editor {
             if let Some(world_data) = world_data {
                 if let Some(engine) = project.engine() {
                     self.entity_component_view(&ctx, world_data, engine);
-                } else {
-                    log::warn!("We have world_data but we do not have engine, this should not happened!");
                 }
             }
         });

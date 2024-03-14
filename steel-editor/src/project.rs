@@ -59,7 +59,7 @@ impl Project {
             let mut steel_engine_dir = fs::canonicalize("steel-engine")?;
             crate::utils::delte_windows_path_prefix(&mut steel_engine_dir);
             let steel_engine_dir = steel_engine_dir.to_str()
-                .ok_or(ProjectError { message: format!("{} to_str() returns None", steel_engine_dir.display()) })?
+                .ok_or(ProjectError::new(format!("{} to_str() returns None", steel_engine_dir.display())))?
                 .replace("\\", "/");
             fs::write(&cargo_toml_file, CARGO_TOML.replacen("../../steel-engine", steel_engine_dir.as_str(), 1))?;
             log::info!("Created: {}", cargo_toml_file.display());
@@ -132,7 +132,7 @@ impl Project {
                     None => 1,
                 };
                 let to_pdb_file = pdb_dir.join(format!("steel{n}.pdb"));
-                log::info!("rename {} to {}, pdb_files={pdb_files:?}", pdb_file.display(), to_pdb_file.display());
+                log::info!("Rename {} to {}, pdb_files={pdb_files:?}", pdb_file.display(), to_pdb_file.display());
                 if let Err(error) = fs::rename(pdb_file, to_pdb_file) {
                     log::warn!("Failed to rename steel.pdb, error={error}");
                 }
@@ -159,7 +159,7 @@ impl Project {
             state.compiled = Some(ProjectCompiledState { engine, library, data, running: false });
             Ok(())
         } else {
-            Err(Box::new(ProjectError { message: "No open project".into() }))
+            Err(ProjectError::new("No open project").boxed())
         }
     }
 
@@ -183,14 +183,14 @@ impl Project {
             let original_content = fs::read_to_string(path)?;
             let num_match = original_content.matches(TEST_PROJECT_PATH).collect::<Vec<_>>().len();
             if num_match != 1 {
-                return Err(Box::new(ProjectError { message: format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
-                    actual number of match: {num_match}", path.display()) }));
+                return Err(ProjectError::new(format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
+                    actual number of match: {num_match}", path.display())).boxed());
             }
             original_contents.push(original_content);
         }
 
         let open_project_path = project_path.as_ref().to_str()
-            .ok_or(ProjectError { message: format!("{} to_str() returns None", project_path.as_ref().display()) })?
+            .ok_or(ProjectError::new(format!("{} to_str() returns None", project_path.as_ref().display())))?
             .replace("\\", "/");
 
         let new_contents = original_contents.iter()
@@ -209,7 +209,7 @@ impl Project {
         let modify_success = num_modified == cargo_toml_paths.len();
 
         let compile_result = if modify_success { compile_fn() } else {
-            Result::<_, Box<dyn Error>>::Err(Box::new(ProjectError { message: "Not compile due to previous modify error".into() }))
+            Err(ProjectError::new("Not compile due to previous modify error").boxed())
         };
 
         for i in 0..num_modified {
@@ -257,7 +257,7 @@ impl Project {
             Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_desktop)?;
 
             if !exe_path.exists() {
-                return Err(Box::new(ProjectError { message: format!("No output file: {}", exe_path.display()) }));
+                return Err(ProjectError::new(format!("No output file: {}", exe_path.display())).boxed());
             }
 
             let exe_export_path = state.path.join("build/windows/steel-client.exe");
@@ -277,7 +277,7 @@ impl Project {
 
             Ok(())
         } else {
-            Err(Box::new(ProjectError { message: "No open project".into() }))
+            Err(ProjectError::new("No open project").boxed())
         }
     }
 
@@ -314,7 +314,7 @@ impl Project {
             Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_android)?;
 
             if !so_path.exists() {
-                return Err(Box::new(ProjectError { message: format!("No output file: {}", so_path.display()) }));
+                return Err(ProjectError::new(format!("No output file: {}", so_path.display())).boxed());
             }
 
             let assets_dir = PathBuf::from("steel-client/android-project/app/src/main/assets");
@@ -347,7 +347,7 @@ impl Project {
                 .wait()?; // TODO: non-blocking wait
 
             if !apk_path.exists() {
-                return Err(Box::new(ProjectError { message: format!("No output file: {}", apk_path.display()) }));
+                return Err(ProjectError::new(format!("No output file: {}", apk_path.display())).boxed());
             }
 
             // TODO: not run installDebug if no android device connected
@@ -364,7 +364,7 @@ impl Project {
             log::info!("Exported: {}", apk_export_path.display());
             Ok(())
         } else {
-            Err(Box::new(ProjectError { message: "No open project".into() }))
+            Err(ProjectError::new("No open project").boxed())
         }
     }
 
@@ -445,6 +445,16 @@ impl Project {
 #[derive(Debug)]
 struct ProjectError {
     message: String,
+}
+
+impl ProjectError {
+    fn new(message: impl Into<String>) -> ProjectError {
+        ProjectError { message: message.into() }
+    }
+
+    fn boxed(self) -> Box<dyn Error> {
+        Box::new(self)
+    }
 }
 
 impl std::fmt::Display for ProjectError {
