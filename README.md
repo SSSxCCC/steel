@@ -72,8 +72,8 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 - [ ] 写一个教程
 - [ ] 测试
 
-[shaderc-rs]: (https://github.com/google/shaderc-rs)
-[CMake]: (https://cmake.org/)
-[Git]: (https://git-scm.com/)
-[Python]: (https://www.python.org/)
-[Ninja]: (https://github.com/ninja-build/ninja/releases)
+[shaderc-rs]: https://github.com/google/shaderc-rs
+[CMake]: https://cmake.org/
+[Git]: https://git-scm.com/
+[Python]: https://www.python.org/
+[Ninja]: https://github.com/ninja-build/ninja/releases
