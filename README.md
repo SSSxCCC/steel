@@ -12,7 +12,7 @@ The Steel Game Engine is an open source cross-platform rust game engine with the
 
 Currently, it is recommended to run in VSCode, convenient for debugging.
 1. Install Visual Studio 2022 with "Desktop development with C++", keep the default check
-2. For [shaderc-rs][shaderc-rs], install [CMake][CMake], [Git][Git], [Python][Python] and [Ninja][Ninja]
+2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs]
 3. Install VSCode with "C/C++" and "rust-analyzer" extensions in win10/win11
 4. Download the code of this project and use VSCode to open the root directory of this project
 5. Press F5 to compile and run
@@ -49,7 +49,7 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 
 目前推荐在VSCode中运行，方便调试。
 1. 安装Visual Studio 2022的"使用C++的桌面开发"，保持默认勾选
-2. 为了[shaderc-rs][shaderc-rs]，安装[CMake][CMake]，[Git][Git]，[Python][Python]和[Ninja][Ninja]
+2. 为了[shaderc-rs][shaderc-rs]，安装[Rust][Rust]，[Git][Git]，[Python][Python]，[CMake][CMake]和[Ninja][Ninja]
 3. 在win10/win11安装VSCode及其"C/C++"和"rust-analyzer"插件
 4. 下载本项目代码，使用VSCode打开本项目根目录
 5. 按F5即可编译运行
@@ -72,8 +72,9 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 - [ ] 写一个教程
 - [ ] 测试
 
-[shaderc-rs]: https://github.com/google/shaderc-rs
-[CMake]: https://cmake.org/
+[Rust]: https://www.rust-lang.org/
 [Git]: https://git-scm.com/
 [Python]: https://www.python.org/
+[CMake]: https://cmake.org/
 [Ninja]: https://github.com/ninja-build/ninja/releases
+[shaderc-rs]: https://github.com/google/shaderc-rs
