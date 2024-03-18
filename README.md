@@ -11,36 +11,26 @@ The Steel Game Engine is an open source cross-platform rust game engine with the
 ## Build and run Steel Editor
 
 Currently, it is recommended to run in VSCode, convenient for debugging.
-
-### Desktop
-```
-cargo run -p steel -F desktop
-```
-
-### Android
-```
-rustup target add aarch64-linux-android
-cargo install cargo-ndk
-cargo ndk -t arm64-v8a -o android-project/app/src/main/jniLibs/ build -p steel
-cd android-project
-./gradlew build
-./gradlew installDebug
-```
+1. Install Visual Studio 2022 with "Desktop development with C++", keep the default check
+2. For [shaderc-rs][shaderc-rs], install [CMake][CMake], [Git][Git], [Python][Python] and [Ninja][Ninja]
+3. Install VSCode with "C/C++" and "rust-analyzer" extensions in win10/win11
+4. Download the code of this project and use VSCode to open the root directory of this project
+5. Press F5 to compile and run
 
 ## Development Roadmap
 
-- [ ] Game core module
-- [ ] Visual editor
-- [ ] Vulkan render pipeline
-- [ ] 2D rendering basic
+- [x] Game core module
+- [x] Visual editor
+- [x] Vulkan render pipeline
+- [x] 2D rendering basic
 - [ ] 2D texture
 - [ ] 3D rendering basic
 - [ ] 3D model
 - [ ] Ray traced rendering
-- [ ] 2D physics
+- [x] 2D physics
 - [ ] 3D physics
-- [ ] Build Windows program
-- [ ] Build Android application
+- [x] Build Windows program
+- [x] Build Android application
 - [ ] Customize build
 - [ ] Write a tutorial
 - [ ] Tests
@@ -58,36 +48,32 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 ## 编译并运行Steel引擎编辑器
 
 目前推荐在VSCode中运行，方便调试。
-
-### 桌面
-```
-cargo run -p steel -F desktop
-```
-
-### 安卓
-```
-rustup target add aarch64-linux-android
-cargo install cargo-ndk
-cargo ndk -t arm64-v8a -o android-project/app/src/main/jniLibs/ build -p steel
-cd android-project
-./gradlew build
-./gradlew installDebug
-```
+1. 安装Visual Studio 2022的"使用C++的桌面开发"，保持默认勾选
+2. 为了[shaderc-rs][shaderc-rs]，安装[CMake][CMake]，[Git][Git]，[Python][Python]和[Ninja][Ninja]
+3. 在win10/win11安装VSCode及其"C/C++"和"rust-analyzer"插件
+4. 下载本项目代码，使用VSCode打开本项目根目录
+5. 按F5即可编译运行
 
 ## 开发路线图
 
-- [ ] 游戏核心模块
-- [ ] 可视化编辑器
-- [ ] Vulkan渲染管线
-- [ ] 2D渲染基础
+- [x] 游戏核心模块
+- [x] 可视化编辑器
+- [x] Vulkan渲染管线
+- [x] 2D渲染基础
 - [ ] 2D纹理
 - [ ] 3D渲染基础
 - [ ] 3D模型
 - [ ] 光线追踪渲染
-- [ ] 2D物理
+- [x] 2D物理
 - [ ] 3D物理
-- [ ] 编译Windows程序
-- [ ] 编译Android应用
+- [x] 编译Windows程序
+- [x] 编译Android应用
 - [ ] 定制编译
 - [ ] 写一个教程
 - [ ] 测试
+
+[shaderc-rs]: (https://github.com/google/shaderc-rs)
+[CMake]: (https://cmake.org/)
+[Git]: (https://git-scm.com/)
+[Python]: (https://www.python.org/)
+[Ninja]: (https://github.com/ninja-build/ninja/releases)
