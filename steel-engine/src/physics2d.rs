@@ -143,6 +143,20 @@ impl Collider2D {
         self.last_transform = Some((transform.position.xy(), rotation, transform.scale.xy()));
         true
     }
+
+    fn scaled_shape(&self, transform: &Transform) -> SharedShape {
+        let scale = transform.scale.xy();
+        match self.shape.shape_type() {
+            ShapeType::Ball => {
+                let radius = self.shape.as_ball().unwrap().radius * std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());
+                SharedShape::new(Ball::new(radius))
+            },
+            ShapeType::Cuboid => {
+                SharedShape::new(self.shape.as_cuboid().unwrap().scaled(&vector![scale.x, scale.y]))
+            }
+            _ => self.shape.clone(), // TODO: support all shape type
+        }
+    }
 }
 
 impl Default for Collider2D {
@@ -271,15 +285,17 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
     }
 
     for (e, mut col2d) in col2d.inserted_or_modified_mut().iter().with_id() {
+        if !transform.contains(e) {
+            transform.add_component_unchecked(e, Transform::default());
+        }
+        let transform = transform.get(e).unwrap();
+        let shape = col2d.scaled_shape(transform);
+
         if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
-            collider.set_shape(col2d.shape.clone());
+            collider.set_shape(shape);
             collider.set_restitution(col2d.restitution);
         } else {
-            if !transform.contains(e) {
-                transform.add_component_unchecked(e, Transform::default());
-            }
-            let transform = transform.get(e).unwrap();
-            let mut collider = ColliderBuilder::new(col2d.shape.clone()).restitution(col2d.restitution).build();
+            let mut collider = ColliderBuilder::new(shape).restitution(col2d.restitution).build();
             if let Ok(rb2d) = &rb2d.get(e) {
                 // TODO: add position and rotation relative to parent
                 col2d.handle = physics2d_manager.collider_set.insert_with_parent(collider, rb2d.handle, &mut physics2d_manager.rigid_body_set);
@@ -315,10 +331,10 @@ fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, tra
 
     for (transform, mut col2d) in (transform, col2d).iter() {
         if col2d.update_last_transform(transform) {
-            if let Some(col2d) = physics2d_manager.collider_set.get_mut(col2d.handle) {
-                col2d.set_translation(vector![transform.position.x, transform.position.y]);
-                col2d.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z));
-                // TODO: scale
+            if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
+                collider.set_shape(col2d.scaled_shape(transform));
+                collider.set_translation(vector![transform.position.x, transform.position.y]);
+                collider.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z));
             }
         }
     }
