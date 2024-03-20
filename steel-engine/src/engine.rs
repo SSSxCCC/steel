@@ -59,9 +59,7 @@ impl Engine for EngineImpl {
 
     fn draw_game(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
         log::trace!("Engine::draw");
-        self.world.add_unique(RenderInfo::new(info.context.device().clone(),
-            info.context.graphics_queue().clone(), info.context.memory_allocator().clone(),
-            info.window_size, info.image, info.renderer.swapchain_format()));
+        self.world.add_unique(RenderInfo::from(&info));
         let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()

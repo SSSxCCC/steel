@@ -114,7 +114,8 @@ impl Project {
                 fs::remove_file(&lib_path)?;
             }
 
-            // There is a problem with compilation failure due to the pdb file being locked.
+            // There is a problem with compilation failure due to the pdb file being locked:
+            // https://developercommunity.visualstudio.com/t/pdb-is-locked-even-after-dll-is-unloaded/690640
             // We avoid this problem by rename it so that compiler can generate a new pdb file.
             let pdb_dir = PathBuf::from("target/debug/deps");
             let pdb_file = pdb_dir.join("steel.pdb");

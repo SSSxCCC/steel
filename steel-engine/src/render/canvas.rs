@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use glam::{Mat4, Vec2, Vec3, Vec4};
+use steel_common::DrawInfo;
 use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
@@ -16,8 +17,15 @@ pub struct RenderInfo {
 }
 
 impl RenderInfo {
-    pub fn new(device: Arc<Device>, graphics_queue: Arc<Queue>, memory_allocator: Arc<StandardMemoryAllocator>, window_size: Vec2, image: Arc<dyn ImageViewAbstract>, format: Format) -> Self {
-        RenderInfo { device, graphics_queue, memory_allocator, window_size, image, format }
+    pub fn from(info: &DrawInfo) -> Self {
+        RenderInfo {
+            device: info.context.device().clone(),
+            graphics_queue: info.context.graphics_queue().clone(),
+            memory_allocator: info.context.memory_allocator().clone(),
+            window_size: info.window_size,
+            image: info.image.clone(),
+            format: info.renderer.swapchain_format()
+        }
     }
 }
 

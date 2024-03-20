@@ -10,7 +10,7 @@ use crate::{render::canvas::Canvas, Edit, transform::Transform};
 #[track(All)]
 pub struct RigidBody2D {
     handle: RigidBodyHandle,
-    body_type: RigidBodyType,
+    pub body_type: RigidBodyType,
     last_transform: Option<(Vec2, f32)>, // translation and rotation
 }
 
@@ -85,8 +85,8 @@ impl std::fmt::Debug for ShapeWrapper {
 #[track(All)]
 pub struct Collider2D {
     handle: ColliderHandle,
-    shape: ShapeWrapper,
-    restitution: f32,
+    pub shape: ShapeWrapper,
+    pub restitution: f32,
     last_transform: Option<(Vec2, f32, Vec2)>, // translation, rotation and scale
 }
 
