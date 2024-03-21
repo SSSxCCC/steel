@@ -3,6 +3,7 @@ pub mod transform;
 pub mod camera;
 pub mod physics2d;
 pub mod render;
+pub mod shape;
 
 pub use steel_common::*;
 

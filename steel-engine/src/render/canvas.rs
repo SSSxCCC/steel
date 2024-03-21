@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use steel_common::DrawInfo;
 use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
@@ -31,16 +31,21 @@ impl RenderInfo {
 
 #[derive(Unique)]
 pub struct Canvas {
+    /// 1 vertex: (position, color)
     pub points: Vec<(Vec3, Vec4)>,
+    /// 2 vertex: (position, color)
     pub lines: Vec<[(Vec3, Vec4); 2]>,
+    /// 3 vertex: (position, color)
     pub triangles: Vec<[(Vec3, Vec4); 3]>,
-    /// the index buffer: [0, 1, 2, 2, 3, 0]
+    /// 4 vertex: (position, color), index: 0, 1, 2, 2, 3, 0
     pub rectangles: Vec<[(Vec3, Vec4); 4]>,
+    /// (center, rotation, radius)
+    pub cicles: Vec<(Vec3, Quat, f32)>,
 }
 
 impl Canvas {
     pub fn new() -> Self {
-        Canvas { points: Vec::new(), lines: Vec::new(), triangles: Vec::new(), rectangles: Vec::new() }
+        Canvas { points: Vec::new(), lines: Vec::new(), triangles: Vec::new(), rectangles: Vec::new(), cicles: Vec::new() }
     }
 
     pub fn clear(&mut self) {
@@ -48,6 +53,7 @@ impl Canvas {
         self.lines.clear();
         self.triangles.clear();
         self.rectangles.clear();
+        self.cicles.clear();
     }
 }
 
@@ -110,15 +116,14 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
     ).unwrap();
 
     let projection_view = camera.projection_view(&info.window_size);
-    let model = Mat4::IDENTITY; // TODO: remove this
-    let push_constants = vs::PushConstants { projection_view: projection_view.to_cols_array_2d(), model: model.to_cols_array_2d() };
+    let push_constants = vs::PushConstants { projection_view: projection_view.to_cols_array_2d() };
 
     let pipeline_builder = GraphicsPipeline::start()
-        .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
+        .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport.clone()]))
         .vertex_input_state(MyVertex::per_vertex())
         .vertex_shader(vs.entry_point("main").unwrap(), ())
         .fragment_shader(fs.entry_point("main").unwrap(), ())
-        .render_pass(Subpass::from(render_pass, 0).unwrap())
+        .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
         .depth_stencil_state(DepthStencilState::simple_depth_test())
         .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
 
@@ -141,6 +146,20 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         .unwrap();
     draw_triangles(&canvas.triangles, pipeline.clone(), info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
     draw_rectangles(&canvas.rectangles, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+
+    let vs = circle::vs::load(info.device.clone()).expect("failed to create shader module");
+    let fs = circle::fs::load(info.device.clone()).expect("failed to create shader module");
+
+    let pipeline = GraphicsPipeline::start()
+        .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
+        .vertex_input_state(MyVertex::per_vertex())
+        .vertex_shader(vs.entry_point("main").unwrap(), ())
+        .fragment_shader(fs.entry_point("main").unwrap(), ())
+        .render_pass(Subpass::from(render_pass, 0).unwrap())
+        .depth_stencil_state(DepthStencilState::simple_depth_test())
+        .color_blend_state(ColorBlendState::default().blend_alpha()) // TODO: implement order independent transparency
+        .build(info.device.clone())
+        .unwrap();
 
     command_buffer_builder.end_render_pass().unwrap();
     command_buffer_builder.build().unwrap()
@@ -262,7 +281,6 @@ mod vs {
 
             layout(push_constant) uniform PushConstants {
                 mat4 projection_view;
-                mat4 model;
             } pcs;
 
             layout(location = 0) in vec3 position;
@@ -271,7 +289,7 @@ mod vs {
             layout(location = 0) out vec4 out_color;
 
             void main() {
-                gl_Position = pcs.projection_view * pcs.model * vec4(position, 1.0);
+                gl_Position = pcs.projection_view * vec4(position, 1.0);
                 out_color = color;
             }
         ",
@@ -292,5 +310,61 @@ mod fs {
                 f_color = in_color;
             }
         ",
+    }
+}
+
+mod circle {
+    pub mod vs {
+        vulkano_shaders::shader! { // TODO: Use different PushConstants in vs and fs
+            ty: "vertex",
+            src: r"
+                #version 460
+
+                layout(push_constant) uniform PushConstants {
+                    mat4 projection_view;
+                    vec3 center;
+                    float radius;
+                } pcs;
+
+                layout(location = 0) in vec3 position;
+                layout(location = 1) in vec4 color;
+
+                layout(location = 0) out vec3 out_position;
+                layout(location = 1) out vec4 out_color;
+
+                void main() {
+                    gl_Position = pcs.projection_view * vec4(position, 1.0);
+                    out_position = position;
+                    out_color = color;
+                }
+            ",
+        }
+    }
+
+    pub mod fs {
+        vulkano_shaders::shader! {
+            ty: "fragment",
+            src: r"
+                #version 460
+
+                layout(push_constant) uniform PushConstants {
+                    mat4 projection_view;
+                    vec3 center;
+                    float radius;
+                } pcs;
+
+                layout(location = 0) in vec3 in_position;
+                layout(location = 1) in vec4 in_color;
+
+                layout(location = 0) out vec4 f_color;
+
+                void main() {
+                    if (distance(pcs.center, in_position) > pcs.radius) {
+                        discard;
+                    }
+                    f_color = in_color;
+                }
+            ",
+        }
     }
 }

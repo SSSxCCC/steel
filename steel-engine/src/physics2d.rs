@@ -1,10 +1,9 @@
 use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
-use indexmap::IndexMap;
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::{ComponentData, Limit, Value};
-use crate::{render::canvas::Canvas, Edit, transform::Transform};
+use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, Edit};
 
 #[derive(Component, Debug)]
 #[track(All)]
@@ -65,22 +64,6 @@ impl Edit for RigidBody2D {
     }
 }
 
-pub struct ShapeWrapper(SharedShape);
-
-impl std::ops::Deref for ShapeWrapper {
-    type Target = SharedShape;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::fmt::Debug for ShapeWrapper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ShapeWrapper").field(&self.shape_type()).finish() // TODO: print all members
-    }
-}
-
 #[derive(Component, Debug)]
 #[track(All)]
 pub struct Collider2D {
@@ -93,43 +76,6 @@ pub struct Collider2D {
 impl Collider2D {
     pub fn new(shape: SharedShape, restitution: f32) -> Self {
         Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution, last_transform: None }
-    }
-
-    pub fn i32_to_shape_type(i: &i32) -> ShapeType {
-        match i {
-            0 => ShapeType::Ball,
-            1 => ShapeType::Cuboid,
-            _ => ShapeType::Ball, // TODO: support all shape type
-        }
-    }
-
-    fn get_shape_data(&self, data: &mut ComponentData) {
-        data.add("shape_type", Value::Int32(self.shape.shape_type() as i32),
-            Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]));
-        if let Some(shape) = self.shape.as_ball() {
-            data.values.insert("radius".into(), Value::Float32(shape.radius));
-        } else if let Some(shape) = self.shape.as_cuboid() {
-            data.values.insert("size".into(), Value::Vec2(Vec2::new(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0)));
-        } // TODO: support all shape type
-    }
-
-    fn set_shape_data(&mut self, values: &IndexMap<String, Value>) {
-        if let Some(Value::Int32(i)) = values.get("shape_type") {
-            let shape_type = Self::i32_to_shape_type(i);
-            match shape_type {
-                ShapeType::Ball => { // We have to create a new shape because SharedShape::as_shape_mut method can not compile
-                    let mut shape = if let Some(shape) = self.shape.as_ball() { *shape } else { Ball::new(0.5) };
-                    if let Some(Value::Float32(f)) = values.get("radius") { shape.radius = *f }
-                    self.shape = ShapeWrapper(SharedShape::new(shape));
-                },
-                ShapeType::Cuboid => {
-                    let mut shape = if let Some(shape) = self.shape.as_cuboid() { *shape } else { Cuboid::new([0.5, 0.5].into()) };
-                    if let Some(Value::Vec2(v)) = values.get("size") { (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0) }
-                    self.shape = ShapeWrapper(SharedShape::new(shape));
-                },
-                _ => (), // TODO: support all shape type
-            }
-        }
     }
 
     /// update last_transform and returns true if changed
@@ -171,13 +117,13 @@ impl Edit for Collider2D {
     fn get_data(&self) -> ComponentData {
         let mut data = ComponentData::new();
         data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
-        self.get_shape_data(&mut data);
+        self.shape.get_data(&mut data);
         data.values.insert("restitution".into(), Value::Float32(self.restitution));
         data
     }
 
     fn set_data(&mut self, data: &ComponentData) {
-        self.set_shape_data(&data.values);
+        self.shape.set_data(data);
         if let Some(Value::Float32(f)) = data.values.get("restitution") { self.restitution = *f };
     }
 }
