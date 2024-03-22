@@ -94,7 +94,8 @@ impl Collider2D {
         let scale = transform.scale.xy();
         match self.shape.shape_type() {
             ShapeType::Ball => {
-                let radius = self.shape.as_ball().unwrap().radius * std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());
+                let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());
+                let radius = self.shape.as_ball().unwrap().radius * scale;
                 SharedShape::new(Ball::new(radius))
             },
             ShapeType::Cuboid => {

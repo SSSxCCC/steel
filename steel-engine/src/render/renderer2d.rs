@@ -1,4 +1,4 @@
-use parry2d::shape::SharedShape;
+use parry2d::shape::{ShapeType, SharedShape};
 use shipyard::{Component, IntoIter, UniqueViewMut, View};
 use glam::{Vec4, Vec4Swizzles};
 use steel_common::{ComponentData, Limit, Value};
@@ -34,11 +34,25 @@ impl Edit for Renderer2D {
 
 pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transform: View<Transform>, mut canvas: UniqueViewMut<Canvas>) {
     for (transform, renderer2d) in (&transform, &renderer2d).iter() {
-        let model = transform.model();
-        let vertex = [((model * Vec4::new(-0.5, -0.5, 0.0, 1.0)).xyz(), renderer2d.color),
-            ((model * Vec4::new(-0.5, 0.5, 0.0, 1.0)).xyz(), renderer2d.color),
-            ((model * Vec4::new(0.5, 0.5, 0.0, 1.0)).xyz(), renderer2d.color),
-            ((model * Vec4::new(0.5, -0.5, 0.0, 1.0)).xyz(), renderer2d.color)];
-        canvas.rectangles.push(vertex);
+        match renderer2d.shape.shape_type() {
+            ShapeType::Ball => {
+                let scale = std::cmp::max_by(transform.scale.x.abs(), transform.scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());
+                let radius = renderer2d.shape.as_ball().unwrap().radius * scale;
+                canvas.cicles.push((transform.position, transform.rotation, radius, renderer2d.color));
+            },
+            ShapeType::Cuboid => {
+                let shape = renderer2d.shape.as_cuboid().unwrap();
+                let (half_width, half_height) = (shape.half_extents.x, shape.half_extents.y);
+                let model = transform.model();
+                let vertex = [
+                    ((model * Vec4::new(-half_width, -half_height, 0.0, 1.0)).xyz(), renderer2d.color),
+                    ((model * Vec4::new(-half_width, half_height, 0.0, 1.0)).xyz(), renderer2d.color),
+                    ((model * Vec4::new(half_width, half_height, 0.0, 1.0)).xyz(), renderer2d.color),
+                    ((model * Vec4::new(half_width, -half_height, 0.0, 1.0)).xyz(), renderer2d.color),
+                ];
+                canvas.rectangles.push(vertex);
+            },
+            _ => (),
+        }
     }
 }

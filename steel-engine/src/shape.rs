@@ -1,5 +1,4 @@
 use glam::Vec2;
-use indexmap::IndexMap;
 use parry2d::shape::{Ball, Cuboid, ShapeType, SharedShape};
 use steel_common::{ComponentData, Limit, Value};
 
