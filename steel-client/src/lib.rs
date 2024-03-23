@@ -83,6 +83,11 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             input.step_with_window_events(&events);
             events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
+                let window_size = renderer.window().inner_size();
+                if window_size.width == 0 || window_size.height == 0 {
+                    return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
+                }
+
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 engine.maintain();

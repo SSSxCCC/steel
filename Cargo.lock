@@ -2616,6 +2616,7 @@ dependencies = [
  "glam",
  "indexmap 2.2.2",
  "log",
+ "parry2d",
  "rapier2d",
  "rayon",
  "serde",

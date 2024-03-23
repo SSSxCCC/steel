@@ -119,6 +119,15 @@
           },
           "Renderer2D": {
             "values": {
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
               "color": {
                 "Vec4": [
                   0.0,
@@ -181,8 +190,8 @@
               },
               "size": {
                 "Vec2": [
-                  20.0,
-                  0.2
+                  1.0,
+                  1.0
                 ]
               },
               "restitution": {
@@ -192,6 +201,15 @@
           },
           "Renderer2D": {
             "values": {
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
               "color": {
                 "Vec4": [
                   1.0,
@@ -275,6 +293,15 @@
           },
           "Renderer2D": {
             "values": {
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
               "color": {
                 "Vec4": [
                   1.0,

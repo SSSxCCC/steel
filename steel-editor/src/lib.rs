@@ -108,6 +108,11 @@ fn _main(event_loop: EventLoop<()>) {
             input.step_with_window_events(&events);
             events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
+                let window_size = renderer.window().inner_size();
+                if window_size.width == 0 || window_size.height == 0 {
+                    return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
+                }
+
                 let gui = gui.as_mut().unwrap();
                 let mut world_data = project.engine().map(|e| { e.save() });
                 if let Some(world_data) = world_data.as_ref() { log::trace!("world_data={:?}", world_data); }

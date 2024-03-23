@@ -294,7 +294,7 @@ pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DMan
 
     physics2d_manager.update();
 
-    (&mut rb2d, &mut transform).par_iter().for_each(|(mut rb2d, mut transform)| {
+    (&mut rb2d, &mut transform).par_iter().for_each(|(mut rb2d, transform)| {
         let rigid_body = &physics2d_manager.rigid_body_set[rb2d.handle];
         transform.position.x = rigid_body.translation().x;
         transform.position.y = rigid_body.translation().y;
