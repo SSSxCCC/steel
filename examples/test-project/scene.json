@@ -90,9 +90,6 @@
           },
           "RigidBody2D": {
             "values": {
-              "handle": {
-                "String": "RigidBodyHandle(Index { index: 0, generation: 0 })"
-              },
               "body_type": {
                 "Int32": 0
               }
@@ -100,9 +97,6 @@
           },
           "Collider2D": {
             "values": {
-              "handle": {
-                "String": "ColliderHandle(Index { index: 0, generation: 0 })"
-              },
               "shape_type": {
                 "Int32": 1
               },
@@ -182,9 +176,6 @@
           },
           "Collider2D": {
             "values": {
-              "handle": {
-                "String": "ColliderHandle(Index { index: 1, generation: 0 })"
-              },
               "shape_type": {
                 "Int32": 1
               },
@@ -264,9 +255,6 @@
           },
           "RigidBody2D": {
             "values": {
-              "handle": {
-                "String": "RigidBodyHandle(Index { index: 1, generation: 0 })"
-              },
               "body_type": {
                 "Int32": 0
               }
@@ -274,9 +262,6 @@
           },
           "Collider2D": {
             "values": {
-              "handle": {
-                "String": "ColliderHandle(Index { index: 2, generation: 0 })"
-              },
               "shape_type": {
                 "Int32": 1
               },

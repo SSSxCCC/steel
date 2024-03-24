@@ -1,6 +1,6 @@
 use std::{error::Error, fs, path::{Path, PathBuf}, process::Command};
 use shipyard::EntityId;
-use steel_common::{ComponentData, Engine, EntityData, WorldData};
+use steel_common::{ComponentData, Engine, EntityData, Limit, WorldData};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -411,15 +411,17 @@ impl Project {
             if let Some(compiled) = &mut state.compiled {
                 compiled.data = compiled.engine.save();
 
-                // We erase generation value of EntityId by setting them to zero,
-                // because generation value is useless when loading from file.
+                // We erase generation value of EntityId and skip read only values,
+                // because they are useless when loading from file.
                 let mut world_data = WorldData::new();
                 for (eid, entity_data) in &compiled.data.entities {
                     let mut entity_data_copy = EntityData::new();
                     for (name, component_data) in &entity_data.components {
                         let mut component_data_copy = ComponentData::new();
                         for (name, value) in &component_data.values {
-                            component_data_copy.values.insert(name.clone(), value.clone());
+                            if !matches!(component_data.limits.get(name), Some(Limit::ReadOnly)) {
+                                component_data_copy.values.insert(name.clone(), value.clone());
+                            }
                         }
                         entity_data_copy.components.insert(name.clone(), component_data_copy);
                     }
