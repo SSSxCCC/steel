@@ -12,6 +12,8 @@ struct ProjectCompiledState {
 
     data: WorldData,
     running: bool,
+    /// The path of current opened scene file, which is relative to the asset directory of opened project
+    scene: Option<PathBuf>,
 }
 
 struct ProjectState {
@@ -150,15 +152,16 @@ impl Project {
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
 
-            let data = Self::_load_from_file(state.path.join("scene.json"));
-            match &data {
-                Ok(_) => log::debug!("Loaded WorldData from scene.json"),
-                Err(err) => log::debug!("Failed to load WorldData from scene.json because {err}"),
-            }
-            engine.init(data.as_ref().ok());
+            //let data = Self::_load_from_file(state.path.join("scene.json")); // TODO
+            //match &data {
+            //    Ok(_) => log::debug!("Loaded WorldData from scene.json"),
+            //    Err(err) => log::debug!("Failed to load WorldData from scene.json because {err}"),
+            //}
+            //engine.init(data.as_ref().ok());
+            engine.init(None);
             let data = engine.save();
 
-            state.compiled = Some(ProjectCompiledState { engine, library, data, running: false });
+            state.compiled = Some(ProjectCompiledState { engine, library, data, running: false, scene: None }); // TODO: set initial scene
             Ok(())
         } else {
             Err(ProjectError::new("No open project").boxed())
@@ -267,7 +270,7 @@ impl Project {
             fs::copy(exe_path, &exe_export_path)?;
             log::info!("Exported: {}", exe_export_path.display());
 
-            let scene_export_path = state.path.join("build/windows/scene.json");
+            let scene_export_path = state.path.join("build/windows/scene.json"); // TODO
             if scene_export_path.exists() {
                 fs::remove_file(&scene_export_path)?;
             }
@@ -325,7 +328,7 @@ impl Project {
             }
             fs::create_dir(&assets_dir)?;
 
-            let scene_export_path = assets_dir.join("scene.json");
+            let scene_export_path = assets_dir.join("scene.json"); // TODO
             let scene_path = state.path.join("scene.json");
             if scene_path.exists() {
                 fs::copy(scene_path, &scene_export_path)?;
@@ -405,58 +408,106 @@ impl Project {
         }
     }
 
-    pub fn save_to_file(&mut self) {
-        if let Some(state) = &mut self.state {
-            let path = state.path.join("scene.json");
-            if let Some(compiled) = &mut state.compiled {
-                compiled.data = compiled.engine.save();
+    /// Return the opened project directory, or None if no project is opened
+    pub fn project_dir(&self) -> Option<&PathBuf> {
+        self.state.as_ref().map(|state| &state.path)
+    }
 
-                // We erase generation value of EntityId and skip read only values,
-                // because they are useless when loading from file.
-                let mut world_data = WorldData::new();
-                for (eid, entity_data) in &compiled.data.entities {
-                    let mut entity_data_copy = EntityData::new();
-                    for (name, component_data) in &entity_data.components {
-                        let mut component_data_copy = ComponentData::new();
-                        for (name, value) in &component_data.values {
-                            if !matches!(component_data.limits.get(name), Some(Limit::ReadOnly)) {
-                                component_data_copy.values.insert(name.clone(), value.clone());
-                            }
-                        }
-                        entity_data_copy.components.insert(name.clone(), component_data_copy);
-                    }
-                    world_data.entities.insert(EntityId::new_from_index_and_gen(eid.index(), 0), entity_data_copy);
-                }
+    /// Return the asset dir under the opened project directory, or None if no project is opened
+    pub fn asset_dir(&self) -> Option<PathBuf> {
+        self.project_dir().map(|path| path.join("asset"))
+    }
 
-                if let Err(err) = Self::_save_to_file(&world_data, path) {
-                    log::warn!("Failed to save WorldData to scene.json because {err}");
-                }
+    /// Return the absolute path of current opened scene, or None if no scene is opened
+    pub fn scene_absolute_path(&self) -> Option<PathBuf> {
+        if let Some(compiled) = self.compiled_ref() {
+            compiled.scene.as_ref().map(|scene| {
+                let asset_dir = self.asset_dir().expect("self.asset_dir() must be some when self.compiled_ref() is some");
+                asset_dir.join(scene)
+            })
+        } else { None }
+    }
+
+    /// Return the relative path of current opened scene, which is relative to
+    /// the asset directory of opened project, or None if no scene is opened
+    pub fn scene_relative_path(&self) -> Option<PathBuf> {
+        if let Some(compiled) = self.compiled_ref() {
+            compiled.scene.clone()
+        } else { None }
+    }
+
+    /// Convert scene absolute path to relative path, which is relative to the asset
+    /// directory of opened project, or return None if scene absolute path is invalid.
+    /// A scene absolute path is valid if it is under asset folder of opened project.
+    pub fn convert_to_scene_relative_path<'a>(&self, scene_absolute_path: &'a Path) -> Option<&'a Path> {
+        if let Some(asset) = self.asset_dir() {
+            scene_absolute_path.strip_prefix(asset).ok()
+        } else { None }
+    }
+
+    /// Save current world_data to file, scene is the save file path,
+    /// which is relative to the asset directory of opened project
+    pub fn save_to_file(&mut self, scene: impl Into<PathBuf>) {
+        let asset_dir = self.asset_dir();
+        if let Some(compiled) = self.compiled_mut() {
+            compiled.data = compiled.engine.save();
+            let world_data = Self::_cut_world_data(&compiled.data);
+            let asset_dir = asset_dir.expect("self.asset_dir() must be some when self.compiled_mut() is some");
+            let scene = scene.into();
+            let scene_abs = asset_dir.join(&scene);
+            match Self::_save_to_file(&world_data, &scene_abs) {
+                Ok(_) => compiled.scene = Some(scene),
+                Err(err) => log::warn!("Failed to save WorldData to {} because {err}", scene_abs.display()),
             }
         }
     }
 
-    fn _save_to_file(data: &WorldData, path: PathBuf) -> Result<(), Box<dyn Error>> {
+    fn _save_to_file(data: &WorldData, path: &PathBuf) -> Result<(), Box<dyn Error>> {
         let s = serde_json::to_string_pretty(data)?;
         fs::write(path, s)?;
         Ok(())
     }
 
-    pub fn load_from_file(&mut self) {
-        if let Some(state) = &mut self.state {
-            let path = state.path.join("scene.json");
-            if let Some(compiled) = &mut state.compiled {
-                match Self::_load_from_file(path) {
-                    Ok(data) => {
-                        compiled.data = data;
-                        compiled.engine.reload(&compiled.data);
+    /// Erase generation value of EntityId and skip read only values,
+    /// because they are useless when loading from file.
+    fn _cut_world_data(world_data: &WorldData) -> WorldData {
+        let mut world_data_cut = WorldData::new();
+        for (eid, entity_data) in &world_data.entities {
+            let mut entity_data_copy = EntityData::new();
+            for (name, component_data) in &entity_data.components {
+                let mut component_data_copy = ComponentData::new();
+                for (name, value) in &component_data.values {
+                    if !matches!(component_data.limits.get(name), Some(Limit::ReadOnly)) {
+                        component_data_copy.values.insert(name.clone(), value.clone());
                     }
-                    Err(err) => log::warn!("Failed to load WorldData from scene.json because {err}"),
                 }
+                entity_data_copy.components.insert(name.clone(), component_data_copy);
+            }
+            world_data_cut.entities.insert(EntityId::new_from_index_and_gen(eid.index(), 0), entity_data_copy);
+        }
+        world_data_cut
+    }
+
+    /// Load world_data from file, scene is the load file path,
+    /// which is relative to the asset directory of opened project
+    pub fn load_from_file(&mut self, scene: impl Into<PathBuf>) {
+        let asset_dir = self.asset_dir();
+        if let Some(compiled) = self.compiled_mut() {
+            let asset_dir = asset_dir.expect("self.asset_dir() must be some if self.compiled_mut() is some");
+            let scene = scene.into();
+            let scene_abs = asset_dir.join(&scene);
+            match Self::_load_from_file(&scene_abs) {
+                Ok(data) => {
+                    compiled.data = data;
+                    compiled.engine.reload(&compiled.data);
+                    compiled.scene = Some(scene);
+                }
+                Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene_abs.display()),
             }
         }
     }
 
-    fn _load_from_file(path: PathBuf) -> Result<WorldData, Box<dyn Error>> {
+    fn _load_from_file(path: &PathBuf) -> Result<WorldData, Box<dyn Error>> {
         let s = fs::read_to_string(path)?;
         Ok(serde_json::from_str::<WorldData>(&s)?)
     }

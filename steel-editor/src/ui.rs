@@ -99,18 +99,6 @@ impl Editor {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
-                    if project.is_compiled() && !project.is_running() {
-                        if ui.button("Save").clicked() {
-                            log::info!("Menu->Project->Save");
-                            project.save_to_file();
-                            ui.close_menu();
-                        }
-                        if ui.button("Load").clicked() {
-                            log::info!("Menu->Project->Load");
-                            project.load_from_file();
-                            ui.close_menu();
-                        }
-                    }
                     if ui.button("Open").clicked() {
                         log::info!("Menu->Project->Open");
                         self.show_open_project_dialog = true;
@@ -149,6 +137,53 @@ impl Editor {
                         });
                     }
                 });
+                if project.is_compiled() && !project.is_running() {
+                    ui.menu_button("Scene", |ui| {
+                        if let Some(scene_path) = project.scene_relative_path() {
+                            if ui.button(format!("Save ({})", scene_path.display())).clicked() {
+                                log::info!("Menu->Scene->Save");
+                                project.save_to_file(scene_path);
+                                ui.close_menu();
+                            }
+                        }
+                        let starting_dir = if let Some(scene_path) = project.scene_absolute_path() {
+                            scene_path.parent().map(|p| p.to_path_buf()).expect("scene file should be at least in the asset directory")
+                        } else {
+                            project.asset_dir().expect("project.asset_dir() must be some when project.is_compiled()")
+                        };
+                        if ui.button("Save As").clicked() {
+                            log::info!("Menu->Scene->Save As");
+                            let file = rfd::FileDialog::new()
+                                .set_directory(&starting_dir)
+                                .save_file();
+                            log::info!("Close FileDialog, file={file:?}");
+                            if let Some(mut file) = file {
+                                file.set_extension("scene");
+                                let file = project.convert_to_scene_relative_path(&file);
+                                log::info!("After convert_to_scene_relative_path, file={file:?}");
+                                if let Some(file) = file {
+                                    project.save_to_file(file);
+                                }
+                            }
+                            ui.close_menu();
+                        }
+                        if ui.button("Load").clicked() {
+                            log::info!("Menu->Scene->Load");
+                            let file = rfd::FileDialog::new()
+                                .set_directory(starting_dir)
+                                .pick_file();
+                            log::info!("Close FileDialog, file={file:?}");
+                            if let Some(file) = file {
+                                let file = project.convert_to_scene_relative_path(&file);
+                                log::info!("After convert_to_scene_relative_path, file={file:?}");
+                                if let Some(file) = file {
+                                    project.load_from_file(file);
+                                }
+                            }
+                            ui.close_menu();
+                        }
+                    });
+                }
                 if project.is_compiled() {
                     ui.menu_button("Run", |ui| {
                         let text = if project.is_running() { "Stop" } else { "Start" };
