@@ -25,6 +25,7 @@ pub trait Engine {
 pub enum Command<'a> {
     CreateEntity,
     DestroyEntity(EntityId),
+    ClearEntity,
 
     GetComponents(&'a mut Vec<&'static str>),
     CreateComponent(EntityId, &'static str),

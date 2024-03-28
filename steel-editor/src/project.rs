@@ -110,6 +110,7 @@ impl Project {
 
     fn _compile(&mut self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
+            let scene = if let Some(compiled) = &mut state.compiled { compiled.scene.take() } else { None };
             state.compiled = None; // prevent steel.dll from being loaded twice at same time
 
             let lib_path = PathBuf::from("target/debug/steel.dll");
@@ -152,16 +153,20 @@ impl Project {
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
 
-            //let data = Self::_load_from_file(state.path.join("scene.json")); // TODO
-            //match &data {
-            //    Ok(_) => log::debug!("Loaded WorldData from scene.json"),
-            //    Err(err) => log::debug!("Failed to load WorldData from scene.json because {err}"),
-            //}
-            //engine.init(data.as_ref().ok());
-            engine.init(None);
-            let data = engine.save();
+            if let Some(scene) = &scene {
+                let scene = state.path.join("asset").join(scene);
+                let data = Self::_load_from_file(&scene);
+                match &data {
+                    Ok(_) => log::debug!("Loaded WorldData from {}", scene.display()),
+                    Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene.display()),
+                }
+                engine.init(data.as_ref().ok());
+            } else {
+                engine.init(None);
+            }
 
-            state.compiled = Some(ProjectCompiledState { engine, library, data, running: false, scene: None }); // TODO: set initial scene
+            let data = engine.save();
+            state.compiled = Some(ProjectCompiledState { engine, library, data, running: false, scene });
             Ok(())
         } else {
             Err(ProjectError::new("No open project").boxed())
@@ -254,13 +259,18 @@ impl Project {
 
     fn _export_windows(&self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_ref() {
+            let scene = self.scene_relative_path()
+                .ok_or(ProjectError::new("No scene is opened, you must open a scene as init scene before export"))?;
+            // TODO: steel-client load init scene
+
+            Self::_export_asset(self.asset_dir().expect("self.asset_dir() must be some if self.state is some"),
+                state.path.join("build/windows/asset"))?;
+
             let exe_path = PathBuf::from("target/debug/steel-client.exe");
             if exe_path.exists() {
                 fs::remove_file(&exe_path)?;
             }
-
             Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_desktop)?;
-
             if !exe_path.exists() {
                 return Err(ProjectError::new(format!("No output file: {}", exe_path.display())).boxed());
             }
@@ -269,16 +279,6 @@ impl Project {
             fs::create_dir_all(exe_export_path.parent().unwrap())?;
             fs::copy(exe_path, &exe_export_path)?;
             log::info!("Exported: {}", exe_export_path.display());
-
-            let scene_export_path = state.path.join("build/windows/scene.json"); // TODO
-            if scene_export_path.exists() {
-                fs::remove_file(&scene_export_path)?;
-            }
-            let scene_path = state.path.join("scene.json");
-            if scene_path.exists() {
-                fs::copy(scene_path, &scene_export_path)?;
-                log::info!("Exported: {}", scene_export_path.display());
-            }
 
             Ok(())
         } else {
@@ -307,6 +307,13 @@ impl Project {
 
     fn _export_android(&self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_ref() {
+            let scene = self.scene_relative_path()
+                .ok_or(ProjectError::new("No scene is opened, you must open a scene as init scene before export"))?;
+            // TODO: steel-client load init scene
+
+            Self::_export_asset(self.asset_dir().expect("self.asset_dir() must be some if self.state is some"),
+                PathBuf::from("steel-client/android-project/app/src/main/assets"))?;
+
             // TODO: run following commands:
             // rustup target add aarch64-linux-android
             // cargo install cargo-ndk
@@ -315,42 +322,24 @@ impl Project {
             if so_path.exists() {
                 fs::remove_file(&so_path)?;
             }
-
             Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_android)?;
-
             if !so_path.exists() {
                 return Err(ProjectError::new(format!("No output file: {}", so_path.display())).boxed());
-            }
-
-            let assets_dir = PathBuf::from("steel-client/android-project/app/src/main/assets");
-            if assets_dir.exists() {
-                fs::remove_dir_all(&assets_dir)?;
-            }
-            fs::create_dir(&assets_dir)?;
-
-            let scene_export_path = assets_dir.join("scene.json"); // TODO
-            let scene_path = state.path.join("scene.json");
-            if scene_path.exists() {
-                fs::copy(scene_path, &scene_export_path)?;
-                log::info!("Exported: {}", scene_export_path.display());
             }
 
             let apk_path = PathBuf::from("steel-client/android-project/app/build/outputs/apk/debug/app-debug.apk");
             if apk_path.exists() {
                 fs::remove_file(&apk_path)?;
             }
-
             let mut android_project_dir = fs::canonicalize("steel-client/android-project").unwrap();
             // the windows path prefix "\\?\" makes bat fail to run in std::process::Command
             crate::utils::delte_windows_path_prefix(&mut android_project_dir);
-
             log::info!("{}$ ./gradlew.bat build", android_project_dir.display());
             Command::new("steel-client/android-project/gradlew.bat")
                 .arg("build")
                 .current_dir(&android_project_dir)
                 .spawn()?
                 .wait()?; // TODO: non-blocking wait
-
             if !apk_path.exists() {
                 return Err(ProjectError::new(format!("No output file: {}", apk_path.display())).boxed());
             }
@@ -383,6 +372,30 @@ impl Project {
             .arg("-p").arg("steel-client")
             .spawn()?
             .wait()?; // TODO: non-blocking wait
+        Ok(())
+    }
+
+    fn _export_asset(src: PathBuf, dst: PathBuf) -> std::io::Result<()> {
+        if dst.is_dir() {
+            fs::remove_dir_all(&dst)?;
+        }
+        Self::_copy_dir_all(src, dst)?;
+        Ok(())
+    }
+
+    fn _copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+        fs::create_dir_all(&dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let ty = entry.file_type()?;
+            if ty.is_dir() {
+                Self::_copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            } else {
+                let dst = dst.as_ref().join(entry.file_name());
+                fs::copy(entry.path(), &dst)?;
+                log::info!("Exported: {}", dst.display());
+            }
+        }
         Ok(())
     }
 
@@ -445,9 +458,16 @@ impl Project {
         } else { None }
     }
 
+    pub fn new_scene(&mut self) {
+        if let Some(compiled) = self.compiled_mut() {
+            compiled.engine.command(steel_common::Command::ClearEntity);
+            compiled.scene = None;
+        }
+    }
+
     /// Save current world_data to file, scene is the save file path,
     /// which is relative to the asset directory of opened project
-    pub fn save_to_file(&mut self, scene: impl Into<PathBuf>) {
+    pub fn save_scene(&mut self, scene: impl Into<PathBuf>) {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
             compiled.data = compiled.engine.save();
@@ -490,7 +510,7 @@ impl Project {
 
     /// Load world_data from file, scene is the load file path,
     /// which is relative to the asset directory of opened project
-    pub fn load_from_file(&mut self, scene: impl Into<PathBuf>) {
+    pub fn load_scene(&mut self, scene: impl Into<PathBuf>) {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
             let asset_dir = asset_dir.expect("self.asset_dir() must be some if self.compiled_mut() is some");

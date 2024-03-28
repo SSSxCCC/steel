@@ -98,6 +98,9 @@ impl Engine for EngineImpl {
             Command::DestroyEntity(id) => {
                 self.world.delete_entity(id);
             },
+            Command::ClearEntity => {
+                self.world.clear();
+            },
             Command::GetComponents(components) => {
                 *components = self.component_fn.keys().map(|s| *s).collect(); // TODO: cache components
             },

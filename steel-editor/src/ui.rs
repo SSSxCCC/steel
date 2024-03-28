@@ -142,7 +142,7 @@ impl Editor {
                         if let Some(scene_path) = project.scene_relative_path() {
                             if ui.button(format!("Save ({})", scene_path.display())).clicked() {
                                 log::info!("Menu->Scene->Save");
-                                project.save_to_file(scene_path);
+                                project.save_scene(scene_path);
                                 ui.close_menu();
                             }
                         }
@@ -162,7 +162,7 @@ impl Editor {
                                 let file = project.convert_to_scene_relative_path(&file);
                                 log::info!("After convert_to_scene_relative_path, file={file:?}");
                                 if let Some(file) = file {
-                                    project.save_to_file(file);
+                                    project.save_scene(file);
                                 }
                             }
                             ui.close_menu();
@@ -177,9 +177,14 @@ impl Editor {
                                 let file = project.convert_to_scene_relative_path(&file);
                                 log::info!("After convert_to_scene_relative_path, file={file:?}");
                                 if let Some(file) = file {
-                                    project.load_from_file(file);
+                                    project.load_scene(file);
                                 }
                             }
+                            ui.close_menu();
+                        }
+                        if ui.button("New").clicked() {
+                            log::info!("Menu->Scene->New");
+                            project.new_scene();
                             ui.close_menu();
                         }
                     });
