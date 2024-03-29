@@ -143,7 +143,7 @@ impl Project {
                 }
             }
 
-            Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_dynlib)?;
+            Self::_modify_files_while_compiling(&state.path, None, Self::_build_steel_dynlib)?;
 
             let library: Library = unsafe { Library::new(&lib_path)? };
 
@@ -183,11 +183,17 @@ impl Project {
         Ok(())
     }
 
-    fn _modify_cargo_toml_while_compiling(project_path: impl AsRef<Path>,
+    /// A helper function to temporily modify some files before compiling and restore them after compiling.
+    /// 1. Modify "steel-project path" of steel-client/Cargo.toml and steel-dynlib/Cargo.toml to project_path.
+    /// (Note: we must modify both of them at same time even when only one project is compiling,
+    /// because cargo requires that all path of same dependency in a workspace must be same)
+    /// 2. Modify "scene_path" of steel-client/src/lib.rs to scene_path, just pass None when not compile steel-client.
+    fn _modify_files_while_compiling(project_path: impl AsRef<Path>, scene_path: Option<PathBuf>,
             compile_fn: fn() -> Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
         let cargo_toml_paths = [PathBuf::from("steel-client/Cargo.toml"), PathBuf::from("steel-dynlib/Cargo.toml")];
+        let steel_client_src_path = PathBuf::from("steel-client/src/lib.rs");
 
-        let mut original_contents = Vec::new();
+        let mut cargo_toml_original_contents = Vec::new();
         for path in &cargo_toml_paths {
             log::info!("Read {}", path.display());
             let original_content = fs::read_to_string(path)?;
@@ -196,37 +202,70 @@ impl Project {
                 return Err(ProjectError::new(format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
                     actual number of match: {num_match}", path.display())).boxed());
             }
-            original_contents.push(original_content);
+            cargo_toml_original_contents.push(original_content);
         }
+        let steel_client_src_original_content = if scene_path.is_some() {
+            log::info!("Read {}", steel_client_src_path.display());
+            let original_content = fs::read_to_string(&steel_client_src_path)?;
+            let num_match = original_content.matches(SCENE_PATH).collect::<Vec<_>>().len();
+            if num_match != 1 {
+                return Err(ProjectError::new(format!("Expected only 1 match '{SCENE_PATH}' in {}, \
+                    actual number of match: {num_match}", steel_client_src_path.display())).boxed());
+            }
+            Some(original_content)
+        } else { None };
 
         let open_project_path = project_path.as_ref().to_str()
             .ok_or(ProjectError::new(format!("{} to_str() returns None", project_path.as_ref().display())))?
             .replace("\\", "/");
-
-        let new_contents = original_contents.iter()
+        let cargo_toml_new_contents = cargo_toml_original_contents.iter()
             .map(|original_content| original_content.replacen(TEST_PROJECT_PATH, open_project_path.as_str(), 1))
             .collect::<Vec<_>>();
 
-        let mut num_modified = cargo_toml_paths.len();
+        let scene_path = if let Some(scene_path) = &scene_path {
+            Some(scene_path.to_str()
+                .ok_or(ProjectError::new(format!("{} to_str() returns None", scene_path.display())))?
+                .replace("\\", "/"))
+        } else { None };
+        let steel_client_src_new_content = steel_client_src_original_content.as_ref()
+            .map(|original_content| original_content.replacen(SCENE_PATH, scene_path.unwrap().as_str(), 1));
+
+        let mut num_modified_cargo_toml = cargo_toml_paths.len();
         for i in 0..cargo_toml_paths.len() {
             log::info!("Modify {}", cargo_toml_paths[i].display());
-            if let Err(error) = fs::write(&cargo_toml_paths[i], &new_contents[i]) {
+            if let Err(error) = fs::write(&cargo_toml_paths[i], &cargo_toml_new_contents[i]) {
                 log::error!("Failed to modify {}, error={error}", cargo_toml_paths[i].display());
-                num_modified = i;
+                num_modified_cargo_toml = i;
                 break;
             }
         }
-        let modify_success = num_modified == cargo_toml_paths.len();
+        let mut modify_success = num_modified_cargo_toml == cargo_toml_paths.len();
+        if modify_success {
+            if let Some(steel_client_src_new_content) = steel_client_src_new_content {
+                log::info!("Modify {}", steel_client_src_path.display());
+                if let Err(error) = fs::write(&steel_client_src_path, steel_client_src_new_content) {
+                    log::error!("Failed to modify {}, error={error}", steel_client_src_path.display());
+                    modify_success = false;
+                }
+            }
+        }
 
         let compile_result = if modify_success { compile_fn() } else {
             Err(ProjectError::new("Not compile due to previous modify error").boxed())
         };
 
-        for i in 0..num_modified {
+        for i in 0..num_modified_cargo_toml {
             log::info!("Restore {}", cargo_toml_paths[i].display());
-            if let Err(error) = fs::write(&cargo_toml_paths[i], &original_contents[i]) {
+            if let Err(error) = fs::write(&cargo_toml_paths[i], &cargo_toml_original_contents[i]) {
                 log::error!("There is an error while writing original content back to {}! \
                     You have to restore this file by yourself, error={error}", cargo_toml_paths[i].display());
+            }
+        }
+        if let Some(steel_client_src_original_content) = steel_client_src_original_content {
+            log::info!("Restore {}", steel_client_src_path.display());
+            if let Err(error) = fs::write(&steel_client_src_path, steel_client_src_original_content) {
+                log::error!("There is an error while writing original content back to {}! \
+                    You have to restore this file by yourself, error={error}", steel_client_src_path.display());
             }
         }
 
@@ -261,7 +300,6 @@ impl Project {
         if let Some(state) = self.state.as_ref() {
             let scene = self.scene_relative_path()
                 .ok_or(ProjectError::new("No scene is opened, you must open a scene as init scene before export"))?;
-            // TODO: steel-client load init scene
 
             Self::_export_asset(self.asset_dir().expect("self.asset_dir() must be some if self.state is some"),
                 state.path.join("build/windows/asset"))?;
@@ -270,7 +308,7 @@ impl Project {
             if exe_path.exists() {
                 fs::remove_file(&exe_path)?;
             }
-            Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_desktop)?;
+            Self::_modify_files_while_compiling(&state.path, Some(scene), Self::_build_steel_client_desktop)?;
             if !exe_path.exists() {
                 return Err(ProjectError::new(format!("No output file: {}", exe_path.display())).boxed());
             }
@@ -309,7 +347,6 @@ impl Project {
         if let Some(state) = self.state.as_ref() {
             let scene = self.scene_relative_path()
                 .ok_or(ProjectError::new("No scene is opened, you must open a scene as init scene before export"))?;
-            // TODO: steel-client load init scene
 
             Self::_export_asset(self.asset_dir().expect("self.asset_dir() must be some if self.state is some"),
                 PathBuf::from("steel-client/android-project/app/src/main/assets"))?;
@@ -322,7 +359,7 @@ impl Project {
             if so_path.exists() {
                 fs::remove_file(&so_path)?;
             }
-            Self::_modify_cargo_toml_while_compiling(&state.path, Self::_build_steel_client_android)?;
+            Self::_modify_files_while_compiling(&state.path, Some(scene), Self::_build_steel_client_android)?;
             if !so_path.exists() {
                 return Err(ProjectError::new(format!("No output file: {}", so_path.display())).boxed());
             }
@@ -609,3 +646,5 @@ pub fn create() -> Box<dyn Engine> {
 ";
 
 const TEST_PROJECT_PATH: &'static str = "../examples/test-project";
+
+const SCENE_PATH: &'static str = "scene_path";

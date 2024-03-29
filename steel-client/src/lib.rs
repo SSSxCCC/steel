@@ -41,7 +41,8 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let mut events = Vec::new();
 
     // engine
-    let world_data = WorldData::load_from_file("scene.json", &platform);
+    // WorldData load path will be modified to init scene path temporily while compiling
+    let world_data = WorldData::load_from_file("scene_path", &platform);
     let mut engine = steel::create();
     engine.init(world_data.as_ref());
 

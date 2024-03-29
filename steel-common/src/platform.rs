@@ -19,12 +19,14 @@ impl Platform {
     }
 
     #[cfg(not(target_os = "android"))]
-    pub fn read_to_string(&self, path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
-        Ok(std::fs::read_to_string(path)?)
+    pub fn read_asset_to_string(&self, path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
+        use std::path::PathBuf;
+
+        Ok(std::fs::read_to_string(PathBuf::from("asset").join(path))?)
     }
 
     #[cfg(target_os = "android")]
-    pub fn read_to_string(&self, path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
+    pub fn read_asset_to_string(&self, path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
         use std::{io::Read, ffi::CString};
 
         let path = CString::new(path.as_ref().to_str().unwrap()).unwrap();

@@ -144,7 +144,7 @@ impl WorldData {
     }
 
     fn _load_from_file(file: impl AsRef<Path>, platform: &Platform) -> Result<WorldData, Box<dyn Error>> {
-        let s = platform.read_to_string(file)?;
+        let s = platform.read_asset_to_string(file)?;
         Ok(serde_json::from_str::<WorldData>(&s)?)
     }
 }
