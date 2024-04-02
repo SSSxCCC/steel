@@ -1,7 +1,7 @@
 use glam::{Mat4, Vec2, Vec3};
 use shipyard::{AddComponent, Component, Get, IntoIter, IntoWithId, Unique, UniqueViewMut, View, ViewMut};
-use steel_common::{ComponentData, EditorCamera, Value};
-use crate::{Edit, transform::Transform};
+use steel_common::{data::{ComponentData, Value}, engine::EditorCamera};
+use crate::{edit::Edit, transform::Transform};
 
 #[derive(Unique)]
 pub struct CameraInfo {

@@ -1,5 +1,5 @@
 use glam::Vec2;
-use steel_common::{platform::Platform, DrawInfo, WorldData};
+use steel_common::{platform::Platform, engine::DrawInfo, data::WorldData};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{
     event::{Event, WindowEvent},

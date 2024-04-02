@@ -1,4 +1,4 @@
-use steel::{Engine, engine::EngineImpl};
+use steel::engine::{Engine, EngineImpl};
 
 #[no_mangle]
 pub fn create() -> Box<dyn Engine> {

@@ -1,6 +1,6 @@
-use std::{error::Error, fs, path::{Path, PathBuf}, process::Command};
+use std::{error::Error, fs, path::{Path, PathBuf}};
 use shipyard::EntityId;
-use steel_common::{ComponentData, Engine, EntityData, Limit, WorldData};
+use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine}};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -84,7 +84,7 @@ impl Project {
     }
 
     fn _init_git(project_path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
-        Command::new("git")
+        std::process::Command::new("git")
             .arg("init")
             .current_dir(project_path)
             .spawn()?
@@ -175,7 +175,7 @@ impl Project {
 
     fn _build_steel_dynlib() -> Result<(), Box<dyn Error>> {
         log::info!("$ cargo build -p steel-dynlib");
-        Command::new("cargo")
+        std::process::Command::new("cargo")
             .arg("build")
             .arg("-p").arg("steel-dynlib")
             .spawn()?
@@ -326,7 +326,7 @@ impl Project {
 
     fn _build_steel_client_desktop() -> Result<(), Box<dyn Error>> {
         log::info!("$ cargo build -p steel-client -F desktop");
-        Command::new("cargo")
+        std::process::Command::new("cargo")
             .arg("build")
             .arg("-p").arg("steel-client")
             .arg("-F").arg("desktop")
@@ -372,7 +372,7 @@ impl Project {
             // the windows path prefix "\\?\" makes bat fail to run in std::process::Command
             crate::utils::delte_windows_path_prefix(&mut android_project_dir);
             log::info!("{}$ ./gradlew.bat build", android_project_dir.display());
-            Command::new("steel-client/android-project/gradlew.bat")
+            std::process::Command::new("steel-client/android-project/gradlew.bat")
                 .arg("build")
                 .current_dir(&android_project_dir)
                 .spawn()?
@@ -383,7 +383,7 @@ impl Project {
 
             // TODO: not run installDebug if no android device connected
             log::info!("{}$ ./gradlew.bat installDebug", android_project_dir.display());
-            Command::new("steel-client/android-project/gradlew.bat")
+            std::process::Command::new("steel-client/android-project/gradlew.bat")
                 .arg("installDebug")
                 .current_dir(&android_project_dir)
                 .spawn()?
@@ -401,7 +401,7 @@ impl Project {
 
     fn _build_steel_client_android() -> Result<(), Box<dyn Error>> {
         log::info!("$ cargo ndk -t arm64-v8a -o steel-client/android-project/app/src/main/jniLibs/ build -p steel-client");
-        Command::new("cargo")
+        std::process::Command::new("cargo")
             .arg("ndk")
             .arg("-t").arg("arm64-v8a")
             .arg("-o").arg("steel-client/android-project/app/src/main/jniLibs/")
@@ -497,7 +497,7 @@ impl Project {
 
     pub fn new_scene(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.command(steel_common::Command::ClearEntity);
+            compiled.engine.command(Command::ClearEntity);
             compiled.scene = None;
         }
     }
@@ -637,7 +637,7 @@ android_logger = "0.13.3"
 "#;
 
 const LIB_RS: &'static str =
-"use steel::{Engine, engine::EngineImpl};
+"use steel::engine::{Engine, EngineImpl};
 
 #[no_mangle]
 pub fn create() -> Box<dyn Engine> {

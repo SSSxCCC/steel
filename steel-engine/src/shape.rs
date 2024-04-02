@@ -1,6 +1,6 @@
 use glam::Vec2;
 use parry2d::shape::{Ball, Cuboid, ShapeType, SharedShape};
-use steel_common::{ComponentData, Limit, Value};
+use steel_common::data::{ComponentData, Limit, Value};
 
 pub struct ShapeWrapper(pub SharedShape);
 

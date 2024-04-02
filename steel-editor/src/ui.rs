@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::{Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{Command, Engine, EntityData, Limit, Range, Value, WorldData};
+use steel_common::{data::{EntityData, Limit, Range, Value, WorldData}, engine::{Command, Engine}};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 

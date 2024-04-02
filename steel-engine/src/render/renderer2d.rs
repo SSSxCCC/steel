@@ -1,8 +1,8 @@
 use parry2d::shape::{ShapeType, SharedShape};
 use shipyard::{Component, IntoIter, UniqueViewMut, View};
 use glam::{Vec4, Vec4Swizzles};
-use steel_common::{ComponentData, Limit, Value};
-use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, Edit};
+use steel_common::data::{ComponentData, Limit, Value};
+use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, edit::Edit};
 
 #[derive(Component, Debug)]
 pub struct Renderer2D {

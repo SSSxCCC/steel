@@ -2,8 +2,8 @@ use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
-use steel_common::{ComponentData, Limit, Value};
-use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, Edit};
+use steel_common::data::{ComponentData, Limit, Value};
+use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, edit::Edit};
 
 #[derive(Component, Debug)]
 #[track(All)]

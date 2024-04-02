@@ -3,7 +3,7 @@ mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
-use steel_common::{DrawInfo, EditorCamera};
+use steel_common::engine::{DrawInfo, EditorCamera};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};

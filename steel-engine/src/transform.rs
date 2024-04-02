@@ -1,7 +1,7 @@
 use glam::{Mat4, Quat, Vec3};
 use shipyard::Component;
-use steel_common::{ComponentData, Limit, Value};
-use crate::Edit;
+use steel_common::data::{ComponentData, Limit, Value};
+use crate::edit::Edit;
 
 #[derive(Component, Debug)]
 pub struct Transform {
