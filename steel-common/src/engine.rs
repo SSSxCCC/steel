@@ -6,19 +6,20 @@ use shipyard::EntityId;
 use crate::data::WorldData;
 
 pub trait Engine {
-    fn init(&mut self, world_data: Option<&WorldData>);
+    fn init(&mut self);
     fn maintain(&mut self);
     fn update(&mut self);
     fn draw(&mut self);
     fn draw_game(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn draw_editor(&mut self, info: DrawInfo, camera: &EditorCamera) -> Box<dyn GpuFuture>;
-    fn save(&self) -> WorldData;
-    fn load(&mut self, world_data: &WorldData);
-    fn reload(&mut self, world_data: &WorldData);
     fn command(&mut self, cmd: Command);
 }
 
 pub enum Command<'a> {
+    Save(&'a mut WorldData),
+    Load(&'a WorldData),
+    Relaod(&'a WorldData),
+
     CreateEntity,
     DestroyEntity(EntityId),
     ClearEntity,

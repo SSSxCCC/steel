@@ -1,5 +1,5 @@
 use glam::Vec2;
-use steel_common::{platform::Platform, engine::DrawInfo, data::WorldData};
+use steel_common::{data::WorldData, engine::{Command, DrawInfo}, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{
     event::{Event, WindowEvent},
@@ -41,10 +41,12 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let mut events = Vec::new();
 
     // engine
-    // WorldData load path will be modified to init scene path temporily while compiling
-    let world_data = WorldData::load_from_file("scene_path", &platform);
     let mut engine = steel::create();
-    engine.init(world_data.as_ref());
+    engine.init();
+    // WorldData load path will be modified to init scene path temporily while compiling
+    if let Some(world_data) = WorldData::load_from_file("scene_path", &platform) {
+        engine.command(Command::Relaod(&world_data));
+    }
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {

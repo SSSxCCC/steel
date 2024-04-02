@@ -152,20 +152,22 @@ impl Project {
 
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
+            engine.init();
 
             if let Some(scene) = &scene {
                 let scene = state.path.join("asset").join(scene);
-                let data = Self::_load_from_file(&scene);
-                match &data {
-                    Ok(_) => log::debug!("Loaded WorldData from {}", scene.display()),
+                match Self::_load_from_file(&scene) {
+                    Ok(data) => {
+                        log::debug!("Loaded WorldData from {}", scene.display());
+                        engine.command(Command::Relaod(&data));
+                    }
                     Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene.display()),
                 }
-                engine.init(data.as_ref().ok());
-            } else {
-                engine.init(None);
             }
 
-            let data = engine.save();
+            let mut data = WorldData::new();
+            engine.command(Command::Save(&mut data));
+
             state.compiled = Some(ProjectCompiledState { engine, library, data, running: false, scene });
             Ok(())
         } else {
@@ -448,13 +450,13 @@ impl Project {
 
     pub fn save_to_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.data = compiled.engine.save();
+            compiled.engine.command(Command::Save(&mut compiled.data));
         }
     }
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.reload(&compiled.data);
+            compiled.engine.command(Command::Relaod(&compiled.data));
         }
     }
 
@@ -507,7 +509,7 @@ impl Project {
     pub fn save_scene(&mut self, scene: impl Into<PathBuf>) {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
-            compiled.data = compiled.engine.save();
+            compiled.engine.command(Command::Save(&mut compiled.data));
             let world_data = Self::_cut_world_data(&compiled.data);
             let asset_dir = asset_dir.expect("self.asset_dir() must be some when self.compiled_mut() is some");
             let scene = scene.into();
@@ -556,7 +558,7 @@ impl Project {
             match Self::_load_from_file(&scene_abs) {
                 Ok(data) => {
                     compiled.data = data;
-                    compiled.engine.reload(&compiled.data);
+                    compiled.engine.command(Command::Relaod(&compiled.data));
                     compiled.scene = Some(scene);
                 }
                 Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene_abs.display()),

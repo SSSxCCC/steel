@@ -2,11 +2,9 @@ pub use steel_common::engine::*;
 
 use indexmap::IndexMap;
 use shipyard::{UniqueViewMut, World};
-use rapier2d::prelude::*;
-use glam::{Quat, Vec3};
 use steel_common::data::WorldData;
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::{Camera, CameraInfo}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, entityinfo::EntityInfo, transform::Transform, data::{WorldDataExt, WorldExt, ComponentFn}};
+use crate::{camera::CameraInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, entityinfo::EntityInfo, transform::Transform, data::{WorldDataExt, WorldExt, ComponentFn}};
 
 pub struct EngineImpl {
     pub world: World, // ecs world, also contains resources and managers
@@ -20,28 +18,10 @@ impl EngineImpl {
 }
 
 impl Engine for EngineImpl {
-    fn init(&mut self, world_data: Option<&WorldData>) {
-        log::debug!("Engine::init");
+    fn init(&mut self) {
         self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
         self.world.add_unique(CameraInfo::new());
         self.world.add_unique(Canvas::new());
-
-        if let Some(world_data) = world_data { // load from world_data
-            self.reload(world_data);
-        } else { // create empty scene
-            self.world.add_entity((EntityInfo::new("Camera"),
-                    Transform::default(),
-                    Camera { height: 20.0 }));
-            self.world.add_entity((EntityInfo::new("Object"),
-                    Transform { position: Vec3 { x: 0.0, y: 10.0, z: 0.0 }, rotation: Quat::IDENTITY, scale: Vec3::ONE },
-                    RigidBody2D::new(RigidBodyType::Dynamic),
-                    Collider2D::new(SharedShape::cuboid(0.5, 0.5), 0.7),
-                    Renderer2D::default()));
-            self.world.add_entity((EntityInfo::new("Ground"),
-                    Transform { position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: Quat::IDENTITY, scale: Vec3 { x: 20.0, y: 0.2, z: 1.0 } },
-                    Collider2D::new(SharedShape::cuboid(10.0, 0.1), 0.7),
-                    Renderer2D::default()));
-        }
     }
 
     fn maintain(&mut self) {
@@ -51,7 +31,6 @@ impl Engine for EngineImpl {
     }
 
     fn update(&mut self) {
-        log::trace!("Engine::update");
         self.world.run(crate::physics2d::physics2d_update_system);
     }
 
@@ -60,7 +39,6 @@ impl Engine for EngineImpl {
     }
 
     fn draw_game(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
-        log::trace!("Engine::draw");
         self.world.add_unique(RenderInfo::from(&info));
         let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
@@ -75,23 +53,17 @@ impl Engine for EngineImpl {
         self.draw_game(info)
     }
 
-    fn save(&self) -> WorldData {
-        log::trace!("Engine::save");
-        WorldData::with_core_components(&self.world)
-    }
-
-    fn load(&mut self, world_data: &WorldData) {
-        log::trace!("Engine::load");
-        self.world.load_core_components(world_data);
-    }
-
-    fn reload(&mut self, world_data: &WorldData) {
-        log::debug!("Engine::reload");
-        self.world.recreate_core_components(world_data);
-    }
-
     fn command(&mut self, cmd: Command) {
         match cmd {
+            Command::Save(world_data) => {
+                *world_data = WorldData::with_core_components(&self.world);
+            },
+            Command::Load(world_data) => {
+                self.world.load_core_components(world_data);
+            },
+            Command::Relaod(world_data) => {
+                self.world.recreate_core_components(world_data);
+            },
             Command::CreateEntity => {
                 self.world.add_entity((EntityInfo::new("New Entity"),
                     Transform::default(),

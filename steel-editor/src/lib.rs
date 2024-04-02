@@ -3,7 +3,7 @@ mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
-use steel_common::engine::{DrawInfo, EditorCamera};
+use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera}};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
@@ -114,15 +114,21 @@ fn _main(event_loop: EventLoop<()>) {
                 }
 
                 let gui = gui.as_mut().unwrap();
-                let mut world_data = project.engine().map(|e| { e.save() });
-                if let Some(world_data) = world_data.as_ref() { log::trace!("world_data={:?}", world_data); }
+                let mut world_data = project.engine().map(|e| {
+                    let mut world_data = WorldData::new();
+                    e.command(Command::Save(&mut world_data));
+                    world_data
+                });
                 editor.ui(gui, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
 
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
-                    if let Some(world_data) = world_data.as_mut() { engine.load(world_data); }
+                    if let Some(world_data) = world_data.as_mut() {
+                        engine.command(Command::Load(world_data));
+                    }
+
                     engine.maintain();
 
                     if is_running {
