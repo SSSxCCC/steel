@@ -106,6 +106,10 @@ impl WorldData {
         WorldData { entities: IndexMap::new() }
     }
 
+    pub fn clear(&mut self) {
+        self.entities.clear();
+    }
+
     pub fn load_from_file(file: impl AsRef<Path>, platform: &Platform) -> Option<WorldData> {
         match Self::_load_from_file(file.as_ref(), &platform) {
             Ok(world_data) => Some(world_data),

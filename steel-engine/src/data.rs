@@ -2,126 +2,152 @@ pub use steel_common::data::*;
 
 use indexmap::IndexMap;
 use steel_common::data::{ComponentData, EntityData, WorldData};
-use std::collections::HashMap;
-use shipyard::{IntoIter, IntoWithId, View, World, EntityId, ViewMut, track::{Untracked, All}};
+use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, EntityId, IntoIter, IntoWithId, View, ViewMut, World};
 use crate::{camera::Camera, edit::Edit, entityinfo::EntityInfo, physics2d::{Collider2D, RigidBody2D}, render::renderer2d::Renderer2D, transform::Transform};
 
-pub trait WorldDataExt {
-    fn with_core_components(world: &World) -> Self;
-    fn add_component<T: Edit + Send + Sync>(&mut self, world: &World);
+/// ComponentFn stores many functions of a component, like component create and destroy functions.
+/// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
+pub struct ComponentFn {
+    pub create: fn(&mut World, EntityId),
+    pub create_with_data: fn(&mut World, EntityId, &ComponentData),
+    pub destroy: fn(&mut World, EntityId),
+    pub save_to_data: fn(&mut WorldData, &World),
+    pub load_from_data: fn(&mut World, &WorldData),
 }
 
-impl WorldDataExt for WorldData {
-    fn with_core_components(world: &World) -> Self {
-        let mut world_data = WorldData::new();
-        world_data.add_component::<EntityInfo>(world);
-        world_data.add_component::<Transform>(world);
-        world_data.add_component::<Camera>(world);
-        world_data.add_component::<RigidBody2D>(world);
-        world_data.add_component::<Collider2D>(world);
-        world_data.add_component::<Renderer2D>(world);
-        world_data
+/// key is component name
+pub type ComponentFns = IndexMap<&'static str, ComponentFn>;
+
+impl ComponentFn {
+    pub fn with_core_components() -> ComponentFns {
+        let mut component_fns = ComponentFns::new();
+        Self::register::<EntityInfo>(&mut component_fns);
+        Self::register::<Transform>(&mut component_fns);
+        Self::register::<Camera>(&mut component_fns);
+        Self::register_track_all::<RigidBody2D>(&mut component_fns);
+        Self::register_track_all::<Collider2D>(&mut component_fns);
+        Self::register::<Renderer2D>(&mut component_fns);
+        component_fns
     }
 
-    fn add_component<T: Edit + Send + Sync>(&mut self, world: &World) {
+    pub fn register<T: Edit<Tracking = Untracked> + Send + Sync>(component_fns: &mut ComponentFns) {
+        component_fns.insert(T::name(), ComponentFn {
+            create: Self::create_fn::<T>,
+            create_with_data: Self::create_with_data_fn::<T>,
+            destroy: Self::destroy_fn::<T>,
+            save_to_data: Self::save_to_data_fn::<T>,
+            load_from_data: Self::load_from_data_untracked_fn::<T>,
+        });
+    }
+
+    pub fn register_track_insertion<T: Edit<Tracking = Insertion> + Send + Sync>(component_fns: &mut ComponentFns) {
+        component_fns.insert(T::name(), ComponentFn {
+            create: Self::create_fn::<T>,
+            create_with_data: Self::create_with_data_fn::<T>,
+            destroy: Self::destroy_fn::<T>,
+            save_to_data: Self::save_to_data_fn::<T>,
+            load_from_data: Self::load_from_data_track_insertion_fn::<T>,
+        });
+    }
+
+    pub fn register_track_modification<T: Edit<Tracking = Modification> + Send + Sync>(component_fns: &mut ComponentFns) {
+        component_fns.insert(T::name(), ComponentFn {
+            create: Self::create_fn::<T>,
+            create_with_data: Self::create_with_data_fn::<T>,
+            destroy: Self::destroy_fn::<T>,
+            save_to_data: Self::save_to_data_fn::<T>,
+            load_from_data: Self::load_from_data_track_modification_fn::<T>,
+        });
+    }
+
+    pub fn register_track_removal<T: Edit<Tracking = Removal> + Send + Sync>(component_fns: &mut ComponentFns) {
+        component_fns.insert(T::name(), ComponentFn {
+            create: Self::create_fn::<T>,
+            create_with_data: Self::create_with_data_fn::<T>,
+            destroy: Self::destroy_fn::<T>,
+            save_to_data: Self::save_to_data_fn::<T>,
+            load_from_data: Self::load_from_data_track_removal_fn::<T>,
+        });
+    }
+
+    pub fn register_track_all<T: Edit<Tracking = All> + Send + Sync>(component_fns: &mut ComponentFns) {
+        component_fns.insert(T::name(), ComponentFn {
+            create: Self::create_fn::<T>,
+            create_with_data: Self::create_with_data_fn::<T>,
+            destroy: Self::destroy_fn::<T>,
+            save_to_data: Self::save_to_data_fn::<T>,
+            load_from_data: Self::load_from_data_track_all_fn::<T>,
+        });
+    }
+
+    fn create_fn<T: Edit + Send + Sync>(world: &mut World, entity: EntityId) {
+        world.add_component(entity, (T::default(),))
+    }
+
+    fn create_with_data_fn<T: Edit + Send + Sync>(world: &mut World, entity: EntityId, data: &ComponentData) {
+        world.add_component(entity, (T::from(data),))
+    }
+
+    fn destroy_fn<T: Edit + Send + Sync>(world: &mut World, entity: EntityId) {
+        world.delete_component::<T>(entity)
+    }
+
+    fn save_to_data_fn<T: Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
         world.run(|c: View<T>| {
             for (e, c) in c.iter().with_id() {
-                let entity_data = self.entities.entry(e).or_insert_with(|| EntityData::new());
+                let entity_data = world_data.entities.entry(e).or_insert_with(|| EntityData::new());
                 entity_data.components.insert(T::name().into(), c.get_data());
             }
         })
     }
-}
 
-pub trait WorldExt {
-    fn load_core_components(&mut self, world_data: &WorldData);
-    // Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157
-    // TODO: find a way to write only one generic load_component function to cover all tracking type
-    fn load_component_untracked<T: Edit<Tracking = Untracked> + Send + Sync>(&mut self, world_data: &WorldData);
-    fn load_component_trackall<T: Edit<Tracking = All> + Send + Sync>(&mut self, world_data: &WorldData);
-    fn load_component<T: Edit>(id: EntityId, t: &mut T, world_data: &WorldData);
-    fn recreate_core_components(&mut self, data: &WorldData);
-    fn create_component<T: Edit + Send + Sync>(&mut self, id: EntityId, name: &String, data: &ComponentData);
-}
-
-impl WorldExt for World {
-    fn load_core_components(&mut self, world_data: &WorldData) {
-        self.load_component_untracked::<EntityInfo>(world_data);
-        self.load_component_untracked::<Transform>(world_data);
-        self.load_component_untracked::<Camera>(world_data);
-        self.load_component_trackall::<RigidBody2D>(world_data);
-        self.load_component_trackall::<Collider2D>(world_data);
-        self.load_component_untracked::<Renderer2D>(world_data);
-    }
-
-    fn load_component_untracked<T: Edit<Tracking = Untracked> + Send + Sync>(&mut self, world_data: &WorldData) {
-        self.run(|mut t: ViewMut<T>| {
+    /// Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157
+    /// TODO: find a way to write only one generic function to cover all tracking type
+    fn load_from_data_untracked_fn<T: Edit<Tracking = Untracked> + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut t: ViewMut<T>| {
             for (id, t) in (&mut t).iter().with_id() {
-                Self::load_component(id, t, world_data);
+                Self::_load_from_data(id, t, world_data);
             }
         })
     }
 
-    fn load_component_trackall<T: Edit<Tracking = All> + Send + Sync>(&mut self, world_data: &WorldData) {
-        self.run(|mut t: ViewMut<T>| {
+    fn load_from_data_track_insertion_fn<T: Edit<Tracking = Insertion> + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut t: ViewMut<T>| {
+            for (id, t) in (&mut t).iter().with_id() {
+                Self::_load_from_data(id, t, world_data);
+            }
+        })
+    }
+
+    fn load_from_data_track_modification_fn<T: Edit<Tracking = Modification> + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut t: ViewMut<T>| {
             for (id, mut t) in (&mut t).iter().with_id() {
-                Self::load_component(id, t.as_mut(), world_data);
+                Self::_load_from_data(id, t.as_mut(), world_data);
             }
         })
     }
 
-    fn load_component<T: Edit>(id: EntityId, t: &mut T, world_data: &WorldData) {
+    fn load_from_data_track_removal_fn<T: Edit<Tracking = Removal> + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut t: ViewMut<T>| {
+            for (id, t) in (&mut t).iter().with_id() {
+                Self::_load_from_data(id, t, world_data);
+            }
+        })
+    }
+
+    fn load_from_data_track_all_fn<T: Edit<Tracking = All> + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut t: ViewMut<T>| {
+            for (id, mut t) in (&mut t).iter().with_id() {
+                Self::_load_from_data(id, t.as_mut(), world_data);
+            }
+        })
+    }
+
+    fn _load_from_data<T: Edit>(id: EntityId, t: &mut T, world_data: &WorldData) {
         if let Some(entity_data) = world_data.entities.get(&id) {
             if let Some(component_data) = entity_data.components.get(T::name()) {
                 t.set_data(component_data);
             }
         }
-    }
-
-    fn recreate_core_components(&mut self, data: &WorldData) {
-        self.clear();
-        let mut old_id_to_new_id = HashMap::new();
-        for (old_id, entity_data) in &data.entities {
-            let new_id = *old_id_to_new_id.entry(old_id).or_insert_with(|| self.add_entity(()));
-            for (component_name, component_data) in &entity_data.components {
-                self.create_component::<EntityInfo>(new_id, component_name, component_data);
-                self.create_component::<Transform>(new_id, component_name, component_data);
-                self.create_component::<Camera>(new_id, component_name, component_data);
-                self.create_component::<RigidBody2D>(new_id, component_name, component_data);
-                self.create_component::<Collider2D>(new_id, component_name, component_data);
-                self.create_component::<Renderer2D>(new_id, component_name, component_data);
-            }
-        }
-    }
-
-    fn create_component<T: Edit + Send + Sync>(&mut self, id: EntityId, name: &String, data: &ComponentData) {
-        if T::name() == name {
-            self.add_component(id, (T::from(data),));
-        }
-    }
-}
-
-pub struct ComponentFn {
-    pub create: fn(&mut World, EntityId),
-    pub destroy: fn(&mut World, EntityId),
-}
-
-impl ComponentFn {
-    pub fn with_core_components() -> IndexMap<&'static str, ComponentFn> {
-        let mut component_fn = IndexMap::new();
-        Self::add_component::<EntityInfo>(&mut component_fn);
-        Self::add_component::<Transform>(&mut component_fn);
-        Self::add_component::<Camera>(&mut component_fn);
-        Self::add_component::<RigidBody2D>(&mut component_fn);
-        Self::add_component::<Collider2D>(&mut component_fn);
-        Self::add_component::<Renderer2D>(&mut component_fn);
-        component_fn
-    }
-
-    pub fn add_component<T: Edit + Send + Sync>(component_fn: &mut IndexMap<&'static str, ComponentFn>) {
-        component_fn.insert(T::name(), ComponentFn {
-            create: |world, entity| world.add_component(entity, (T::default(),)),
-            destroy: |world, entity| world.delete_component::<T>(entity),
-        });
     }
 }

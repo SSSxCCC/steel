@@ -1,19 +1,44 @@
 pub use steel_common::engine::*;
 
-use indexmap::IndexMap;
-use shipyard::{UniqueViewMut, World};
-use steel_common::data::WorldData;
+use std::collections::HashMap;
+use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, entityinfo::EntityInfo, transform::Transform, data::{WorldDataExt, WorldExt, ComponentFn}};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, transform::Transform};
 
 pub struct EngineImpl {
     pub world: World, // ecs world, also contains resources and managers
-    pub component_fn: IndexMap<&'static str, ComponentFn>,
+    pub component_fns: ComponentFns,
 }
 
 impl EngineImpl {
     pub fn new() -> Self {
-        EngineImpl { world: World::new(), component_fn: ComponentFn::with_core_components() }
+        EngineImpl { world: World::new(), component_fns: ComponentFn::with_core_components() }
+    }
+
+    /// Register a component type with <Tracking = Untracked> so that this component can be edited in steel-editor.
+    /// Currently we must write different generic functions for different tracking type, see ComponentFn::load_from_data_untracked_fn
+    pub fn register<T: Edit<Tracking = Untracked> + Send + Sync>(&mut self) {
+        ComponentFn::register::<T>(&mut self.component_fns);
+    }
+
+    /// Register a component type with <Tracking = Insertion> so that this component can be edited in steel-editor.
+    pub fn register_track_insertion<T: Edit<Tracking = Insertion> + Send + Sync>(&mut self) {
+        ComponentFn::register_track_insertion::<T>(&mut self.component_fns);
+    }
+
+    /// Register a component type with <Tracking = Modification> so that this component can be edited in steel-editor.
+    pub fn register_track_modification<T: Edit<Tracking = Modification> + Send + Sync>(&mut self) {
+        ComponentFn::register_track_modification::<T>(&mut self.component_fns);
+    }
+
+    /// Register a component type with <Tracking = Removal> so that this component can be edited in steel-editor.
+    pub fn register_track_removal<T: Edit<Tracking = Removal> + Send + Sync>(&mut self) {
+        ComponentFn::register_track_removal::<T>(&mut self.component_fns);
+    }
+
+    /// Register a component type with <Tracking = All> so that this component can be edited in steel-editor.
+    pub fn register_track_all<T: Edit<Tracking = All> + Send + Sync>(&mut self) {
+        ComponentFn::register_track_all::<T>(&mut self.component_fns);
     }
 }
 
@@ -56,13 +81,27 @@ impl Engine for EngineImpl {
     fn command(&mut self, cmd: Command) {
         match cmd {
             Command::Save(world_data) => {
-                *world_data = WorldData::with_core_components(&self.world);
+                world_data.clear();
+                for component_fn in self.component_fns.values() {
+                    (component_fn.save_to_data)(world_data, &self.world);
+                }
             },
             Command::Load(world_data) => {
-                self.world.load_core_components(world_data);
+                for component_fn in self.component_fns.values() {
+                    (component_fn.load_from_data)(&mut self.world, world_data);
+                }
             },
             Command::Relaod(world_data) => {
-                self.world.recreate_core_components(world_data);
+                self.world.clear();
+                let mut old_id_to_new_id = HashMap::new();
+                for (old_id, entity_data) in &world_data.entities {
+                    let new_id = *old_id_to_new_id.entry(old_id).or_insert_with(|| self.world.add_entity(()));
+                    for (component_name, component_data) in &entity_data.components {
+                        if let Some(component_fn) = self.component_fns.get(component_name.as_str()) {
+                            (component_fn.create_with_data)(&mut self.world, new_id, component_data);
+                        }
+                    }
+                }
             },
             Command::CreateEntity => {
                 self.world.add_entity((EntityInfo::new("New Entity"),
@@ -76,15 +115,15 @@ impl Engine for EngineImpl {
                 self.world.clear();
             },
             Command::GetComponents(components) => {
-                *components = self.component_fn.keys().map(|s| *s).collect(); // TODO: cache components
+                *components = self.component_fns.keys().map(|s| *s).collect(); // TODO: cache components
             },
             Command::CreateComponent(id, component_name) => {
-                if let Some(component_fn) = self.component_fn.get(component_name) {
+                if let Some(component_fn) = self.component_fns.get(component_name) {
                     (component_fn.create)(&mut self.world, id);
                 }
             },
             Command::DestroyComponent(id, component_name) => {
-                if let Some(component_fn) = self.component_fn.get(component_name.as_str()) {
+                if let Some(component_fn) = self.component_fns.get(component_name.as_str()) {
                     (component_fn.destroy)(&mut self.world, id);
                 }
             },
