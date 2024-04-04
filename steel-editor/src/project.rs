@@ -636,6 +636,9 @@ env_logger = "0.10.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.13.3"
+
+[features]
+editor = [ "steel/editor" ]
 "#;
 
 const LIB_RS: &'static str =

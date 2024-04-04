@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-steel-common = { path = "../steel-common" }
+steel-common = { path = "../steel-common", features = [ "editor" ] }
 libloading = "0.8"
 rfd = "0.14.0"
 
@@ -34,7 +34,7 @@ env_logger = "0.10.0"
 android_logger = "0.13.3"
 
 [features]
-default = []
+default = [ "desktop" ]
 desktop = []
 
 [lib]

@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 # steel-project is set to test-project for rust-analyzer, and is modified to open project temporily while compiling
-steel-project = { path = "../examples/test-project" }
+steel-project = { path = "../examples/test-project", features = [ "editor" ] }
 
 [lib]
 name = "steel"

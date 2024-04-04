@@ -25,6 +25,10 @@ fn android_main(app: AndroidApp) {
 fn main() {
     env_logger::builder().filter_level(log::LevelFilter::Debug).parse_default_env().init();
     let event_loop = EventLoopBuilder::new().build();
+    // rust-analyzer will complain an error here, because it believes that platform_editor.rs is the platform
+    // implementation when editor feature is enabled. But editor feature is not enabled when compiling steel-client,
+    // so there is no error here at all. Just ignore the error here reported by rust-analyzer.
+    // TODO: find a way to silent rust-analyzer here.
     let platform = Platform::new();
     _main(event_loop, platform);
 }
