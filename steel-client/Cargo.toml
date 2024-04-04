@@ -34,6 +34,7 @@ env_logger = "0.10.0"
 android_logger = "0.13.3"
 
 [features]
+default = []
 desktop = []
 
 [lib]

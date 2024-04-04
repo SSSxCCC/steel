@@ -1,11 +1,8 @@
-#[cfg(all(not(target_os = "android"), not(feature = "editor")))] mod platform_desktop;
-#[cfg(all(not(target_os = "android"), not(feature = "editor")))] pub use platform_desktop::*;
+#[cfg(not(target_os = "android"))] mod platform_desktop;
+#[cfg(not(target_os = "android"))] pub use platform_desktop::*;
 
 #[cfg(target_os = "android")] mod platform_android;
 #[cfg(target_os = "android")] pub use platform_android::*;
-
-#[cfg(feature = "editor")] mod platform_editor;
-#[cfg(feature = "editor")] pub use platform_editor::*;
 
 // TODO: add platform_editor
 

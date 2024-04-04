@@ -5,7 +5,7 @@
             "label": "cargo build",
             "type": "cargo",
 			"command": "build",
-			"args": ["-p", "steel-editor"],
+			"args": ["-p", "steel-editor", "-F", "desktop"],
         },
     ]
 }
