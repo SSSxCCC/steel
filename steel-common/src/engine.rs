@@ -1,12 +1,12 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use glam::{Vec2, Vec3};
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use shipyard::EntityId;
-use crate::data::WorldData;
+use crate::{data::WorldData, platform::Platform};
 
 pub trait Engine {
-    fn init(&mut self);
+    fn init(&mut self, platform: Platform, scene: Option<PathBuf>);
     fn maintain(&mut self);
     fn update(&mut self);
     fn draw(&mut self);

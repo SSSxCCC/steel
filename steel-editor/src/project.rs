@@ -1,6 +1,6 @@
 use std::{error::Error, fs, path::{Path, PathBuf}};
 use shipyard::EntityId;
-use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine}};
+use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -152,18 +152,7 @@ impl Project {
 
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
-            engine.init();
-
-            if let Some(scene) = &scene {
-                let scene = state.path.join("asset").join(scene);
-                match Self::_load_from_file(&scene) {
-                    Ok(data) => {
-                        log::debug!("Loaded WorldData from {}", scene.display());
-                        engine.command(Command::Relaod(&data));
-                    }
-                    Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene.display()),
-                }
-            }
+            engine.init(Platform::new_editor(state.path.clone()), scene.clone());
 
             let mut data = WorldData::new();
             engine.command(Command::Save(&mut data));

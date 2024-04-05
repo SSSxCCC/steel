@@ -1,7 +1,9 @@
 use std::{error::Error, path::Path, io::Read, ffi::CString};
 use winit::platform::android::activity::AndroidApp;
+use shipyard::Unique;
 use crate::platform::PlatformError;
 
+#[derive(Unique)]
 pub struct Platform {
     android_app: AndroidApp,
 }

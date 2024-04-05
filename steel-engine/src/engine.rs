@@ -1,9 +1,10 @@
 pub use steel_common::engine::*;
 
-use std::collections::HashMap;
+use std::path::PathBuf;
+use steel_common::platform::Platform;
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, transform::Transform};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, scene::SceneManager, transform::Transform};
 
 pub struct EngineImpl {
     pub world: World, // ecs world, also contains resources and managers
@@ -43,13 +44,16 @@ impl EngineImpl {
 }
 
 impl Engine for EngineImpl {
-    fn init(&mut self) {
+    fn init(&mut self, platform: Platform, scene: Option<PathBuf>) {
+        self.world.add_unique(platform);
         self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
         self.world.add_unique(CameraInfo::new());
         self.world.add_unique(Canvas::new());
+        self.world.add_unique(SceneManager::new(scene));
     }
 
     fn maintain(&mut self) {
+        SceneManager::maintain_system(&mut self.world, &self.component_fns);
         self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
         self.world.run(crate::physics2d::physics2d_maintain_system);
@@ -92,16 +96,7 @@ impl Engine for EngineImpl {
                 }
             },
             Command::Relaod(world_data) => {
-                self.world.clear();
-                let mut old_id_to_new_id = HashMap::new();
-                for (old_id, entity_data) in &world_data.entities {
-                    let new_id = *old_id_to_new_id.entry(old_id).or_insert_with(|| self.world.add_entity(()));
-                    for (component_name, component_data) in &entity_data.components {
-                        if let Some(component_fn) = self.component_fns.get(component_name.as_str()) {
-                            (component_fn.create_with_data)(&mut self.world, new_id, component_data);
-                        }
-                    }
-                }
+                SceneManager::load(&mut self.world, world_data, &self.component_fns);
             },
             Command::CreateEntity => {
                 self.world.add_entity((EntityInfo::new("New Entity"),

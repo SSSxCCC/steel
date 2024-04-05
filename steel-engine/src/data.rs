@@ -1,7 +1,6 @@
 pub use steel_common::data::*;
 
 use indexmap::IndexMap;
-use steel_common::data::{ComponentData, EntityData, WorldData};
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, EntityId, IntoIter, IntoWithId, View, ViewMut, World};
 use crate::{camera::Camera, edit::Edit, entityinfo::EntityInfo, physics2d::{Collider2D, RigidBody2D}, render::renderer2d::Renderer2D, transform::Transform};
 

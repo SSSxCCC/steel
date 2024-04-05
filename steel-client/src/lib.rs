@@ -1,5 +1,6 @@
+use std::path::PathBuf;
 use glam::Vec2;
-use steel_common::{data::WorldData, engine::{Command, DrawInfo}, platform::Platform};
+use steel_common::{engine::DrawInfo, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{
     event::{Event, WindowEvent},
@@ -25,7 +26,7 @@ fn android_main(app: AndroidApp) {
 fn main() {
     env_logger::builder().filter_level(log::LevelFilter::Debug).parse_default_env().init();
     let event_loop = EventLoopBuilder::new().build();
-    let platform = Platform::new();
+    let platform = Platform::new_client();
     _main(event_loop, platform);
 }
 
@@ -42,11 +43,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
 
     // engine
     let mut engine = steel::create();
-    engine.init();
-    // WorldData load path will be modified to init scene path temporily while compiling
-    if let Some(world_data) = WorldData::load_from_file("scene_path", &platform) {
-        engine.command(Command::Relaod(&world_data));
-    }
+    engine.init(platform, Some(PathBuf::from("scene_path"))); // scene path will be modified to init scene path temporily while compiling
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
