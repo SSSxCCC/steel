@@ -1,4 +1,5 @@
 use std::{error::Error, fs, path::{Path, PathBuf}};
+use egui_winit_vulkano::Gui;
 use shipyard::EntityId;
 use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
@@ -96,21 +97,24 @@ impl Project {
         self.state.is_some()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&mut self, gui_game: &mut Option<Gui>) {
+        *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
         self.state = None;
     }
 
-    pub fn compile(&mut self) {
+    pub fn compile(&mut self, gui_game: &mut Option<Gui>) {
         log::info!("Project::compile start");
-        match self._compile() {
+        match self._compile(gui_game) {
             Err(error) => log::error!("Project::compile error: {error}"),
             Ok(_) => log::info!("Project::compile end"),
         }
     }
 
-    fn _compile(&mut self) -> Result<(), Box<dyn Error>> {
+    fn _compile(&mut self, gui_game: &mut Option<Gui>) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
             let scene = if let Some(compiled) = &mut state.compiled { compiled.scene.take() } else { None };
+
+            *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
             state.compiled = None; // prevent steel.dll from being loaded twice at same time
 
             let lib_path = PathBuf::from("target/debug/steel.dll");
@@ -445,7 +449,8 @@ impl Project {
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.command(Command::Relaod(&compiled.data));
+            compiled.engine.command(Command::Reload(&compiled.data));
+            compiled.engine.command(Command::SetCurrentScene(compiled.scene.clone()));
         }
     }
 
@@ -489,6 +494,7 @@ impl Project {
     pub fn new_scene(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
             compiled.engine.command(Command::ClearEntity);
+            compiled.engine.command(Command::SetCurrentScene(None));
             compiled.scene = None;
         }
     }
@@ -504,7 +510,10 @@ impl Project {
             let scene = scene.into();
             let scene_abs = asset_dir.join(&scene);
             match Self::_save_to_file(&world_data, &scene_abs) {
-                Ok(_) => compiled.scene = Some(scene),
+                Ok(_) => {
+                    compiled.engine.command(Command::SetCurrentScene(Some(scene.clone())));
+                    compiled.scene = Some(scene);
+                },
                 Err(err) => log::warn!("Failed to save WorldData to {} because {err}", scene_abs.display()),
             }
         }
@@ -547,7 +556,8 @@ impl Project {
             match Self::_load_from_file(&scene_abs) {
                 Ok(data) => {
                     compiled.data = data;
-                    compiled.engine.command(Command::Relaod(&compiled.data));
+                    compiled.engine.command(Command::Reload(&compiled.data));
+                    compiled.engine.command(Command::SetCurrentScene(Some(scene.clone())));
                     compiled.scene = Some(scene);
                 }
                 Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene_abs.display()),

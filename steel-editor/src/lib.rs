@@ -52,7 +52,7 @@ fn _main(event_loop: EventLoop<()>) {
 
     // egui
     let mut gui_editor = None; // for editor ui
-    let mut gui = None; // for in-game ui
+    let mut gui: Option<Gui> = None; // for in-game ui
     let mut editor = Editor::new(&local_data);
 
     // project
@@ -69,13 +69,6 @@ fn _main(event_loop: EventLoop<()>) {
                 renderer.graphics_queue(),
                 renderer.swapchain_format(),
                 GuiConfig { is_overlay: false, ..Default::default() }));
-            gui = Some(Gui::new(&event_loop, renderer.surface(),
-                renderer.graphics_queue(),
-                renderer.swapchain_format(),
-                GuiConfig { is_overlay: true, ..Default::default() }));
-            let scale_event = WindowEvent::ScaleFactorChanged {
-                scale_factor: 1.0, new_inner_size: &mut PhysicalSize::new(0, 0) }; // new_inner_size is not used by Gui::update
-            gui.as_mut().unwrap().update(&scale_event); // keep the scale of gui as 1.0 because gui_editor has been scaled
         }
         Event::Suspended => {
             log::debug!("Event::Suspended");
@@ -134,10 +127,19 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
+                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
+                    if gui.is_none() {
+                        gui = Some(Gui::new(&event_loop, renderer.surface(),
+                            renderer.graphics_queue(),
+                            renderer.swapchain_format(),
+                            GuiConfig { is_overlay: true, ..Default::default() }));
+                        let scale_event = WindowEvent::ScaleFactorChanged {
+                            scale_factor: 1.0, new_inner_size: &mut PhysicalSize::new(0, 0) }; // new_inner_size is not used by Gui::update
+                        gui.as_mut().unwrap().update(&scale_event); // keep the scale of gui as 1.0 because gui_editor has been scaled
+                    }
                     let gui = gui.as_mut().unwrap();
                     let mut raw_input = gui.egui_winit.take_egui_input(renderer.window());
                     let screen_size = if is_running { editor.game_size() } else { editor.scene_size() };

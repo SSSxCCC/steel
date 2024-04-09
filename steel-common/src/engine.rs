@@ -49,7 +49,8 @@ pub struct EditorCamera {
 pub enum Command<'a> {
     Save(&'a mut WorldData),
     Load(&'a WorldData),
-    Relaod(&'a WorldData),
+    Reload(&'a WorldData),
+    SetCurrentScene(Option<PathBuf>),
 
     CreateEntity,
     DestroyEntity(EntityId),

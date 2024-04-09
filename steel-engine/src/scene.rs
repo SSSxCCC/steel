@@ -24,21 +24,21 @@ impl SceneManager {
     }
 
     pub fn maintain_system(world: &mut World, component_fns: &ComponentFns) {
-        let world_data = world.run(|mut scene_manager: UniqueViewMut<SceneManager>, platform: UniqueView<Platform>| {
+        let world_data_and_scene = world.run(|mut scene_manager: UniqueViewMut<SceneManager>, platform: UniqueView<Platform>| {
             if let Some(to_scene) = scene_manager.to_scene.take() {
-                let world_data = WorldData::load_from_file(&to_scene, &platform);
-                if world_data.is_some() {
-                    scene_manager.current_scene = Some(to_scene);
+                if let Some(world_data) = WorldData::load_from_file(&to_scene, &platform) {
+                    return Some((world_data, to_scene));
                 }
-                return world_data;
             }
             None
         });
-        if let Some(world_data) = world_data {
+        if let Some((world_data, scene)) = world_data_and_scene {
             Self::load(world, &world_data, component_fns);
+            Self::set_current_scene(world, Some(scene));
         }
     }
 
+    /// clear world and load world from world_data, also be sure to call Self::set_current_scene if scene path has changed
     pub fn load(world: &mut World, world_data: &WorldData, component_fns: &ComponentFns) {
         world.clear();
         let mut old_id_to_new_id = HashMap::new();
@@ -50,5 +50,12 @@ impl SceneManager {
                 }
             }
         }
+    }
+
+    pub fn set_current_scene(world: &mut World, scene: Option<PathBuf>) {
+        world.run(|mut scene_manager: UniqueViewMut<SceneManager>| {
+            scene_manager.current_scene = scene;
+            log::info!("SceneManager.current_scene={:?}", scene_manager.current_scene);
+        });
     }
 }

@@ -26,7 +26,7 @@ impl Editor {
             selected_entity: EntityId::dead() }
     }
 
-    pub fn ui(&mut self, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
+    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
             project: &mut Project, local_data: &mut LocalData, world_data: Option<&mut WorldData>) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
@@ -34,8 +34,8 @@ impl Editor {
             // display egui demo windows
             //self.demo_windows.ui(&ctx);
 
-            self.open_project_dialog(&ctx, gui, project, local_data);
-            self.menu_bars(&ctx, gui, project);
+            self.open_project_dialog(&ctx, gui, gui_game, project, local_data);
+            self.menu_bars(&ctx, gui, gui_game, project);
 
             if project.is_compiled() {
                 self.scene_window.layer = None;
@@ -45,7 +45,7 @@ impl Editor {
                     self.game_window.ui(&ctx, gui, context, renderer);
                 }
             } else if project.is_open() {
-                self.compile_error_dialog(&ctx);
+                Self::compile_error_dialog(&ctx);
             }
 
             if let Some(world_data) = world_data {
@@ -56,7 +56,7 @@ impl Editor {
         });
     }
 
-    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project, local_data: &mut LocalData) {
+    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, project: &mut Project, local_data: &mut LocalData) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
             ui.horizontal(|ui| {
@@ -80,14 +80,14 @@ impl Editor {
                 self.scene_window.close(Some(gui));
                 self.game_window.close(Some(gui));
                 project.open(self.project_path.clone(), local_data);
-                project.compile();
+                project.compile(gui_game);
                 self.show_open_project_dialog = false;
             }
         });
         self.show_open_project_dialog &= show;
     }
 
-    fn compile_error_dialog(&mut self, ctx: &egui::Context) {
+    fn compile_error_dialog(ctx: &egui::Context) {
         egui::Window::new("Compile error!").show(&ctx, |ui| {
             ui.label("We have some compile issues, \
                 please solve them according to the terminal output, \
@@ -95,7 +95,7 @@ impl Editor {
         });
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, project: &mut Project) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, project: &mut Project) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -109,14 +109,14 @@ impl Editor {
                             log::info!("Menu->Project->Close");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
-                            project.close();
+                            project.close(gui_game);
                             ui.close_menu();
                         }
                         if ui.button("Compile").clicked() {
                             log::info!("Menu->Project->Compile");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
-                            project.compile();
+                            project.compile(gui_game);
                             ui.close_menu();
                         }
                     }

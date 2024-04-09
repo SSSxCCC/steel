@@ -89,9 +89,12 @@ impl Engine for EngineImpl {
                     (component_fn.load_from_data)(&mut self.world, world_data);
                 }
             },
-            Command::Relaod(world_data) => {
+            Command::Reload(world_data) => {
                 SceneManager::load(&mut self.world, world_data, &self.component_fns);
             },
+            Command::SetCurrentScene(scene) => {
+                SceneManager::set_current_scene(&mut self.world, scene);
+            }
             Command::CreateEntity => {
                 self.world.add_entity((EntityInfo::new("New Entity"),
                     Transform::default(),
