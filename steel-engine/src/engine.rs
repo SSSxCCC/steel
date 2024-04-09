@@ -1,7 +1,5 @@
 pub use steel_common::engine::*;
 
-use std::path::PathBuf;
-use steel_common::platform::Platform;
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, scene::SceneManager, transform::Transform};
@@ -44,42 +42,38 @@ impl EngineImpl {
 }
 
 impl Engine for EngineImpl {
-    fn init(&mut self, platform: Platform, scene: Option<PathBuf>) {
-        self.world.add_unique(platform);
+    fn init(&mut self, info: InitInfo) {
+        self.world.add_unique(info.platform);
         self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
         self.world.add_unique(CameraInfo::new());
         self.world.add_unique(Canvas::new());
-        self.world.add_unique(SceneManager::new(scene));
+        self.world.add_unique(SceneManager::new(info.scene));
     }
 
-    fn maintain(&mut self) {
+    fn maintain(&mut self, _info: &UpdateInfo) {
         SceneManager::maintain_system(&mut self.world, &self.component_fns);
         self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
         self.world.run(crate::physics2d::physics2d_maintain_system);
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, _info: &UpdateInfo) {
         self.world.run(crate::physics2d::physics2d_update_system);
     }
 
-    fn draw(&mut self) {
+    fn finish(&mut self, _info: &UpdateInfo) {
         self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
     }
 
-    fn draw_game(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
+    fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
+        if let Some(editor) = &info.editor_info {
+            self.world.run(|mut camera: UniqueViewMut<CameraInfo>| camera.set(editor.camera));
+            self.world.run(crate::physics2d::physics2d_debug_render_system);
+        }
         self.world.add_unique(RenderInfo::from(&info));
         let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<RenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
-    }
-
-    fn draw_editor(&mut self, info: DrawInfo, camera: &EditorCamera) -> Box<dyn GpuFuture> {
-        self.world.run(|mut camera_info: UniqueViewMut<CameraInfo>| {
-            camera_info.set(camera);
-        });
-        self.world.run(crate::physics2d::physics2d_debug_render_system);
-        self.draw_game(info)
     }
 
     fn command(&mut self, cmd: Command) {

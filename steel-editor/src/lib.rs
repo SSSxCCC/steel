@@ -3,7 +3,7 @@ mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
-use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera}};
+use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
@@ -46,6 +46,10 @@ fn _main(event_loop: EventLoop<()>) {
     let mut windows = VulkanoWindows::default();
     let mut editor_camera = EditorCamera { position: Vec3::ZERO, height: 20.0 };
 
+    // input
+    let mut input = WinitInputHelper::new();
+    let mut events = Vec::new();
+
     // egui
     let mut gui_editor = None; // for editor ui
     let mut gui = None; // for in-game ui
@@ -53,10 +57,6 @@ fn _main(event_loop: EventLoop<()>) {
 
     // project
     let mut project = Project::new();
-
-    // input
-    let mut input = WinitInputHelper::new();
-    let mut events = Vec::new();
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -126,6 +126,7 @@ fn _main(event_loop: EventLoop<()>) {
                 if window_size.width == 0 || window_size.height == 0 {
                     return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
                 }
+                let mut gpu_future = renderer.acquire().unwrap();
 
                 let gui_editor = gui_editor.as_mut().unwrap();
                 let mut world_data = project.engine().map(|e| {
@@ -134,8 +135,6 @@ fn _main(event_loop: EventLoop<()>) {
                     world_data
                 });
                 editor.ui(gui_editor, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
-
-                let mut gpu_future = renderer.acquire().unwrap();
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
@@ -149,20 +148,20 @@ fn _main(event_loop: EventLoop<()>) {
                         engine.command(Command::Load(world_data));
                     }
 
-                    engine.maintain();
-
+                    let update_info = UpdateInfo { input: &input, ctx: &gui.egui_ctx };
+                    engine.maintain(&update_info);
                     if is_running {
-                        engine.update();
+                        engine.update(&update_info);
                     }
-
-                    engine.draw();
+                    engine.finish(&update_info);
 
                     if is_running {
-                        let mut draw_future = engine.draw_game(DrawInfo {
+                        let mut draw_future = engine.draw(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
                             image: editor.game_image().as_ref().unwrap().clone(),
                             window_size: editor.game_size(),
+                            editor_info: None,
                         });
                         draw_future = gui.draw_on_image(draw_future, editor.game_image().as_ref().unwrap().clone());
                         gpu_future = gpu_future.join(draw_future).boxed();
@@ -173,12 +172,13 @@ fn _main(event_loop: EventLoop<()>) {
                         update_editor_camera(&mut editor_camera, &input, &scene_window_size, renderer.window().scale_factor());
                     }
 
-                    let mut draw_future = engine.draw_editor(DrawInfo {
+                    let mut draw_future = engine.draw(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(),
                         window_size: scene_window_size,
-                    }, &editor_camera);
+                        editor_info: Some(EditorInfo { camera: &editor_camera }),
+                    });
                     if !is_running {
                         draw_future = gui.draw_on_image(draw_future, editor.scene_image().as_ref().unwrap().clone());
                     }

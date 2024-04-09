@@ -1,11 +1,9 @@
 use std::path::PathBuf;
+use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::Vec2;
-use steel_common::{engine::DrawInfo, platform::Platform};
+use steel_common::{engine::{DrawInfo, InitInfo, UpdateInfo}, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
-};
+use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
 
 #[cfg(target_os = "android")]
@@ -41,9 +39,12 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let mut input = WinitInputHelper::new();
     let mut events = Vec::new();
 
+    // egui
+    let mut gui = None;
+
     // engine
     let mut engine = steel::create();
-    engine.init(platform, Some(PathBuf::from("scene_path"))); // scene path will be modified to init scene path temporily while compiling
+    engine.init(InitInfo { platform, scene: Some(PathBuf::from("scene_path")) }); // scene path will be modified to init scene path temporily while compiling
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -51,12 +52,21 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             log::debug!("Event::Resumed");
             windows.create_window(&event_loop, &context,
                 &WindowDescriptor::default(), |_|{});
+            let renderer = windows.get_primary_renderer().unwrap();
+            gui = Some(Gui::new(&event_loop, renderer.surface(),
+                renderer.graphics_queue(),
+                renderer.swapchain_format(),
+                GuiConfig { is_overlay: true, ..Default::default() }));
         }
         Event::Suspended => {
             log::debug!("Event::Suspended");
+            gui = None;
             windows.remove_renderer(windows.primary_window_id().unwrap());
         }
         Event::WindowEvent { event , .. } => {
+            if let Some(gui) = gui.as_mut() {
+                let _pass_events_to_game = !gui.update(&event);
+            }
             match event {
                 WindowEvent::CloseRequested => {
                     log::debug!("WindowEvent::CloseRequested");
@@ -87,19 +97,25 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 if window_size.width == 0 || window_size.height == 0 {
                     return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
                 }
-
                 let mut gpu_future = renderer.acquire().unwrap();
 
-                engine.maintain();
-                engine.update();
-                engine.draw();
+                let gui = gui.as_mut().unwrap();
+                gui.begin_frame();
 
-                gpu_future = engine.draw_game(DrawInfo {
+                let update_info = UpdateInfo { input: &input, ctx: &gui.egui_ctx };
+                engine.maintain(&update_info);
+                engine.update(&update_info);
+                engine.finish(&update_info);
+
+                gpu_future = engine.draw(DrawInfo {
                     before_future: gpu_future,
                     context: &context, renderer: &renderer,
                     image: renderer.swapchain_image_view(),
                     window_size: Vec2::from_array(renderer.swapchain_image_size().map(|s| s as f32)),
+                    editor_info: None,
                 });
+
+                gpu_future = gui.draw_on_image(gpu_future, renderer.swapchain_image_view());
 
                 renderer.present(gpu_future, true);
             }

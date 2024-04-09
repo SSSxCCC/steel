@@ -1,6 +1,6 @@
 use std::{error::Error, fs, path::{Path, PathBuf}};
 use shipyard::EntityId;
-use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine}, platform::Platform};
+use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -152,7 +152,7 @@ impl Project {
 
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
-            engine.init(Platform::new_editor(state.path.clone()), scene.clone());
+            engine.init(InitInfo { platform: Platform::new_editor(state.path.clone()), scene: scene.clone() });
 
             let mut data = WorldData::new();
             engine.command(Command::Save(&mut data));
