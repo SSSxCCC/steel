@@ -7,10 +7,7 @@ use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera}};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
-use winit::{
-    event::{Event, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
-};
+use winit::{dpi::PhysicalSize, event::{Event, VirtualKeyCode, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
 
 use crate::{project::Project, ui::Editor, utils::LocalData};
@@ -50,7 +47,8 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor_camera = EditorCamera { position: Vec3::ZERO, height: 20.0 };
 
     // egui
-    let mut gui = None;
+    let mut gui_editor = None; // for editor ui
+    let mut gui = None; // for in-game ui
     let mut editor = Editor::new(&local_data);
 
     // project
@@ -67,20 +65,28 @@ fn _main(event_loop: EventLoop<()>) {
             windows.create_window(&event_loop, &context,
                 &WindowDescriptor::default(), |_|{});
             let renderer = windows.get_primary_renderer().unwrap();
-            gui = Some(Gui::new(&event_loop, renderer.surface(),
+            gui_editor = Some(Gui::new(&event_loop, renderer.surface(),
                 renderer.graphics_queue(),
                 renderer.swapchain_format(),
                 GuiConfig { is_overlay: false, ..Default::default() }));
+            gui = Some(Gui::new(&event_loop, renderer.surface(),
+                renderer.graphics_queue(),
+                renderer.swapchain_format(),
+                GuiConfig { is_overlay: true, ..Default::default() }));
+            let scale_event = WindowEvent::ScaleFactorChanged {
+                scale_factor: 1.0, new_inner_size: &mut PhysicalSize::new(0, 0) }; // new_inner_size is not used by Gui::update
+            gui.as_mut().unwrap().update(&scale_event); // keep the scale of gui as 1.0 because gui_editor has been scaled
         }
         Event::Suspended => {
             log::debug!("Event::Suspended");
             editor.suspend();
+            gui_editor = None;
             gui = None;
             windows.remove_renderer(windows.primary_window_id().unwrap());
         }
         Event::WindowEvent { event , .. } => {
-            if let Some(gui) = gui.as_mut() {
-                let _pass_events_to_game = !gui.update(&event);
+            if let Some(gui_editor) = gui_editor.as_mut() {
+                let _pass_events_to_game = !gui_editor.update(&event);
             }
             match event {
                 WindowEvent::CloseRequested => {
@@ -99,8 +105,16 @@ fn _main(event_loop: EventLoop<()>) {
             }
             // Warning: event.to_static() may drop some events, like ScaleFactorChanged
             // TODO: find a way to deliver all events to WinitInputHelper
-            if let Some(event) = event.to_static() {
-                events.push(event);
+            if let Some(mut event) = event.to_static() {
+                events.push(event.clone());
+
+                if project.is_running() {
+                    if let Some(gui) = gui.as_mut() {
+                        let renderer = windows.get_primary_renderer().unwrap();
+                        process_event_for_game_gui(&mut event, editor.game_position(), renderer.window().scale_factor());
+                        let _pass_events_to_game = !gui.update(&event);
+                    }
+                }
             }
         }
         Event::RedrawRequested(_) => {
@@ -113,18 +127,24 @@ fn _main(event_loop: EventLoop<()>) {
                     return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
                 }
 
-                let gui = gui.as_mut().unwrap();
+                let gui_editor = gui_editor.as_mut().unwrap();
                 let mut world_data = project.engine().map(|e| {
                     let mut world_data = WorldData::new();
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
+                editor.ui(gui_editor, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
 
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
+                    let gui = gui.as_mut().unwrap();
+                    let mut raw_input = gui.egui_winit.take_egui_input(renderer.window());
+                    let screen_size = if is_running { editor.game_size() } else { editor.scene_size() };
+                    raw_input.screen_rect = Some(egui::Rect::from_x_y_ranges(0.0..=screen_size.x, 0.0..=screen_size.y));
+                    gui.egui_ctx.begin_frame(raw_input);
+
                     if let Some(world_data) = world_data.as_mut() {
                         engine.command(Command::Load(world_data));
                     }
@@ -138,27 +158,34 @@ fn _main(event_loop: EventLoop<()>) {
                     engine.draw();
 
                     if is_running {
-                        gpu_future = gpu_future.join(engine.draw_game(DrawInfo {
+                        let mut draw_future = engine.draw_game(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
                             image: editor.game_image().as_ref().unwrap().clone(),
                             window_size: editor.game_size(),
-                        })).boxed();
+                        });
+                        draw_future = gui.draw_on_image(draw_future, editor.game_image().as_ref().unwrap().clone());
+                        gpu_future = gpu_future.join(draw_future).boxed();
                     }
 
                     let scene_window_size = editor.scene_size();
                     if editor.scene_focus() {
                         update_editor_camera(&mut editor_camera, &input, &scene_window_size, renderer.window().scale_factor());
                     }
-                    gpu_future = gpu_future.join(engine.draw_editor(DrawInfo {
+
+                    let mut draw_future = engine.draw_editor(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
                         image: editor.scene_image().as_ref().unwrap().clone(),
                         window_size: scene_window_size,
-                    }, &editor_camera)).boxed();
+                    }, &editor_camera);
+                    if !is_running {
+                        draw_future = gui.draw_on_image(draw_future, editor.scene_image().as_ref().unwrap().clone());
+                    }
+                    gpu_future = gpu_future.join(draw_future).boxed();
                 }
 
-                let gpu_future = gui.draw_on_image(gpu_future, renderer.swapchain_image_view());
+                let gpu_future = gui_editor.draw_on_image(gpu_future, renderer.swapchain_image_view());
 
                 renderer.present(gpu_future, true);
             }
@@ -202,5 +229,45 @@ fn update_editor_camera(editor_camera: &mut EditorCamera, input: &WinitInputHelp
         let mouse_diff = input.mouse_diff();
         editor_camera.position.x -= mouse_diff.0 * screen_to_world;
         editor_camera.position.y += mouse_diff.1 * screen_to_world;
+    }
+}
+
+fn process_event_for_game_gui(event: &mut WindowEvent<'static>, window_position: Vec2, scale_factor: f64) {
+    match event {
+        WindowEvent::CursorMoved { position, .. } => {
+            position.x = position.x / scale_factor - window_position.x as f64;
+            position.y = position.y / scale_factor - window_position.y as f64;
+        }
+        WindowEvent::Touch(touch) => {
+            touch.location.x = touch.location.x / scale_factor - window_position.x as f64;
+            touch.location.y = touch.location.y / scale_factor - window_position.y as f64;
+        }
+        // events that we do not need change
+        // note: we must write all types of event here, because when we upgrade winit,
+        // we will know the types of event we did not consider
+        WindowEvent::CursorLeft { .. } |
+        WindowEvent::CursorEntered { .. } |
+        WindowEvent::Focused(_) |
+        WindowEvent::Resized(_) |
+        WindowEvent::Moved(_) |
+        WindowEvent::CloseRequested |
+        WindowEvent::Destroyed |
+        WindowEvent::DroppedFile(_) |
+        WindowEvent::HoveredFile(_) |
+        WindowEvent::HoveredFileCancelled |
+        WindowEvent::ReceivedCharacter(_) |
+        WindowEvent::KeyboardInput { .. } |
+        WindowEvent::ModifiersChanged(_) |
+        WindowEvent::Ime(_) |
+        WindowEvent::MouseWheel { .. } |
+        WindowEvent::MouseInput { .. } |
+        WindowEvent::TouchpadMagnify { .. } |
+        WindowEvent::SmartMagnify { .. } |
+        WindowEvent::TouchpadRotate { .. } |
+        WindowEvent::TouchpadPressure { .. } |
+        WindowEvent::AxisMotion { .. } |
+        WindowEvent::ThemeChanged(_) |
+        WindowEvent::Occluded(_) => (),
+        WindowEvent::ScaleFactorChanged { .. } => unreachable!("Static event can't be about scale factor changing"),
     }
 }

@@ -432,6 +432,11 @@ impl Editor {
         self.scene_window.size
     }
 
+    #[allow(unused)]
+    pub fn scene_position(&self) -> Vec2 {
+        self.scene_window.position
+    }
+
     pub fn scene_focus(&self) -> bool {
         self.scene_window.layer.is_some_and(|this| !self.game_window.layer.is_some_and(|other| other > this))
     }
@@ -442,6 +447,10 @@ impl Editor {
 
     pub fn game_size(&self) -> Vec2 {
         self.game_window.size
+    }
+
+    pub fn game_position(&self) -> Vec2 {
+        self.game_window.position
     }
 
     #[allow(unused)]
@@ -478,39 +487,44 @@ struct ImageWindow {
     image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>, // TODO: use multi-buffering
     texture_id: Option<egui::TextureId>,
     size: Vec2,
+    position: Vec2,
     layer: Option<usize>, // Warning: the value of layer is undefined if !project.is_compiled()
 }
 
 impl ImageWindow {
     fn new(title: impl Into<String>) -> Self {
-        ImageWindow { title: title.into(), image: None, texture_id: None, size: Vec2::ZERO, layer: None }
+        ImageWindow { title: title.into(), image: None, texture_id: None, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
     }
 
     fn ui(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
-        egui::Window::new(&self.title).resizable(true).show(&ctx, |ui| {
-            let available_size = ui.available_size();
-            if self.image.is_none() || self.size.x != available_size.x || self.size.y != available_size.y {
-                (self.size.x, self.size.y) = (available_size.x, available_size.y);
-                self.close(Some(gui));
-                self.image = Some(StorageImage::general_purpose_image_view(
-                    context.memory_allocator(),
-                    context.graphics_queue().clone(),
-                    [self.size.x as u32, self.size.y as u32],
-                    renderer.swapchain_format(),
-                    ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                ).unwrap());
-                self.texture_id = Some(gui.register_user_image_view(
-                    self.image.as_ref().unwrap().clone(), Default::default()));
-                log::info!("ImageWindow({}): image created, size={}", self.title, self.size);
-            }
-            let r = ui.image(self.texture_id.unwrap(), available_size);
-            self.layer = ctx.memory(|mem| {
-                match mem.focus() {
-                    Some(_) => None, // We should not have focus if any widget has keyboard focus
-                    None => mem.layer_ids().position(|layer_id| layer_id == r.layer_id),
+        egui::Window::new(&self.title)
+            .movable(ctx.input(|input| input.pointer.hover_pos())
+                .is_some_and(|hover_pos| hover_pos.y < self.position.y ))
+            .show(&ctx, |ui| {
+                let available_size = ui.available_size();
+                if self.image.is_none() || self.size.x != available_size.x || self.size.y != available_size.y {
+                    (self.size.x, self.size.y) = (available_size.x, available_size.y);
+                    self.close(Some(gui));
+                    self.image = Some(StorageImage::general_purpose_image_view(
+                        context.memory_allocator(),
+                        context.graphics_queue().clone(),
+                        [self.size.x as u32, self.size.y as u32],
+                        renderer.swapchain_format(),
+                        ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                    ).unwrap());
+                    self.texture_id = Some(gui.register_user_image_view(
+                        self.image.as_ref().unwrap().clone(), Default::default()));
+                    log::info!("ImageWindow({}): image created, size={}", self.title, self.size);
                 }
+                let r = ui.image(self.texture_id.unwrap(), available_size);
+                (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
+                self.layer = ctx.memory(|mem| {
+                    match mem.focus() {
+                        Some(_) => None, // We should not have focus if any widget has keyboard focus
+                        None => mem.layer_ids().position(|layer_id| layer_id == r.layer_id),
+                    }
+                });
             });
-        });
     }
 
     fn close(&mut self, gui: Option<&mut Gui>) {

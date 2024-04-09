@@ -4,8 +4,6 @@
 #[cfg(target_os = "android")] mod platform_android;
 #[cfg(target_os = "android")] pub use platform_android::*;
 
-// TODO: add platform_editor
-
 #[derive(Debug)]
 struct PlatformError {
     message: String,
