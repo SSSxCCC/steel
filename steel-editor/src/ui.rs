@@ -1,8 +1,8 @@
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{data::{EntityData, Limit, Range, Value, WorldData}, engine::{Command, Engine}};
+use steel_common::{data::{EntityData, Limit, Value, WorldData}, engine::{Command, Engine}};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
@@ -276,9 +276,7 @@ impl Editor {
                                         } else {
                                             let mut drag_value = egui::DragValue::new(v);
                                             if let Some(Limit::Int32Range(range)) = component_data.limits.get(name) {
-                                                let min = if range.min_include { range.min } else { range.min + 1 };
-                                                let max = if range.max_include { range.max } else { range.max - 1 };
-                                                drag_value = drag_value.clamp_range(min..=max);
+                                                drag_value = drag_value.clamp_range(range.clone());
                                             }
                                             ui.add(drag_value);
                                         }
@@ -293,14 +291,9 @@ impl Editor {
                                     Value::Float32(v) => {
                                         if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
                                             ui.drag_angle(v);
-                                            if *v < 0.0 {
-                                                *v += 2.0 * std::f32::consts::PI;
-                                            } else if *v >= 2.0 * std::f32::consts::PI {
-                                                *v -= 2.0 * std::f32::consts::PI;
-                                            }
                                         } else {
                                             Self::drag_float32(ui, v, match component_data.limits.get(name) {
-                                                Some(Limit::Float32Range(range)) => Some(range),
+                                                Some(Limit::Float32Range(range)) => Some(range.clone()),
                                                 _ => None,
                                             });
                                         }
@@ -312,7 +305,7 @@ impl Editor {
                                                 ui.drag_angle(&mut v.y);
                                             } else {
                                                 let (range_x, range_y) = match component_data.limits.get(name) {
-                                                    Some(Limit::Vec2Range { x, y }) => (Some(x), Some(y)),
+                                                    Some(Limit::Vec2Range { x, y }) => (x.clone(), y.clone()),
                                                     _ => (None, None),
                                                 };
                                                 Self::drag_float32(ui, &mut v.x, range_x);
@@ -332,7 +325,7 @@ impl Editor {
                                                 ui.drag_angle(&mut v.z);
                                             } else {
                                                 let (range_x, range_y, range_z) = match component_data.limits.get(name) {
-                                                    Some(Limit::Vec3Range { x, y, z }) => (Some(x), Some(y), Some(z)),
+                                                    Some(Limit::Vec3Range { x, y, z }) => (x.clone(), y.clone(), z.clone()),
                                                     _ => (None, None, None),
                                                 };
                                                 Self::drag_float32(ui, &mut v.x, range_x);
@@ -354,7 +347,7 @@ impl Editor {
                                                 ui.drag_angle(&mut v.w);
                                             } else {
                                                 let (range_x, range_y, range_z, range_w) = match component_data.limits.get(name) {
-                                                    Some(Limit::Vec4Range { x, y, z, w }) => (Some(x), Some(y), Some(z), Some(w)),
+                                                    Some(Limit::Vec4Range { x, y, z, w }) => (x.clone(), y.clone(), z.clone(), w.clone()),
                                                     _ => (None, None, None, None),
                                                 };
                                                 Self::drag_float32(ui, &mut v.x, range_x);
@@ -412,20 +405,12 @@ impl Editor {
             });
     }
 
-    fn drag_float32(ui: &mut egui::Ui, v: &mut f32, range: Option<&Range<f32>>) {
+    fn drag_float32(ui: &mut egui::Ui, v: &mut f32, range: Option<RangeInclusive<f32>>) {
         let mut drag_value = egui::DragValue::new(v);
         if let Some(range) = range {
-            drag_value = drag_value.clamp_range(range.min..=range.max);
-            ui.add(drag_value);
-            if !range.min_include && *v <= range.min {
-                *v = range.min + f32::EPSILON;
-            }
-            if !range.max_include && *v >= range.max {
-                *v = range.max - f32::EPSILON;
-            }
-        } else {
-            ui.add(drag_value);
+            drag_value = drag_value.clamp_range(range);
         }
+        ui.add(drag_value);
     }
 
     pub fn suspend(&mut self) {
