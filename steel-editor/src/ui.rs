@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
-use glam::{Vec2, Vec3, Vec4};
+use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
 use steel_common::{data::{EntityData, Limit, Range, Value, WorldData}, engine::{Command, Engine}};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
@@ -437,6 +437,11 @@ impl Editor {
         &self.scene_window.image
     }
 
+    pub fn scene_pixel(&self) -> UVec2 {
+        self.scene_window.pixel
+    }
+
+    #[allow(unused)]
     pub fn scene_size(&self) -> Vec2 {
         self.scene_window.size
     }
@@ -454,6 +459,11 @@ impl Editor {
         &self.game_window.image
     }
 
+    pub fn game_pixel(&self) -> UVec2 {
+        self.game_window.pixel
+    }
+
+    #[allow(unused)]
     pub fn game_size(&self) -> Vec2 {
         self.game_window.size
     }
@@ -495,6 +505,7 @@ struct ImageWindow {
     title: String,
     image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>, // TODO: use multi-buffering
     texture_id: Option<egui::TextureId>,
+    pixel: UVec2,
     size: Vec2,
     position: Vec2,
     layer: Option<usize>, // Warning: the value of layer is undefined if !project.is_compiled()
@@ -502,7 +513,7 @@ struct ImageWindow {
 
 impl ImageWindow {
     fn new(title: impl Into<String>) -> Self {
-        ImageWindow { title: title.into(), image: None, texture_id: None, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
+        ImageWindow { title: title.into(), image: None, texture_id: None, pixel: UVec2::ZERO, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
     }
 
     fn ui(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
@@ -511,19 +522,21 @@ impl ImageWindow {
                 .is_some_and(|hover_pos| hover_pos.y < self.position.y ))
             .show(&ctx, |ui| {
                 let available_size = ui.available_size();
-                if self.image.is_none() || self.size.x != available_size.x || self.size.y != available_size.y {
-                    (self.size.x, self.size.y) = (available_size.x, available_size.y);
+                (self.size.x, self.size.y) = (available_size.x, available_size.y);
+                let pixel = (self.size * ctx.pixels_per_point()).as_uvec2();
+                if self.image.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
+                    self.pixel = pixel;
                     self.close(Some(gui));
                     self.image = Some(StorageImage::general_purpose_image_view(
                         context.memory_allocator(),
                         context.graphics_queue().clone(),
-                        [self.size.x as u32, self.size.y as u32],
+                        self.pixel.to_array(),
                         renderer.swapchain_format(),
                         ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
                     ).unwrap());
                     self.texture_id = Some(gui.register_user_image_view(
                         self.image.as_ref().unwrap().clone(), Default::default()));
-                    log::info!("ImageWindow({}): image created, size={}", self.title, self.size);
+                    log::info!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
                 }
                 let r = ui.image(self.texture_id.unwrap(), available_size);
                 (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());

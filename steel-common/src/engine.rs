@@ -1,5 +1,5 @@
 use std::{path::PathBuf, sync::Arc};
-use glam::{Vec2, Vec3};
+use glam::{UVec2, Vec3};
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use shipyard::EntityId;
@@ -31,7 +31,7 @@ pub struct DrawInfo<'a> {
     pub renderer: &'a VulkanoWindowRenderer,
     /// the image we will draw
     pub image: Arc<dyn ImageViewAbstract>,
-    pub window_size: Vec2,
+    pub window_size: UVec2,
     /// if editor_info is some, we are drawing for the editor window
     pub editor_info: Option<EditorInfo<'a>>,
 }

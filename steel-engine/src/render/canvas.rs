@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use glam::{Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
+use glam::{Mat4, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use steel_common::engine::DrawInfo;
 use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
@@ -11,7 +11,7 @@ pub struct RenderInfo {
     graphics_queue: Arc<Queue>,
     memory_allocator: Arc<StandardMemoryAllocator>,
 
-    window_size: Vec2,
+    window_size: UVec2,
     image: Arc<dyn ImageViewAbstract>, // the image we will draw
     format: Format,
 }
@@ -65,7 +65,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
     let depth_stencil_image = StorageImage::general_purpose_image_view(
         info.memory_allocator.as_ref(),
         info.graphics_queue.clone(),
-        [info.window_size.x as u32, info.window_size.y as u32],
+        info.window_size.to_array(),
         Format::D32_SFLOAT,
         ImageUsage::DEPTH_STENCIL_ATTACHMENT,
     ).unwrap();
@@ -92,7 +92,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 
     let viewport = Viewport {
         origin: [0.0, 0.0],
-        dimensions: info.window_size.into(),
+        dimensions: info.window_size.as_vec2().to_array(),
         depth_range: 0.0..1.0,
     };
 

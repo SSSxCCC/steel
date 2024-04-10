@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use egui_winit_vulkano::{Gui, GuiConfig};
-use glam::Vec2;
+use glam::UVec2;
 use steel_common::{engine::{DrawInfo, InitInfo, UpdateInfo}, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
@@ -111,7 +111,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                     before_future: gpu_future,
                     context: &context, renderer: &renderer,
                     image: renderer.swapchain_image_view(),
-                    window_size: Vec2::from_array(renderer.swapchain_image_size().map(|s| s as f32)),
+                    window_size: UVec2::from_array(renderer.swapchain_image_size()),
                     editor_info: None,
                 });
 
