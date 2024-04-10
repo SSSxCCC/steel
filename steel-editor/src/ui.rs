@@ -35,7 +35,7 @@ impl Editor {
             //self.demo_windows.ui(&ctx);
 
             self.open_project_dialog(&ctx, gui, gui_game, project, local_data);
-            self.menu_bars(&ctx, gui, gui_game, project);
+            self.menu_bars(&ctx, gui, gui_game, renderer, project);
 
             if project.is_compiled() {
                 self.scene_window.layer = None;
@@ -95,7 +95,7 @@ impl Editor {
         });
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, project: &mut Project) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, renderer: &VulkanoWindowRenderer, project: &mut Project) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -137,6 +137,7 @@ impl Editor {
                         });
                     }
                 });
+
                 if project.is_compiled() && !project.is_running() {
                     ui.menu_button("Scene", |ui| {
                         if let Some(scene_path) = project.scene_relative_path() {
@@ -189,6 +190,7 @@ impl Editor {
                         }
                     });
                 }
+
                 if project.is_compiled() {
                     ui.menu_button("Run", |ui| {
                         let text = if project.is_running() { "Stop" } else { "Start" };
@@ -204,6 +206,13 @@ impl Editor {
                         }
                     });
                 }
+
+                ui.menu_button("Ui", |ui| {
+                    egui::gui_zoom::zoom_menu_buttons(ui, Some(renderer.window().scale_factor() as f32));
+                    ui.label(format!("Current Scale: {}", ctx.pixels_per_point()));
+                });
+                egui::gui_zoom::zoom_with_keyboard_shortcuts(ctx, Some(renderer.window().scale_factor() as f32));
+
                 self.fps_counter.update();
                 ui.label(format!("fps: {:.2}", self.fps_counter.fps));
             });
