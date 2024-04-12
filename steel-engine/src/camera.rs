@@ -1,6 +1,6 @@
 use glam::{Mat4, UVec2, Vec3};
 use shipyard::{AddComponent, Component, Get, IntoIter, IntoWithId, Unique, UniqueViewMut, View, ViewMut};
-use steel_common::{data::{ComponentData, Value}, engine::EditorCamera};
+use steel_common::{data::{Data, Value}, engine::EditorCamera};
 use crate::{edit::Edit, transform::Transform};
 
 #[derive(Unique)]
@@ -36,13 +36,13 @@ pub struct Camera {
 impl Edit for Camera {
     fn name() -> &'static str { "Camera" }
 
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
         data.values.insert("height".into(), Value::Float32(self.height));
         data
     }
 
-    fn set_data(&mut self, data: &ComponentData) {
+    fn set_data(&mut self, data: &Data) {
         if let Some(Value::Float32(f)) = data.values.get("height") { self.height = *f }
     }
 }

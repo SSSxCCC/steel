@@ -10,7 +10,7 @@
           "EntityInfo": {
             "values": {
               "name": {
-                "String": "Camera"
+                "String": "Ground"
               }
             }
           },
@@ -19,7 +19,7 @@
               "position": {
                 "Vec3": [
                   0.0,
-                  0.0,
+                  -8.0,
                   0.0
                 ]
               },
@@ -32,17 +32,47 @@
               },
               "scale": {
                 "Vec3": [
-                  1.0,
+                  15.0,
                   1.0,
                   1.0
                 ]
               }
             }
           },
-          "Camera": {
+          "Collider2D": {
             "values": {
-              "height": {
-                "Float32": 20.0
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
+              "restitution": {
+                "Float32": 0.7
+              }
+            }
+          },
+          "Renderer2D": {
+            "values": {
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
+              "color": {
+                "Vec4": [
+                  0.0,
+                  1.0,
+                  2.3841858e-7,
+                  1.0
+                ]
               }
             }
           }
@@ -59,7 +89,7 @@
           "EntityInfo": {
             "values": {
               "name": {
-                "String": "Object"
+                "String": "Box"
               }
             }
           },
@@ -68,7 +98,7 @@
               "position": {
                 "Vec3": [
                   0.0,
-                  10.0,
+                  0.0,
                   0.0
                 ]
               },
@@ -145,86 +175,7 @@
           "EntityInfo": {
             "values": {
               "name": {
-                "String": "Ground"
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  20.0,
-                  0.2,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 0.7
-              }
-            }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 3,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Object2"
+                "String": "Ball"
               }
             }
           },
@@ -263,13 +214,10 @@
           "Collider2D": {
             "values": {
               "shape_type": {
-                "Int32": 1
+                "Int32": 0
               },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
+              "radius": {
+                "Float32": 0.5
               },
               "restitution": {
                 "Float32": 0.7
@@ -279,19 +227,16 @@
           "Renderer2D": {
             "values": {
               "shape_type": {
-                "Int32": 1
+                "Int32": 0
               },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
+              "radius": {
+                "Float32": 0.5
               },
               "color": {
                 "Vec4": [
-                  0.0000011920929,
-                  1.0,
                   0.0,
+                  0.014286041,
+                  1.0,
                   1.0
                 ]
               }
@@ -300,5 +245,29 @@
         }
       }
     ]
-  ]
+  ],
+  "uniques": {
+    "Physics2DManager": {
+      "values": {
+        "gravity": {
+          "Vec2": [
+            0.0,
+            -9.8
+          ]
+        }
+      }
+    },
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  }
 }

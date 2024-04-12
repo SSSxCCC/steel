@@ -40,7 +40,7 @@ pub enum Limit {
     ReadOnly,
 }
 
-/// Value is a data store in component
+/// Value is a data store in component or unique
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Value {
     Int32(i32),
@@ -51,9 +51,9 @@ pub enum Value {
     Vec4(Vec4),
 }
 
-/// ComponentData contains all Value in a component
+/// Data contains all Value in a component or unique
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ComponentData {
+pub struct Data {
     // &'static str is too dangerous to be used in here because
     // its memory is no longer exist when steel.dll is unloaded!
     pub values: IndexMap<String, Value>,
@@ -61,9 +61,9 @@ pub struct ComponentData {
     pub limits: HashMap<String, Limit>,
 }
 
-impl ComponentData {
+impl Data {
     pub fn new() -> Self {
-        ComponentData { values: IndexMap::new(), limits: HashMap::new() }
+        Data { values: IndexMap::new(), limits: HashMap::new() }
     }
 
     pub fn add(&mut self, name: impl Into<String>, value: Value, limit: Limit) {
@@ -73,10 +73,10 @@ impl ComponentData {
     }
 }
 
-/// EntityData contains all ComponentData in a entity
+/// EntityData contains all component Data in a entity
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EntityData {
-    pub components: IndexMap<String, ComponentData>,
+    pub components: IndexMap<String, Data>,
 }
 
 impl EntityData {
@@ -85,20 +85,22 @@ impl EntityData {
     }
 }
 
-/// WorldData contains all EntityData in the world
+/// WorldData contains all EntityData and UniqueData in the world
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorldData {
     #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
     pub entities: IndexMap<EntityId, EntityData>,
+    pub uniques: IndexMap<String, Data>,
 }
 
 impl WorldData {
     pub fn new() -> Self {
-        WorldData { entities: IndexMap::new() }
+        WorldData { entities: IndexMap::new(), uniques: IndexMap::new() }
     }
 
     pub fn clear(&mut self) {
         self.entities.clear();
+        self.uniques.clear();
     }
 
     pub fn load_from_file(file: impl AsRef<Path>, platform: &Platform) -> Option<WorldData> {

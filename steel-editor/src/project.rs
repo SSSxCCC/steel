@@ -1,7 +1,7 @@
 use std::{error::Error, fs, path::{Path, PathBuf}};
 use egui_winit_vulkano::Gui;
 use shipyard::EntityId;
-use steel_common::{data::{ComponentData, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
+use steel_common::{data::{Data, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 
@@ -530,19 +530,26 @@ impl Project {
     fn _cut_world_data(world_data: &WorldData) -> WorldData {
         let mut world_data_cut = WorldData::new();
         for (eid, entity_data) in &world_data.entities {
-            let mut entity_data_copy = EntityData::new();
-            for (name, component_data) in &entity_data.components {
-                let mut component_data_copy = ComponentData::new();
-                for (name, value) in &component_data.values {
-                    if !matches!(component_data.limits.get(name), Some(Limit::ReadOnly)) {
-                        component_data_copy.values.insert(name.clone(), value.clone());
-                    }
-                }
-                entity_data_copy.components.insert(name.clone(), component_data_copy);
+            let mut entity_data_cut = EntityData::new();
+            for (comopnent_name, component_data) in &entity_data.components {
+                entity_data_cut.components.insert(comopnent_name.clone(), Self::_cut_data(component_data));
             }
-            world_data_cut.entities.insert(EntityId::new_from_index_and_gen(eid.index(), 0), entity_data_copy);
+            world_data_cut.entities.insert(EntityId::new_from_index_and_gen(eid.index(), 0), entity_data_cut);
+        }
+        for (unique_name, unique_data) in &world_data.uniques {
+            world_data_cut.uniques.insert(unique_name.clone(), Self::_cut_data(unique_data));
         }
         world_data_cut
+    }
+
+    fn _cut_data(data: &Data) -> Data {
+        let mut data_cut = Data::new();
+        for (name, value) in &data.values {
+            if !matches!(data.limits.get(name), Some(Limit::ReadOnly)) {
+                data_cut.values.insert(name.clone(), value.clone());
+            }
+        }
+        data_cut
     }
 
     /// Load world_data from file, scene is the load file path,

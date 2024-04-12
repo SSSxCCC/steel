@@ -2,7 +2,7 @@ use std::{ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{data::{EntityData, Limit, Value, WorldData}, engine::{Command, Engine}};
+use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine}};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
@@ -16,6 +16,7 @@ pub struct Editor {
     project_path: PathBuf,
     fps_counter: FpsCounter,
     selected_entity: EntityId,
+    selected_unique: String,
 }
 
 impl Editor {
@@ -23,11 +24,11 @@ impl Editor {
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
             project_path: local_data.last_open_project_path.clone(), fps_counter: FpsCounter::new(),
-            selected_entity: EntityId::dead() }
+            selected_entity: EntityId::dead(), selected_unique: String::new() }
     }
 
     pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
-            project: &mut Project, local_data: &mut LocalData, world_data: Option<&mut WorldData>) {
+            project: &mut Project, local_data: &mut LocalData, world_data: &mut Option<WorldData>) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
 
@@ -35,7 +36,7 @@ impl Editor {
             //self.demo_windows.ui(&ctx);
 
             self.open_project_dialog(&ctx, gui, gui_game, project, local_data);
-            self.menu_bars(&ctx, gui, gui_game, renderer, project);
+            self.menu_bars(&ctx, gui, gui_game, renderer, project, world_data);
 
             if project.is_compiled() {
                 self.scene_window.layer = None;
@@ -51,6 +52,7 @@ impl Editor {
             if let Some(world_data) = world_data {
                 if let Some(engine) = project.engine() {
                     self.entity_component_view(&ctx, world_data, engine);
+                    self.unique_view(&ctx, world_data);
                 }
             }
         });
@@ -95,7 +97,8 @@ impl Editor {
         });
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, renderer: &VulkanoWindowRenderer, project: &mut Project) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, renderer: &VulkanoWindowRenderer,
+            project: &mut Project, world_data: &mut Option<WorldData>) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -179,6 +182,10 @@ impl Editor {
                                 log::info!("After convert_to_scene_relative_path, file={file:?}");
                                 if let Some(file) = file {
                                     project.load_scene(file);
+                                    // We set world_data to None to prevent engine from loading outdated world_data later this frame.
+                                    // But this will cause a splash screen problem due to the disappearance of the windows showing world_data for one frame.
+                                    // TODO: find a way to avoid this splash screen problem.
+                                    *world_data = None;
                                 }
                             }
                             ui.close_menu();
@@ -246,121 +253,7 @@ impl Editor {
                             engine.command(Command::DestroyComponent(self.selected_entity, component_name));
                         }
                     });
-                    for (name, value) in &mut component_data.values {
-                        ui.horizontal(|ui| {
-                            ui.label(name);
-                            if let Some(Limit::ReadOnly) = component_data.limits.get(name) {
-                                Self::color_label(ui, egui::Color32::BLACK, match value {
-                                    Value::Int32(v) => format!("{v}"),
-                                    Value::Float32(v) => format!("{v}"),
-                                    Value::String(v) => format!("{v}"),
-                                    Value::Vec2(v) => format!("{v}"),
-                                    Value::Vec3(v) => format!("{v}"),
-                                    Value::Vec4(v) => format!("{v}"),
-                                });
-                            } else {
-                                match value {
-                                    Value::Int32(v) => {
-                                        if let Some(Limit::Int32Enum(int_enum)) = component_data.limits.get(name) {
-                                            if int_enum.len() > 0 {
-                                                let mut i = int_enum.iter().enumerate().find_map(|(i, (int, _))| {
-                                                    if v == int { Some(i) } else { None }
-                                                }).unwrap_or(0);
-                                                // Use entity + component_name + value_name as id to make sure that every id is unique
-                                                egui::ComboBox::from_id_source(format!("{:?} {} {}", self.selected_entity, component_name, name))
-                                                    .show_index(ui, &mut i, int_enum.len(), |i| &int_enum[i].1);
-                                                *v = int_enum[i].0;
-                                            } else {
-                                                Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
-                                            }
-                                        } else {
-                                            let mut drag_value = egui::DragValue::new(v);
-                                            if let Some(Limit::Int32Range(range)) = component_data.limits.get(name) {
-                                                drag_value = drag_value.clamp_range(range.clone());
-                                            }
-                                            ui.add(drag_value);
-                                        }
-                                    }
-                                    Value::String(v) => {
-                                        if let Some(Limit::StringMultiline) = component_data.limits.get(name) {
-                                            ui.text_edit_multiline(v);
-                                        } else {
-                                            ui.text_edit_singleline(v);
-                                        }
-                                    }
-                                    Value::Float32(v) => {
-                                        if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
-                                            ui.drag_angle(v);
-                                        } else {
-                                            Self::drag_float32(ui, v, match component_data.limits.get(name) {
-                                                Some(Limit::Float32Range(range)) => Some(range.clone()),
-                                                _ => None,
-                                            });
-                                        }
-                                    }
-                                    Value::Vec2(v) => {
-                                        ui.horizontal(|ui| {
-                                            if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
-                                                ui.drag_angle(&mut v.x);
-                                                ui.drag_angle(&mut v.y);
-                                            } else {
-                                                let (range_x, range_y) = match component_data.limits.get(name) {
-                                                    Some(Limit::Vec2Range { x, y }) => (x.clone(), y.clone()),
-                                                    _ => (None, None),
-                                                };
-                                                Self::drag_float32(ui, &mut v.x, range_x);
-                                                Self::drag_float32(ui, &mut v.y, range_y);
-                                            }
-                                        });
-                                    }
-                                    Value::Vec3(v) => {
-                                        ui.horizontal(|ui| {
-                                            if let Some(Limit::Vec3Color) = component_data.limits.get(name) {
-                                                let mut color = v.to_array();
-                                                ui.color_edit_button_rgb(&mut color);
-                                                *v = Vec3::from_array(color);
-                                            } else if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
-                                                ui.drag_angle(&mut v.x);
-                                                ui.drag_angle(&mut v.y);
-                                                ui.drag_angle(&mut v.z);
-                                            } else {
-                                                let (range_x, range_y, range_z) = match component_data.limits.get(name) {
-                                                    Some(Limit::Vec3Range { x, y, z }) => (x.clone(), y.clone(), z.clone()),
-                                                    _ => (None, None, None),
-                                                };
-                                                Self::drag_float32(ui, &mut v.x, range_x);
-                                                Self::drag_float32(ui, &mut v.y, range_y);
-                                                Self::drag_float32(ui, &mut v.z, range_z);
-                                            }
-                                        });
-                                    }
-                                    Value::Vec4(v) => {
-                                        ui.horizontal(|ui| {
-                                            if let Some(Limit::Vec4Color) = component_data.limits.get(name) {
-                                                let mut color = v.to_array();
-                                                ui.color_edit_button_rgba_unmultiplied(&mut color);
-                                                *v = Vec4::from_array(color);
-                                            } else if let Some(Limit::Float32Rotation) = component_data.limits.get(name) {
-                                                ui.drag_angle(&mut v.x);
-                                                ui.drag_angle(&mut v.y);
-                                                ui.drag_angle(&mut v.z);
-                                                ui.drag_angle(&mut v.w);
-                                            } else {
-                                                let (range_x, range_y, range_z, range_w) = match component_data.limits.get(name) {
-                                                    Some(Limit::Vec4Range { x, y, z, w }) => (x.clone(), y.clone(), z.clone(), w.clone()),
-                                                    _ => (None, None, None, None),
-                                                };
-                                                Self::drag_float32(ui, &mut v.x, range_x);
-                                                Self::drag_float32(ui, &mut v.y, range_y);
-                                                Self::drag_float32(ui, &mut v.z, range_z);
-                                                Self::drag_float32(ui, &mut v.w, range_w);
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                        });
-                    }
+                    Self::data_view(ui, component_name, component_data);
                     if component_name == "EntityInfo" {
                         ui.horizontal(|ui| {
                             ui.label("id");
@@ -368,7 +261,7 @@ impl Editor {
                         });
                     }
                     ui.separator();
-                } // for entity_data.components
+                }
 
                 let mut components = Vec::new();
                 engine.command(Command::GetComponents(&mut components));
@@ -395,14 +288,130 @@ impl Editor {
         format!("{:?}", id)
     }
 
+    fn data_view(ui: &mut egui::Ui, data_name: &String, data: &mut Data) {
+        for (name, value) in &mut data.values {
+            ui.horizontal(|ui| {
+                ui.label(name);
+                if let Some(Limit::ReadOnly) = data.limits.get(name) {
+                    Self::color_label(ui, egui::Color32::BLACK, match value {
+                        Value::Int32(v) => format!("{v}"),
+                        Value::Float32(v) => format!("{v}"),
+                        Value::String(v) => format!("{v}"),
+                        Value::Vec2(v) => format!("{v}"),
+                        Value::Vec3(v) => format!("{v}"),
+                        Value::Vec4(v) => format!("{v}"),
+                    });
+                } else {
+                    match value {
+                        Value::Int32(v) => {
+                            if let Some(Limit::Int32Enum(int_enum)) = data.limits.get(name) {
+                                if int_enum.len() > 0 {
+                                    let mut i = int_enum.iter().enumerate().find_map(|(i, (int, _))| {
+                                        if v == int { Some(i) } else { None }
+                                    }).unwrap_or(0);
+                                    // Use component_name/unique_name + value_name as id to make sure that every id is unique
+                                    egui::ComboBox::from_id_source(format!("{} {}", data_name, name))
+                                        .show_index(ui, &mut i, int_enum.len(), |i| &int_enum[i].1);
+                                    *v = int_enum[i].0;
+                                } else {
+                                    Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
+                                }
+                            } else {
+                                let mut drag_value = egui::DragValue::new(v);
+                                if let Some(Limit::Int32Range(range)) = data.limits.get(name) {
+                                    drag_value = drag_value.clamp_range(range.clone());
+                                }
+                                ui.add(drag_value);
+                            }
+                        }
+                        Value::String(v) => {
+                            if let Some(Limit::StringMultiline) = data.limits.get(name) {
+                                ui.text_edit_multiline(v);
+                            } else {
+                                ui.text_edit_singleline(v);
+                            }
+                        }
+                        Value::Float32(v) => {
+                            if let Some(Limit::Float32Rotation) = data.limits.get(name) {
+                                ui.drag_angle(v);
+                            } else {
+                                Self::drag_float32(ui, v, match data.limits.get(name) {
+                                    Some(Limit::Float32Range(range)) => Some(range.clone()),
+                                    _ => None,
+                                });
+                            }
+                        }
+                        Value::Vec2(v) => {
+                            ui.horizontal(|ui| {
+                                if let Some(Limit::Float32Rotation) = data.limits.get(name) {
+                                    ui.drag_angle(&mut v.x);
+                                    ui.drag_angle(&mut v.y);
+                                } else {
+                                    let (range_x, range_y) = match data.limits.get(name) {
+                                        Some(Limit::Vec2Range { x, y }) => (x.clone(), y.clone()),
+                                        _ => (None, None),
+                                    };
+                                    Self::drag_float32(ui, &mut v.x, range_x);
+                                    Self::drag_float32(ui, &mut v.y, range_y);
+                                }
+                            });
+                        }
+                        Value::Vec3(v) => {
+                            ui.horizontal(|ui| {
+                                if let Some(Limit::Vec3Color) = data.limits.get(name) {
+                                    let mut color = v.to_array();
+                                    ui.color_edit_button_rgb(&mut color);
+                                    *v = Vec3::from_array(color);
+                                } else if let Some(Limit::Float32Rotation) = data.limits.get(name) {
+                                    ui.drag_angle(&mut v.x);
+                                    ui.drag_angle(&mut v.y);
+                                    ui.drag_angle(&mut v.z);
+                                } else {
+                                    let (range_x, range_y, range_z) = match data.limits.get(name) {
+                                        Some(Limit::Vec3Range { x, y, z }) => (x.clone(), y.clone(), z.clone()),
+                                        _ => (None, None, None),
+                                    };
+                                    Self::drag_float32(ui, &mut v.x, range_x);
+                                    Self::drag_float32(ui, &mut v.y, range_y);
+                                    Self::drag_float32(ui, &mut v.z, range_z);
+                                }
+                            });
+                        }
+                        Value::Vec4(v) => {
+                            ui.horizontal(|ui| {
+                                if let Some(Limit::Vec4Color) = data.limits.get(name) {
+                                    let mut color = v.to_array();
+                                    ui.color_edit_button_rgba_unmultiplied(&mut color);
+                                    *v = Vec4::from_array(color);
+                                } else if let Some(Limit::Float32Rotation) = data.limits.get(name) {
+                                    ui.drag_angle(&mut v.x);
+                                    ui.drag_angle(&mut v.y);
+                                    ui.drag_angle(&mut v.z);
+                                    ui.drag_angle(&mut v.w);
+                                } else {
+                                    let (range_x, range_y, range_z, range_w) = match data.limits.get(name) {
+                                        Some(Limit::Vec4Range { x, y, z, w }) => (x.clone(), y.clone(), z.clone(), w.clone()),
+                                        _ => (None, None, None, None),
+                                    };
+                                    Self::drag_float32(ui, &mut v.x, range_x);
+                                    Self::drag_float32(ui, &mut v.y, range_y);
+                                    Self::drag_float32(ui, &mut v.z, range_z);
+                                    Self::drag_float32(ui, &mut v.w, range_w);
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        }
+    }
+
     fn color_label(ui: &mut egui::Ui, color: egui::Color32, text: impl Into<egui::WidgetText>) {
         egui::Frame::none()
             .inner_margin(egui::style::Margin::symmetric(3.0, 1.0))
             .rounding(egui::Rounding::same(3.0))
             .fill(color)
-            .show(ui, |ui| {
-                ui.label(text);
-            });
+            .show(ui, |ui| ui.label(text));
     }
 
     fn drag_float32(ui: &mut egui::Ui, v: &mut f32, range: Option<RangeInclusive<f32>>) {
@@ -411,6 +420,25 @@ impl Editor {
             drag_value = drag_value.clamp_range(range);
         }
         ui.add(drag_value);
+    }
+
+    fn unique_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
+        egui::Window::new("Uniques").show(&ctx, |ui| {
+            egui::Grid::new("Uniques").show(ui, |ui| {
+                for unique_name in world_data.uniques.keys() {
+                    if ui.selectable_label(self.selected_unique == *unique_name, unique_name).clicked() {
+                        self.selected_unique = unique_name.clone();
+                    }
+                    ui.end_row();
+                }
+            });
+        });
+
+        if let Some(unique_data) = world_data.uniques.get_mut(&self.selected_unique) {
+            egui::Window::new(&self.selected_unique).show(&ctx, |ui| {
+                Self::data_view(ui, &self.selected_unique, unique_data);
+            });
+        }
     }
 
     pub fn suspend(&mut self) {

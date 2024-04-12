@@ -126,7 +126,7 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, world_data.as_mut());
+                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, &mut world_data);
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {

@@ -1,8 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 use shipyard::{Unique, UniqueView, UniqueViewMut, World};
 use steel_common::{data::WorldData, platform::Platform};
-
-use crate::data::ComponentFns;
+use crate::data::{ComponentFns, UniqueFns};
 
 #[derive(Unique)]
 pub struct SceneManager {
@@ -23,7 +22,7 @@ impl SceneManager {
         self.to_scene = Some(scene);
     }
 
-    pub fn maintain_system(world: &mut World, component_fns: &ComponentFns) {
+    pub fn maintain_system(world: &mut World, component_fns: &ComponentFns, unique_fns: &UniqueFns) {
         let world_data_and_scene = world.run(|mut scene_manager: UniqueViewMut<SceneManager>, platform: UniqueView<Platform>| {
             if let Some(to_scene) = scene_manager.to_scene.take() {
                 if let Some(world_data) = WorldData::load_from_file(&to_scene, &platform) {
@@ -33,13 +32,13 @@ impl SceneManager {
             None
         });
         if let Some((world_data, scene)) = world_data_and_scene {
-            Self::load(world, &world_data, component_fns);
+            Self::load(world, &world_data, component_fns, unique_fns);
             Self::set_current_scene(world, Some(scene));
         }
     }
 
     /// clear world and load world from world_data, also be sure to call Self::set_current_scene if scene path has changed
-    pub fn load(world: &mut World, world_data: &WorldData, component_fns: &ComponentFns) {
+    pub fn load(world: &mut World, world_data: &WorldData, component_fns: &ComponentFns, unique_fns: &UniqueFns) {
         world.clear();
         let mut old_id_to_new_id = HashMap::new();
         for (old_id, entity_data) in &world_data.entities {
@@ -49,6 +48,9 @@ impl SceneManager {
                     (component_fn.create_with_data)(world, new_id, component_data);
                 }
             }
+        }
+        for unique_fn in unique_fns.values() {
+            (unique_fn.load_from_data)(world, world_data);
         }
     }
 

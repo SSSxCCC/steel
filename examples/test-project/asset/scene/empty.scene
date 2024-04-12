@@ -1,3 +1,27 @@
 {
-  "entities": []
+  "entities": [],
+  "uniques": {
+    "Physics2DManager": {
+      "values": {
+        "gravity": {
+          "Vec2": [
+            0.0,
+            -9.81
+          ]
+        }
+      }
+    },
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  }
 }

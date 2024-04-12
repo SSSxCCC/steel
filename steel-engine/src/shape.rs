@@ -1,6 +1,6 @@
 use glam::Vec2;
 use parry2d::shape::{Ball, Cuboid, ShapeType, SharedShape};
-use steel_common::data::{ComponentData, Limit, Value};
+use steel_common::data::{Data, Limit, Value};
 
 pub struct ShapeWrapper(pub SharedShape);
 
@@ -27,7 +27,7 @@ impl ShapeWrapper {
         }
     }
 
-    pub fn get_data(&self, data: &mut ComponentData) {
+    pub fn get_data(&self, data: &mut Data) {
         data.add("shape_type", Value::Int32(self.shape_type() as i32),
             Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]));
         if let Some(shape) = self.as_ball() {
@@ -37,7 +37,7 @@ impl ShapeWrapper {
         } // TODO: support all shape type
     }
 
-    pub fn set_data(&mut self, data: &ComponentData) {
+    pub fn set_data(&mut self, data: &Data) {
         if let Some(Value::Int32(i)) = data.values.get("shape_type") {
             let shape_type = Self::i32_to_shape_type(i);
             match shape_type {

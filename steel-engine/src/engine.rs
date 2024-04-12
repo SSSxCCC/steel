@@ -1,57 +1,67 @@
 pub use steel_common::engine::*;
 
-use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, UniqueViewMut, World};
+use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D}, scene::SceneManager, transform::Transform};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D, RenderManager}, scene::SceneManager, transform::Transform};
 
 pub struct EngineImpl {
-    pub world: World, // ecs world, also contains resources and managers
+    /// ecs world, contains entities, components and uniques
+    pub world: World,
+    /// registered components
     pub component_fns: ComponentFns,
+    /// registered uniques
+    pub unique_fns: UniqueFns,
 }
 
 impl EngineImpl {
     pub fn new() -> Self {
-        EngineImpl { world: World::new(), component_fns: ComponentFn::with_core_components() }
+        EngineImpl { world: World::new(), component_fns: ComponentFn::with_core_components(), unique_fns: UniqueFn::with_core_uniques() }
     }
 
     /// Register a component type with <Tracking = Untracked> so that this component can be edited in steel-editor.
     /// Currently we must write different generic functions for different tracking type, see ComponentFn::load_from_data_untracked_fn
-    pub fn register<T: Edit<Tracking = Untracked> + Send + Sync>(&mut self) {
-        ComponentFn::register::<T>(&mut self.component_fns);
+    pub fn register_component<C: Component<Tracking = Untracked> + Edit + Send + Sync>(&mut self) {
+        ComponentFn::register::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Insertion> so that this component can be edited in steel-editor.
-    pub fn register_track_insertion<T: Edit<Tracking = Insertion> + Send + Sync>(&mut self) {
-        ComponentFn::register_track_insertion::<T>(&mut self.component_fns);
+    pub fn register_component_track_insertion<C: Component<Tracking = Insertion> + Edit + Send + Sync>(&mut self) {
+        ComponentFn::register_track_insertion::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Modification> so that this component can be edited in steel-editor.
-    pub fn register_track_modification<T: Edit<Tracking = Modification> + Send + Sync>(&mut self) {
-        ComponentFn::register_track_modification::<T>(&mut self.component_fns);
+    pub fn register_component_track_modification<C: Component<Tracking = Modification> + Edit + Send + Sync>(&mut self) {
+        ComponentFn::register_track_modification::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Removal> so that this component can be edited in steel-editor.
-    pub fn register_track_removal<T: Edit<Tracking = Removal> + Send + Sync>(&mut self) {
-        ComponentFn::register_track_removal::<T>(&mut self.component_fns);
+    pub fn register_component_track_removal<C: Component<Tracking = Removal> + Edit + Send + Sync>(&mut self) {
+        ComponentFn::register_track_removal::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = All> so that this component can be edited in steel-editor.
-    pub fn register_track_all<T: Edit<Tracking = All> + Send + Sync>(&mut self) {
-        ComponentFn::register_track_all::<T>(&mut self.component_fns);
+    pub fn register_component_track_all<C: Component<Tracking = All> + Edit + Send + Sync>(&mut self) {
+        ComponentFn::register_track_all::<C>(&mut self.component_fns);
+    }
+
+    /// Register a unique type so that this unique can be edited in steel-editor.
+    pub fn register_unique<U: Unique + Edit + Send + Sync>(&mut self) {
+        UniqueFn::register::<U>(&mut self.unique_fns);
     }
 }
 
 impl Engine for EngineImpl {
     fn init(&mut self, info: InitInfo) {
         self.world.add_unique(info.platform);
-        self.world.add_unique(Physics2DManager::new()); // TODO: load unique from world_data
+        self.world.add_unique(Physics2DManager::default());
         self.world.add_unique(CameraInfo::new());
+        self.world.add_unique(RenderManager::default());
         self.world.add_unique(Canvas::new());
         self.world.add_unique(SceneManager::new(info.scene));
     }
 
     fn maintain(&mut self, _info: &UpdateInfo) {
-        SceneManager::maintain_system(&mut self.world, &self.component_fns);
+        SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
         self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
         self.world.run(crate::physics2d::physics2d_maintain_system);
@@ -83,14 +93,20 @@ impl Engine for EngineImpl {
                 for component_fn in self.component_fns.values() {
                     (component_fn.save_to_data)(world_data, &self.world);
                 }
+                for unique_fn in self.unique_fns.values() {
+                    (unique_fn.save_to_data)(world_data, &self.world);
+                }
             },
             Command::Load(world_data) => {
                 for component_fn in self.component_fns.values() {
                     (component_fn.load_from_data)(&mut self.world, world_data);
                 }
+                for unique_fn in self.unique_fns.values() {
+                    (unique_fn.load_from_data)(&mut self.world, world_data);
+                }
             },
             Command::Reload(world_data) => {
-                SceneManager::load(&mut self.world, world_data, &self.component_fns);
+                SceneManager::load(&mut self.world, world_data, &self.component_fns, &self.unique_fns);
             },
             Command::SetCurrentScene(scene) => {
                 SceneManager::set_current_scene(&mut self.world, scene);

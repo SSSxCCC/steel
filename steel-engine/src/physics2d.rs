@@ -2,7 +2,7 @@ use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
 use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, AddComponent, Get};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
-use steel_common::data::{ComponentData, Limit, Value};
+use steel_common::data::{Data, Limit, Value};
 use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, edit::Edit};
 
 #[derive(Component, Debug)]
@@ -50,8 +50,8 @@ impl Default for RigidBody2D {
 impl Edit for RigidBody2D {
     fn name() -> &'static str { "RigidBody2D" }
 
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
         data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
         data.add("body_type", Value::Int32(self.body_type as i32),
             Limit::Int32Enum(vec![(0, "Dynamic".into()), (1, "Fixed".into()),
@@ -59,7 +59,7 @@ impl Edit for RigidBody2D {
         data
     }
 
-    fn set_data(&mut self, data: &ComponentData) {
+    fn set_data(&mut self, data: &Data) {
         if let Some(Value::Int32(i)) = data.values.get("body_type") { self.body_type = Self::i32_to_rigid_body_type(i) }
     }
 }
@@ -115,15 +115,15 @@ impl Default for Collider2D {
 impl Edit for Collider2D {
     fn name() -> &'static str { "Collider2D" }
 
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
         data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
         self.shape.get_data(&mut data);
         data.values.insert("restitution".into(), Value::Float32(self.restitution));
         data
     }
 
-    fn set_data(&mut self, data: &ComponentData) {
+    fn set_data(&mut self, data: &Data) {
         self.shape.set_data(data);
         if let Some(Value::Float32(f)) = data.values.get("restitution") { self.restitution = *f };
     }
@@ -148,15 +148,6 @@ pub struct Physics2DManager {
 }
 
 impl Physics2DManager {
-    pub fn new() -> Self {
-        Physics2DManager { rigid_body_set: RigidBodySet::new(), collider_set: ColliderSet::new(), gravity: vector![0.0, -9.81],
-            integration_parameters: IntegrationParameters::default(), physics_pipeline: PhysicsPipeline::new(),
-            island_manager: IslandManager::new(), broad_phase: BroadPhase::new(), narrow_phase: NarrowPhase::new(),
-            impulse_joint_set: ImpulseJointSet::new(), multibody_joint_set: MultibodyJointSet::new(),
-            ccd_solver: CCDSolver::new(), physics_hooks: Box::new(()), event_handler: Box::new(()),
-            debug_render_pipeline: DebugRenderPipeline::default() }
-    }
-
     pub fn update(&mut self) {
         self.physics_pipeline.step(
             &self.gravity,
@@ -173,6 +164,31 @@ impl Physics2DManager {
             self.physics_hooks.as_ref(),
             self.event_handler.as_ref(),
         );
+    }
+}
+
+impl Default for Physics2DManager {
+    fn default() -> Self {
+        Physics2DManager { rigid_body_set: RigidBodySet::new(), collider_set: ColliderSet::new(), gravity: vector![0.0, -9.81],
+            integration_parameters: IntegrationParameters::default(), physics_pipeline: PhysicsPipeline::new(),
+            island_manager: IslandManager::new(), broad_phase: BroadPhase::new(), narrow_phase: NarrowPhase::new(),
+            impulse_joint_set: ImpulseJointSet::new(), multibody_joint_set: MultibodyJointSet::new(),
+            ccd_solver: CCDSolver::new(), physics_hooks: Box::new(()), event_handler: Box::new(()),
+            debug_render_pipeline: DebugRenderPipeline::default() }
+    }
+}
+
+impl Edit for Physics2DManager {
+    fn name() -> &'static str { "Physics2DManager" }
+
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
+        data.values.insert("gravity".into(), Value::Vec2(Vec2::new(self.gravity.x, self.gravity.y)));
+        data
+    }
+
+    fn set_data(&mut self, data: &Data) {
+        if let Some(Value::Vec2(v)) = data.values.get("gravity") { self.gravity = vector![v.x, v.y] }
     }
 }
 

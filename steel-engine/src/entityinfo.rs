@@ -1,5 +1,5 @@
 use shipyard::Component;
-use steel_common::data::{ComponentData, Value};
+use steel_common::data::{Data, Value};
 use crate::edit::Edit;
 
 #[derive(Component, Debug, Default)]
@@ -17,13 +17,13 @@ impl EntityInfo {
 impl Edit for EntityInfo {
     fn name() -> &'static str { "EntityInfo" }
 
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
         data.values.insert("name".into(), Value::String(self.name.clone()));
         data
     }
 
-    fn set_data(&mut self, data: &ComponentData) {
+    fn set_data(&mut self, data: &Data) {
         if let Some(Value::String(s)) = data.values.get("name") { self.name = s.clone() }
     }
 }

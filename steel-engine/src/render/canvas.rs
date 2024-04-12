@@ -4,6 +4,7 @@ use steel_common::engine::DrawInfo;
 use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
+use super::RenderManager;
 
 #[derive(Unique)]
 pub struct RenderInfo {
@@ -61,7 +62,7 @@ pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
 }
 
-pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>) -> PrimaryAutoCommandBuffer {
+pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, render_manager: UniqueView<RenderManager>) -> PrimaryAutoCommandBuffer {
     let depth_stencil_image = StorageImage::general_purpose_image_view(
         info.memory_allocator.as_ref(),
         info.graphics_queue.clone(),
@@ -106,7 +107,7 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
 
     command_buffer_builder.begin_render_pass(
         RenderPassBeginInfo {
-            clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into()), Some(1.0.into())],
+            clear_values: vec![Some(render_manager.clear_color.to_array().into()), Some(1.0.into())],
             ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
         },
         SubpassContents::Inline,

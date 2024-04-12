@@ -1,8 +1,8 @@
 use parry2d::shape::{ShapeType, SharedShape};
 use shipyard::{Component, IntoIter, UniqueViewMut, View};
 use glam::{Vec4, Vec4Swizzles};
-use steel_common::data::{ComponentData, Limit, Value};
-use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, edit::Edit};
+use steel_common::data::{Data, Limit, Value};
+use crate::{edit::Edit, render::canvas::Canvas, shape::ShapeWrapper, transform::Transform};
 
 #[derive(Component, Debug)]
 pub struct Renderer2D {
@@ -19,14 +19,14 @@ impl Default for Renderer2D {
 impl Edit for Renderer2D {
     fn name() -> &'static str { "Renderer2D" }
 
-    fn get_data(&self) -> ComponentData {
-        let mut data = ComponentData::new();
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
         self.shape.get_data(&mut data);
         data.add("color", Value::Vec4(self.color), Limit::Vec4Color);
         data
     }
 
-    fn set_data(&mut self, data: &ComponentData) {
+    fn set_data(&mut self, data: &Data) {
         self.shape.set_data(data);
         if let Some(Value::Vec4(v)) = data.values.get("color") { self.color = *v }
     }

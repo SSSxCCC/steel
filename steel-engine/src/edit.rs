@@ -1,16 +1,18 @@
-use shipyard::Component;
-use steel_common::data::ComponentData;
+use steel_common::data::Data;
 
-pub trait Edit: Component + Default {
+/// You can impl Edit for a Component or Unique so that they can be edited in steel-editor
+pub trait Edit: Default {
     fn name() -> &'static str;
 
-    fn get_data(&self) -> ComponentData {
-        ComponentData::new()
+    fn get_data(&self) -> Data {
+        Data::new()
     }
 
-    fn set_data(&mut self, #[allow(unused)] data: &ComponentData) { }
+    fn set_data(&mut self, data: &Data) {
+        let _ = data; // disable unused variable warning
+    }
 
-    fn from(data: &ComponentData) -> Self {
+    fn from(data: &Data) -> Self {
         let mut e = Self::default();
         e.set_data(data);
         e
