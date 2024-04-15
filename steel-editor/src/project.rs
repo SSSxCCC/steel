@@ -4,7 +4,7 @@ use shipyard::EntityId;
 use steel_common::{data::{Data, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
-
+use vulkano_util::context::VulkanoContext;
 use crate::utils::LocalData;
 
 struct ProjectCompiledState {
@@ -102,15 +102,15 @@ impl Project {
         self.state = None;
     }
 
-    pub fn compile(&mut self, gui_game: &mut Option<Gui>) {
+    pub fn compile(&mut self, gui_game: &mut Option<Gui>, context: &VulkanoContext) {
         log::info!("Project::compile start");
-        match self._compile(gui_game) {
+        match self._compile(gui_game, context) {
             Err(error) => log::error!("Project::compile error: {error}"),
             Ok(_) => log::info!("Project::compile end"),
         }
     }
 
-    fn _compile(&mut self, gui_game: &mut Option<Gui>) -> Result<(), Box<dyn Error>> {
+    fn _compile(&mut self, gui_game: &mut Option<Gui>, context: &VulkanoContext) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
             let scene = if let Some(compiled) = &mut state.compiled { compiled.scene.take() } else { None };
 
@@ -156,7 +156,7 @@ impl Project {
 
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
-            engine.init(InitInfo { platform: Platform::new_editor(state.path.clone()), scene: scene.clone() });
+            engine.init(InitInfo { platform: Platform::new_editor(state.path.clone()), context, scene: scene.clone() });
 
             let mut data = WorldData::new();
             engine.command(Command::Save(&mut data));

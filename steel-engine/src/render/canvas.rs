@@ -1,34 +1,9 @@
 use std::sync::Arc;
-use glam::{Mat4, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
-use steel_common::engine::DrawInfo;
-use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, device::{Device, Queue}, format::Format, image::{ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
+use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
+use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, format::Format, image::{ImageUsage, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
-use super::RenderManager;
-
-#[derive(Unique)]
-pub struct RenderInfo {
-    device: Arc<Device>,
-    graphics_queue: Arc<Queue>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
-
-    window_size: UVec2,
-    image: Arc<dyn ImageViewAbstract>, // the image we will draw
-    format: Format,
-}
-
-impl RenderInfo {
-    pub fn from(info: &DrawInfo) -> Self {
-        RenderInfo {
-            device: info.context.device().clone(),
-            graphics_queue: info.context.graphics_queue().clone(),
-            memory_allocator: info.context.memory_allocator().clone(),
-            window_size: info.window_size,
-            image: info.image.clone(),
-            format: info.renderer.swapchain_format()
-        }
-    }
-}
+use super::{FrameRenderInfo, RenderManager};
 
 #[derive(Unique)]
 pub struct Canvas {
@@ -62,17 +37,17 @@ pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
 }
 
-pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, render_manager: UniqueView<RenderManager>) -> PrimaryAutoCommandBuffer {
+pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, render_manager: UniqueView<RenderManager>) -> PrimaryAutoCommandBuffer {
     let depth_stencil_image = StorageImage::general_purpose_image_view(
-        info.memory_allocator.as_ref(),
-        info.graphics_queue.clone(),
+        render_manager.memory_allocator.as_ref(),
+        render_manager.graphics_queue.clone(),
         info.window_size.to_array(),
         Format::D32_SFLOAT,
         ImageUsage::DEPTH_STENCIL_ATTACHMENT,
     ).unwrap();
 
     let render_pass = vulkano::single_pass_renderpass!(
-        info.device.clone(),
+        render_manager.device.clone(),
         attachments: {
             color: { load: Clear, store: Store, format: info.format, samples: 1 },
             depth_stencil: { load: Clear, store: DontCare, format: Format::D32_SFLOAT, samples: 1 },
@@ -97,12 +72,12 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         depth_range: 0.0..1.0,
     };
 
-    let command_buffer_allocator = StandardCommandBufferAllocator::new(info.device.clone(), Default::default());
+    let command_buffer_allocator = StandardCommandBufferAllocator::new(render_manager.device.clone(), Default::default());
 
     let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
         &command_buffer_allocator,
-        info.graphics_queue.queue_family_index(),
-        CommandBufferUsage::MultipleSubmit,
+        render_manager.graphics_queue.queue_family_index(),
+        CommandBufferUsage::OneTimeSubmit,
     ).unwrap();
 
     command_buffer_builder.begin_render_pass(
@@ -123,8 +98,8 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
         .depth_stencil_state(DepthStencilState::simple_depth_test())
         .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
 
-    let vs = vs::load(info.device.clone()).expect("failed to create shader module");
-    let fs = fs::load(info.device.clone()).expect("failed to create shader module");
+    let vs = vs::load(render_manager.device.clone()).expect("failed to create shader module");
+    let fs = fs::load(render_manager.device.clone()).expect("failed to create shader module");
     let pipeline_builder = base_pipeline_builder.clone()
         .vertex_shader(vs.entry_point("main").unwrap(), ())
         .fragment_shader(fs.entry_point("main").unwrap(), ());
@@ -132,31 +107,31 @@ pub fn canvas_render_system(info: UniqueView<RenderInfo>, camera: UniqueView<Cam
     let pipeline = pipeline_builder.clone()
         .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::PointList))
         .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Point))
-        .build(info.device.clone())
+        .build(render_manager.device.clone())
         .unwrap();
-    draw_points(&canvas.points, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_points(&canvas.points, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
 
     let pipeline = pipeline_builder.clone()
         .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
         .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
-        .build(info.device.clone())
+        .build(render_manager.device.clone())
         .unwrap();
-    draw_lines(&canvas.lines, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_lines(&canvas.lines, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
 
     let pipeline = pipeline_builder.clone()
-        .build(info.device.clone())
+        .build(render_manager.device.clone())
         .unwrap();
-    draw_triangles(&canvas.triangles, pipeline.clone(), info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
-    draw_rectangles(&canvas.rectangles, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_triangles(&canvas.triangles, pipeline.clone(), render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_rectangles(&canvas.rectangles, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
 
-    let vs = circle::vs::load(info.device.clone()).expect("failed to create shader module");
-    let fs = circle::fs::load(info.device.clone()).expect("failed to create shader module");
+    let vs = circle::vs::load(render_manager.device.clone()).expect("failed to create shader module");
+    let fs = circle::fs::load(render_manager.device.clone()).expect("failed to create shader module");
     let pipeline = base_pipeline_builder.clone()
         .vertex_shader(vs.entry_point("main").unwrap(), ())
         .fragment_shader(fs.entry_point("main").unwrap(), ())
-        .build(info.device.clone())
+        .build(render_manager.device.clone())
         .unwrap();
-    draw_circles(&canvas.cicles, pipeline, info.memory_allocator.clone(), &mut command_buffer_builder, &projection_view);
+    draw_circles(&canvas.cicles, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, &projection_view);
 
     command_buffer_builder.end_render_pass().unwrap();
     command_buffer_builder.build().unwrap()

@@ -2,7 +2,7 @@ pub use steel_common::engine::*;
 
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, RenderInfo}, renderer2d::Renderer2D, RenderManager}, scene::SceneManager, transform::Transform};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::Canvas, renderer2d::Renderer2D, RenderManager, FrameRenderInfo}, scene::SceneManager, transform::Transform};
 
 pub struct EngineImpl {
     /// ecs world, contains entities, components and uniques
@@ -20,27 +20,27 @@ impl EngineImpl {
 
     /// Register a component type with <Tracking = Untracked> so that this component can be edited in steel-editor.
     /// Currently we must write different generic functions for different tracking type, see ComponentFn::load_from_data_untracked_fn
-    pub fn register_component<C: Component<Tracking = Untracked> + Edit + Send + Sync>(&mut self) {
+    pub fn register_component<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Insertion> so that this component can be edited in steel-editor.
-    pub fn register_component_track_insertion<C: Component<Tracking = Insertion> + Edit + Send + Sync>(&mut self) {
+    pub fn register_component_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register_track_insertion::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Modification> so that this component can be edited in steel-editor.
-    pub fn register_component_track_modification<C: Component<Tracking = Modification> + Edit + Send + Sync>(&mut self) {
+    pub fn register_component_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register_track_modification::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Removal> so that this component can be edited in steel-editor.
-    pub fn register_component_track_removal<C: Component<Tracking = Removal> + Edit + Send + Sync>(&mut self) {
+    pub fn register_component_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register_track_removal::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = All> so that this component can be edited in steel-editor.
-    pub fn register_component_track_all<C: Component<Tracking = All> + Edit + Send + Sync>(&mut self) {
+    pub fn register_component_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register_track_all::<C>(&mut self.component_fns);
     }
 
@@ -55,7 +55,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(info.platform);
         self.world.add_unique(Physics2DManager::default());
         self.world.add_unique(CameraInfo::new());
-        self.world.add_unique(RenderManager::default());
+        self.world.add_unique(RenderManager::new(info.context));
         self.world.add_unique(Canvas::new());
         self.world.add_unique(SceneManager::new(info.scene));
     }
@@ -80,9 +80,9 @@ impl Engine for EngineImpl {
             self.world.run(|mut camera: UniqueViewMut<CameraInfo>| camera.set(editor.camera));
             self.world.run(crate::physics2d::physics2d_debug_render_system);
         }
-        self.world.add_unique(RenderInfo::from(&info));
+        self.world.add_unique(FrameRenderInfo::from(&info));
         let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
-        self.world.remove_unique::<RenderInfo>().unwrap();
+        self.world.remove_unique::<FrameRenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
     }
 

@@ -35,8 +35,8 @@ impl Editor {
             // display egui demo windows
             //self.demo_windows.ui(&ctx);
 
-            self.open_project_dialog(&ctx, gui, gui_game, project, local_data);
-            self.menu_bars(&ctx, gui, gui_game, renderer, project, world_data);
+            self.open_project_dialog(&ctx, gui, gui_game, context, project, local_data);
+            self.menu_bars(&ctx, gui, gui_game, context, renderer, project, world_data);
 
             if project.is_compiled() {
                 self.scene_window.layer = None;
@@ -58,7 +58,8 @@ impl Editor {
         });
     }
 
-    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, project: &mut Project, local_data: &mut LocalData) {
+    fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>,
+            context: &VulkanoContext, project: &mut Project, local_data: &mut LocalData) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
             ui.horizontal(|ui| {
@@ -82,7 +83,7 @@ impl Editor {
                 self.scene_window.close(Some(gui));
                 self.game_window.close(Some(gui));
                 project.open(self.project_path.clone(), local_data);
-                project.compile(gui_game);
+                project.compile(gui_game, context);
                 self.show_open_project_dialog = false;
             }
         });
@@ -97,8 +98,8 @@ impl Editor {
         });
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, renderer: &VulkanoWindowRenderer,
-            project: &mut Project, world_data: &mut Option<WorldData>) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext,
+            renderer: &VulkanoWindowRenderer, project: &mut Project, world_data: &mut Option<WorldData>) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -119,7 +120,7 @@ impl Editor {
                             log::info!("Menu->Project->Compile");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
-                            project.compile(gui_game);
+                            project.compile(gui_game, context);
                             ui.close_menu();
                         }
                     }

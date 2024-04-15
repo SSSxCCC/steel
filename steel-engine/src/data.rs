@@ -29,7 +29,7 @@ impl ComponentFn {
         component_fns
     }
 
-    pub fn register<C: Component<Tracking = Untracked> + Edit + Send + Sync>(component_fns: &mut ComponentFns) {
+    pub fn register<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -39,7 +39,7 @@ impl ComponentFn {
         });
     }
 
-    pub fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Send + Sync>(component_fns: &mut ComponentFns) {
+    pub fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -49,7 +49,7 @@ impl ComponentFn {
         });
     }
 
-    pub fn register_track_modification<C: Component<Tracking = Modification> + Edit + Send + Sync>(component_fns: &mut ComponentFns) {
+    pub fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -59,7 +59,7 @@ impl ComponentFn {
         });
     }
 
-    pub fn register_track_removal<C: Component<Tracking = Removal> + Edit + Send + Sync>(component_fns: &mut ComponentFns) {
+    pub fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -69,7 +69,7 @@ impl ComponentFn {
         });
     }
 
-    pub fn register_track_all<C: Component<Tracking = All> + Edit + Send + Sync>(component_fns: &mut ComponentFns) {
+    pub fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -79,11 +79,11 @@ impl ComponentFn {
         });
     }
 
-    fn create_fn<C: Component + Edit + Send + Sync>(world: &mut World, entity: EntityId) {
+    fn create_fn<C: Component + Edit + Default + Send + Sync>(world: &mut World, entity: EntityId) {
         world.add_component(entity, (C::default(),))
     }
 
-    fn create_with_data_fn<C: Component + Edit + Send + Sync>(world: &mut World, entity: EntityId, data: &Data) {
+    fn create_with_data_fn<C: Component + Edit + Default + Send + Sync>(world: &mut World, entity: EntityId, data: &Data) {
         world.add_component(entity, (C::from(data),))
     }
 

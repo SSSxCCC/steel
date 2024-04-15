@@ -44,7 +44,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
 
     // engine
     let mut engine = steel::create();
-    engine.init(InitInfo { platform, scene: Some(PathBuf::from("scene_path")) }); // scene path will be modified to init scene path temporily while compiling
+    engine.init(InitInfo { platform, context: &context, scene: Some(PathBuf::from("scene_path")) }); // scene path will be modified to init scene path temporily while compiling
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {

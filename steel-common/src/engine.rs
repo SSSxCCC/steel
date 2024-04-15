@@ -15,8 +15,9 @@ pub trait Engine {
     fn command(&mut self, cmd: Command);
 }
 
-pub struct InitInfo {
+pub struct InitInfo<'a> {
     pub platform: Platform,
+    pub context: &'a VulkanoContext,
     pub scene: Option<PathBuf>,
 }
 
