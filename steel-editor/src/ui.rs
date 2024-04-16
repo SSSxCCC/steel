@@ -2,7 +2,7 @@ use std::{ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine}};
+use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine}, ext::VulkanoWindowRendererExt};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
@@ -447,43 +447,16 @@ impl Editor {
         self.game_window.close(None);
     }
 
-    pub fn scene_image(&self) -> &Option<Arc<dyn ImageViewAbstract + Send + Sync>> {
-        &self.scene_window.image
-    }
-
-    pub fn scene_pixel(&self) -> UVec2 {
-        self.scene_window.pixel
-    }
-
-    #[allow(unused)]
-    pub fn scene_size(&self) -> Vec2 {
-        self.scene_window.size
-    }
-
-    #[allow(unused)]
-    pub fn scene_position(&self) -> Vec2 {
-        self.scene_window.position
+    pub fn scene_window(&self) -> &ImageWindow {
+        &self.scene_window
     }
 
     pub fn scene_focus(&self) -> bool {
         self.scene_window.layer.is_some_and(|this| !self.game_window.layer.is_some_and(|other| other > this))
     }
 
-    pub fn game_image(&self) -> &Option<Arc<dyn ImageViewAbstract + Send + Sync>> {
-        &self.game_window.image
-    }
-
-    pub fn game_pixel(&self) -> UVec2 {
-        self.game_window.pixel
-    }
-
-    #[allow(unused)]
-    pub fn game_size(&self) -> Vec2 {
-        self.game_window.size
-    }
-
-    pub fn game_position(&self) -> Vec2 {
-        self.game_window.position
+    pub fn game_window(&self) -> &ImageWindow {
+        &self.game_window
     }
 
     #[allow(unused)]
@@ -515,10 +488,12 @@ impl FpsCounter {
     }
 }
 
-struct ImageWindow {
+/// A egui window which displays a image
+pub struct ImageWindow {
     title: String,
-    image: Option<Arc<dyn ImageViewAbstract + Send + Sync>>, // TODO: use multi-buffering
-    texture_id: Option<egui::TextureId>,
+    image_index: usize,
+    images: Option<Vec<Arc<dyn ImageViewAbstract + Send + Sync>>>,
+    texture_ids: Option<Vec<egui::TextureId>>,
     pixel: UVec2,
     size: Vec2,
     position: Vec2,
@@ -527,10 +502,11 @@ struct ImageWindow {
 
 impl ImageWindow {
     fn new(title: impl Into<String>) -> Self {
-        ImageWindow { title: title.into(), image: None, texture_id: None, pixel: UVec2::ZERO, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
+        ImageWindow { title: title.into(), image_index: 0, images: None, texture_ids: None, pixel: UVec2::ZERO, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
     }
 
     fn ui(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
+        self.image_index = renderer.image_index() as usize;
         egui::Window::new(&self.title)
             .movable(ctx.input(|input| input.pointer.hover_pos())
                 .is_some_and(|hover_pos| hover_pos.y < self.position.y ))
@@ -538,21 +514,21 @@ impl ImageWindow {
                 let available_size = ui.available_size();
                 (self.size.x, self.size.y) = (available_size.x, available_size.y);
                 let pixel = (self.size * ctx.pixels_per_point()).as_uvec2();
-                if self.image.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
+                if self.images.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
                     self.pixel = pixel;
                     self.close(Some(gui));
-                    self.image = Some(StorageImage::general_purpose_image_view(
+                    self.images = Some((0..renderer.image_count()).map(|_| StorageImage::general_purpose_image_view(
                         context.memory_allocator(),
                         context.graphics_queue().clone(),
                         self.pixel.to_array(),
                         renderer.swapchain_format(),
                         ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                    ).unwrap());
-                    self.texture_id = Some(gui.register_user_image_view(
-                        self.image.as_ref().unwrap().clone(), Default::default()));
+                    ).unwrap() as Arc<dyn ImageViewAbstract + Send + Sync>).collect());
+                    self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
+                        gui.register_user_image_view(image.clone(), Default::default())).collect());
                     log::info!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
                 }
-                let r = ui.image(self.texture_id.unwrap(), available_size);
+                let r = ui.image(self.texture_ids.as_ref().unwrap()[self.image_index], available_size);
                 (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
                 self.layer = ctx.memory(|mem| {
                     match mem.focus() {
@@ -564,10 +540,33 @@ impl ImageWindow {
     }
 
     fn close(&mut self, gui: Option<&mut Gui>) {
-        self.image = None;
-        if let (Some(gui), Some(texture_id)) = (gui, self.texture_id) {
-            gui.unregister_user_image(texture_id);
+        self.images = None;
+        if let (Some(gui), Some(texture_ids)) = (gui, &self.texture_ids) {
+            for texture_id in texture_ids {
+                gui.unregister_user_image(*texture_id);
+            }
         }
-        self.texture_id = None;
+        self.texture_ids = None;
+    }
+
+    /// Get window image of current frame, panic if images are not created yet.
+    pub fn image(&self) -> Arc<dyn ImageViewAbstract + Send + Sync> {
+        self.images.as_ref().expect(format!("images of ImageWindow({}) are not created yet", self.title).as_str())[self.image_index].clone()
+    }
+
+    /// Get the exact pixel of window images
+    pub fn pixel(&self) -> UVec2 {
+        self.pixel
+    }
+
+    /// Get the window size which is scaled by window scale factor
+    #[allow(unused)]
+    pub fn size(&self) -> Vec2 {
+        self.size
+    }
+
+    /// Get the window position which is scaled by window scale factor
+    pub fn position(&self) -> Vec2 {
+        self.position
     }
 }

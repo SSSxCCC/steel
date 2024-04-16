@@ -11,6 +11,9 @@ pub mod scene;
 pub mod platform {
     pub use steel_common::platform::*;
 }
+pub mod ext {
+    pub use steel_common::ext::*;
+}
 
 use log::{Log, LevelFilter, SetLoggerError};
 

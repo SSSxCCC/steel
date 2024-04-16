@@ -9,7 +9,6 @@ use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, VirtualKeyCode, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
-
 use crate::{project::Project, ui::Editor, utils::LocalData};
 
 // Currently we can not use cargo in android, so that running steel-editor in android is useless
@@ -103,7 +102,7 @@ fn _main(event_loop: EventLoop<()>) {
 
                 if project.is_running() {
                     if let Some(gui) = gui.as_mut() {
-                        process_event_for_game_gui(&mut event, editor.game_position(), gui.egui_ctx.pixels_per_point());
+                        process_event_for_game_gui(&mut event, editor.game_window().position(), gui.egui_ctx.pixels_per_point());
                         let _pass_events_to_game = !gui.update(&event);
                     }
                 }
@@ -138,7 +137,7 @@ fn _main(event_loop: EventLoop<()>) {
                     }
                     let gui = gui.as_mut().unwrap();
                     let mut raw_input = gui.egui_winit.take_egui_input(renderer.window());
-                    let screen_size = if is_running { editor.game_pixel() } else { editor.scene_pixel() };
+                    let screen_size = if is_running { editor.game_window().pixel() } else { editor.scene_window().pixel() };
                     raw_input.screen_rect = Some(egui::Rect::from_x_y_ranges(0.0..=(screen_size.x as f32), 0.0..=(screen_size.y as f32)));
                     raw_input.pixels_per_point = Some(gui_editor.egui_ctx.pixels_per_point());
                     gui.egui_ctx.begin_frame(raw_input);
@@ -158,15 +157,15 @@ fn _main(event_loop: EventLoop<()>) {
                         let mut draw_future = engine.draw(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
-                            image: editor.game_image().as_ref().unwrap().clone(),
-                            window_size: editor.game_pixel(),
+                            image: editor.game_window().image(),
+                            window_size: editor.game_window().pixel(),
                             editor_info: None,
                         });
-                        draw_future = gui.draw_on_image(draw_future, editor.game_image().as_ref().unwrap().clone());
+                        draw_future = gui.draw_on_image(draw_future, editor.game_window().image());
                         gpu_future = gpu_future.join(draw_future).boxed();
                     }
 
-                    let scene_window_size = editor.scene_pixel();
+                    let scene_window_size = editor.scene_window().pixel();
                     if editor.scene_focus() {
                         update_editor_camera(&mut editor_camera, &input, &scene_window_size);
                     }
@@ -174,12 +173,12 @@ fn _main(event_loop: EventLoop<()>) {
                     let mut draw_future = engine.draw(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
-                        image: editor.scene_image().as_ref().unwrap().clone(),
+                        image: editor.scene_window().image(),
                         window_size: scene_window_size,
                         editor_info: Some(EditorInfo { camera: &editor_camera }),
                     });
                     if !is_running {
-                        draw_future = gui.draw_on_image(draw_future, editor.scene_image().as_ref().unwrap().clone());
+                        draw_future = gui.draw_on_image(draw_future, editor.scene_window().image());
                     }
                     gpu_future = gpu_future.join(draw_future).boxed();
                 }
