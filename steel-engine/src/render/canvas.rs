@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
-use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, format::Format, image::{ImageUsage, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, Subpass}};
+use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents}, format::Format, image::{view::ImageView, ImageAccess, ImageDimensions, ImageUsage, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::Vertex, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass}};
 use shipyard::{Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
-use super::{FrameRenderInfo, RenderManager};
+use super::{FrameRenderInfo, RenderContext, RenderManager};
 
 #[derive(Unique)]
 pub struct Canvas {
@@ -37,29 +37,114 @@ pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
 }
 
-pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, render_manager: UniqueView<RenderManager>) -> PrimaryAutoCommandBuffer {
-    let depth_stencil_image = StorageImage::general_purpose_image_view(
-        render_manager.memory_allocator.as_ref(),
-        render_manager.graphics_queue.clone(),
-        info.window_size.to_array(),
-        Format::D32_SFLOAT,
-        ImageUsage::DEPTH_STENCIL_ATTACHMENT,
-    ).unwrap();
+/// CanvasRenderContext stores many render objects that exist between frames
+pub struct CanvasRenderContext {
+    /// The image vectors whose index at WindowIndex::GAME and WindowIndex::SCENE are for game window and scene window
+    pub depth_stencil_images: [Vec<Arc<ImageView<StorageImage>>>; 2],
+    pub render_pass: Arc<RenderPass>,
+    pub pipeline_point: Arc<GraphicsPipeline>,
+    pub pipeline_line: Arc<GraphicsPipeline>,
+    pub pipeline_triangle: Arc<GraphicsPipeline>,
+    pub pipeline_circle: Arc<GraphicsPipeline>,
+}
 
-    let render_pass = vulkano::single_pass_renderpass!(
-        render_manager.device.clone(),
-        attachments: {
-            color: { load: Clear, store: Store, format: info.format, samples: 1 },
-            depth_stencil: { load: Clear, store: DontCare, format: Format::D32_SFLOAT, samples: 1 },
-        },
-        pass: {
-            color: [ color ],
-            depth_stencil: { depth_stencil },
-        },
-    ).unwrap();
+impl CanvasRenderContext {
+    pub fn new(context: &RenderContext, info: &FrameRenderInfo) -> Self {
+        let render_pass = Self::create_render_pass(context, info);
+        let (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle) = Self::create_pipelines(context, render_pass.clone());
+        CanvasRenderContext {
+            depth_stencil_images: [Vec::new(), Vec::new()],
+            render_pass, pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle,
+        }
+    }
 
-    let framebuffer = Framebuffer::new(
-        render_pass.clone(),
+    pub fn update(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
+        self.update_depth_stencil_images(context, info);
+    }
+
+    fn update_depth_stencil_images(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
+        let depth_stencil_images: &mut Vec<Arc<ImageView<StorageImage>>> = &mut self.depth_stencil_images[info.window_index];
+        if depth_stencil_images.len() >= info.image_count { // TODO: use == instead of >= when we can get right image count
+            if let ImageDimensions::Dim2d { width, height, .. } = depth_stencil_images[0].image().dimensions() {
+                if info.window_size.x == width && info.window_size.y == height {
+                    return;
+                }
+            }
+        }
+        log::debug!("Create depth stencil images, image_count={}", info.image_count);
+        *depth_stencil_images = (0..info.image_count).map(|_| StorageImage::general_purpose_image_view(
+            context.memory_allocator.as_ref(),
+            context.graphics_queue.clone(),
+            info.window_size.to_array(),
+            Format::D32_SFLOAT,
+            ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+        ).unwrap()).collect();
+    }
+
+    fn create_render_pass(context: &RenderContext, info: &FrameRenderInfo) -> Arc<RenderPass> {
+        vulkano::single_pass_renderpass!(
+            context.device.clone(),
+            attachments: {
+                color: { load: Clear, store: Store, format: info.format, samples: 1 },
+                depth_stencil: { load: Clear, store: DontCare, format: Format::D32_SFLOAT, samples: 1 },
+            },
+            pass: {
+                color: [ color ],
+                depth_stencil: { depth_stencil },
+            },
+        ).unwrap()
+    }
+
+    fn create_pipelines(context: &RenderContext, render_pass: Arc<RenderPass>) -> (Arc<GraphicsPipeline>, Arc<GraphicsPipeline>, Arc<GraphicsPipeline>, Arc<GraphicsPipeline>) {
+        let base_pipeline_builder = GraphicsPipeline::start()
+            .viewport_state(ViewportState::viewport_dynamic_scissor_irrelevant())
+            .vertex_input_state(MyVertex::per_vertex())
+            .render_pass(Subpass::from(render_pass, 0).unwrap())
+            .depth_stencil_state(DepthStencilState::simple_depth_test())
+            .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
+
+        let vs = vs::load(context.device.clone()).expect("failed to create shader module");
+        let fs = fs::load(context.device.clone()).expect("failed to create shader module");
+        let pipeline_builder = base_pipeline_builder.clone()
+            .vertex_shader(vs.entry_point("main").unwrap(), ())
+            .fragment_shader(fs.entry_point("main").unwrap(), ());
+
+        let pipeline_point = pipeline_builder.clone()
+            .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::PointList))
+            .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Point))
+            .build(context.device.clone())
+            .unwrap();
+
+        let pipeline_line = pipeline_builder.clone()
+            .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
+            .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
+            .build(context.device.clone())
+            .unwrap();
+
+        let pipeline_triangle = pipeline_builder.clone()
+            .build(context.device.clone())
+            .unwrap();
+
+        let vs = circle::vs::load(context.device.clone()).expect("failed to create shader module");
+        let fs = circle::fs::load(context.device.clone()).expect("failed to create shader module");
+        let pipeline_circle = base_pipeline_builder.clone()
+            .vertex_shader(vs.entry_point("main").unwrap(), ())
+            .fragment_shader(fs.entry_point("main").unwrap(), ())
+            .build(context.device.clone())
+            .unwrap();
+
+        (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle)
+    }
+}
+
+pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, mut render_manager: UniqueViewMut<RenderManager>) -> PrimaryAutoCommandBuffer {
+    render_manager.update(&info);
+    let context = &render_manager.context;
+    let canvas_context = render_manager.canvas_context.as_ref().unwrap();
+
+    let depth_stencil_image = canvas_context.depth_stencil_images[info.window_index][info.image_index].clone();
+    let framebuffer = Framebuffer::new( // TODO: pre-create framebuffers when we can get swapchain image views from VulkanoWindowRenderer
+        canvas_context.render_pass.clone(),
         FramebufferCreateInfo {
             attachments: vec![info.image.clone(), depth_stencil_image],
             ..Default::default()
@@ -72,66 +157,27 @@ pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueVie
         depth_range: 0.0..1.0,
     };
 
-    let command_buffer_allocator = StandardCommandBufferAllocator::new(render_manager.device.clone(), Default::default());
-
     let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-        &command_buffer_allocator,
-        render_manager.graphics_queue.queue_family_index(),
+        &context.command_buffer_allocator,
+        context.graphics_queue.queue_family_index(),
         CommandBufferUsage::OneTimeSubmit,
     ).unwrap();
-
-    command_buffer_builder.begin_render_pass(
-        RenderPassBeginInfo {
+    command_buffer_builder
+        .set_viewport(0, [viewport])
+        .begin_render_pass(RenderPassBeginInfo {
             clear_values: vec![Some(render_manager.clear_color.to_array().into()), Some(1.0.into())],
             ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
-        },
-        SubpassContents::Inline,
-    ).unwrap();
+        }, SubpassContents::Inline)
+        .unwrap();
 
     let projection_view = camera.projection_view(&info.window_size);
     let push_constants = vs::PushConstants { projection_view: projection_view.to_cols_array_2d() };
 
-    let base_pipeline_builder = GraphicsPipeline::start()
-        .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
-        .vertex_input_state(MyVertex::per_vertex())
-        .render_pass(Subpass::from(render_pass, 0).unwrap())
-        .depth_stencil_state(DepthStencilState::simple_depth_test())
-        .color_blend_state(ColorBlendState::default().blend_alpha()); // TODO: implement order independent transparency
-
-    let vs = vs::load(render_manager.device.clone()).expect("failed to create shader module");
-    let fs = fs::load(render_manager.device.clone()).expect("failed to create shader module");
-    let pipeline_builder = base_pipeline_builder.clone()
-        .vertex_shader(vs.entry_point("main").unwrap(), ())
-        .fragment_shader(fs.entry_point("main").unwrap(), ());
-
-    let pipeline = pipeline_builder.clone()
-        .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::PointList))
-        .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Point))
-        .build(render_manager.device.clone())
-        .unwrap();
-    draw_points(&canvas.points, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
-
-    let pipeline = pipeline_builder.clone()
-        .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
-        .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
-        .build(render_manager.device.clone())
-        .unwrap();
-    draw_lines(&canvas.lines, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
-
-    let pipeline = pipeline_builder.clone()
-        .build(render_manager.device.clone())
-        .unwrap();
-    draw_triangles(&canvas.triangles, pipeline.clone(), render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
-    draw_rectangles(&canvas.rectangles, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
-
-    let vs = circle::vs::load(render_manager.device.clone()).expect("failed to create shader module");
-    let fs = circle::fs::load(render_manager.device.clone()).expect("failed to create shader module");
-    let pipeline = base_pipeline_builder.clone()
-        .vertex_shader(vs.entry_point("main").unwrap(), ())
-        .fragment_shader(fs.entry_point("main").unwrap(), ())
-        .build(render_manager.device.clone())
-        .unwrap();
-    draw_circles(&canvas.cicles, pipeline, render_manager.memory_allocator.clone(), &mut command_buffer_builder, &projection_view);
+    draw_points(&canvas.points, canvas_context.pipeline_point.clone(), context.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_lines(&canvas.lines, canvas_context.pipeline_line.clone(), context.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_triangles(&canvas.triangles, canvas_context.pipeline_triangle.clone(), context.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_rectangles(&canvas.rectangles, canvas_context.pipeline_triangle.clone(), context.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
+    draw_circles(&canvas.cicles, canvas_context.pipeline_circle.clone(), context.memory_allocator.clone(), &mut command_buffer_builder, &projection_view);
 
     command_buffer_builder.end_render_pass().unwrap();
     command_buffer_builder.build().unwrap()

@@ -5,7 +5,6 @@ use shipyard::EntityId;
 use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine}, ext::VulkanoWindowRendererExt};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
-
 use crate::{project::Project, utils::LocalData};
 
 pub struct Editor {
@@ -526,7 +525,7 @@ impl ImageWindow {
                     ).unwrap() as Arc<dyn ImageViewAbstract + Send + Sync>).collect());
                     self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
                         gui.register_user_image_view(image.clone(), Default::default())).collect());
-                    log::info!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
+                    log::debug!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
                 }
                 let r = ui.image(self.texture_ids.as_ref().unwrap()[self.image_index], available_size);
                 (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
