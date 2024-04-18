@@ -60,4 +60,15 @@ pub enum Command<'a> {
     GetComponents(&'a mut Vec<&'static str>),
     CreateComponent(EntityId, &'static str),
     DestroyComponent(EntityId, &'a String),
+
+    /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid
+    GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
+}
+
+/// Helper struct to define window index constans: WindowIndex::GAME and WindowIndex::SCENE
+pub struct WindowIndex;
+
+impl WindowIndex {
+    pub const GAME: usize = 0;
+    pub const SCENE: usize = 1;
 }

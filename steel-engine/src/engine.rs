@@ -2,7 +2,7 @@ pub use steel_common::engine::*;
 
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::Canvas, renderer2d::Renderer2D, RenderManager, FrameRenderInfo}, scene::SceneManager, transform::Transform};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, transform::Transform};
 
 pub struct EngineImpl {
     /// ecs world, contains entities, components and uniques
@@ -75,12 +75,12 @@ impl Engine for EngineImpl {
         self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
     }
 
-    fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
+    fn draw(&mut self, mut info: DrawInfo) -> Box<dyn GpuFuture> {
         if let Some(editor) = &info.editor_info {
             self.world.run(|mut camera: UniqueViewMut<CameraInfo>| camera.set(editor.camera));
             self.world.run(crate::physics2d::physics2d_debug_render_system);
         }
-        self.world.add_unique(FrameRenderInfo::from(&info));
+        self.world.add_unique(FrameRenderInfo::from(&mut info));
         let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<FrameRenderInfo>().unwrap();
         command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
@@ -134,6 +134,11 @@ impl Engine for EngineImpl {
                 if let Some(component_fn) = self.component_fns.get(component_name.as_str()) {
                     (component_fn.destroy)(&mut self.world, id);
                 }
+            },
+            Command::GetEntityAtScreen(window_index, screen_position, out_eid) => {
+                self.world.add_unique(GetEntityAtScreenParam { window_index, screen_position });
+                *out_eid = self.world.run(crate::render::canvas::get_entity_at_screen_system);
+                self.world.remove_unique::<GetEntityAtScreenParam>().unwrap();
             },
         }
     }

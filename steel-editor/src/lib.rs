@@ -3,7 +3,8 @@ mod project;
 mod utils;
 
 use glam::{UVec2, Vec2, Vec3};
-use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}};
+use shipyard::EntityId;
+use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo, WindowIndex}};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
@@ -168,6 +169,16 @@ fn _main(event_loop: EventLoop<()>) {
                     let scene_window_size = editor.scene_window().pixel();
                     if editor.scene_focus() {
                         update_editor_camera(&mut editor_camera, &input, &scene_window_size);
+                    }
+                    if input.mouse_pressed(0) {
+                        if let Some((x, y)) = input.mouse() {
+                            let x = x - editor.scene_window().position().x * gui.egui_ctx.pixels_per_point();
+                            let y = y - editor.scene_window().position().y * gui.egui_ctx.pixels_per_point();
+                            let screen_position = UVec2::new(x as u32, y as u32);
+                            let mut eid = EntityId::dead();
+                            engine.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
+                            log::info!("eid={eid:?}, screen_position={screen_position}");
+                        }
                     }
 
                     let mut draw_future = engine.draw(DrawInfo {

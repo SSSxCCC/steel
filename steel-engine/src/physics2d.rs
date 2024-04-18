@@ -1,5 +1,5 @@
 use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
-use shipyard::{Component, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut, AddComponent, Get};
+use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::data::{Data, Limit, Value};
@@ -334,7 +334,7 @@ impl DebugRenderBackend for DebugRenderer<'_> {
         // currently we use a big z value to make sure that debug render content can be seen
         // TODO: find a better way to make sure the visiblity of debug render content
         let color = Vec4::from_array(color);
-        self.canvas.lines.push([(Vec3::new(a.x, a.y, 1000.0), color), (Vec3::new(b.x, b.y, 1000.0), color)]);
+        self.canvas.line(Vec3::new(a.x, a.y, 1000.0), Vec3::new(b.x, b.y, 1000.0), color, EntityId::dead()); // TODO: eid
     }
 }
 
