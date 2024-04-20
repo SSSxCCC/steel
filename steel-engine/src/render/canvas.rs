@@ -205,7 +205,7 @@ pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueVie
     let projection_view = camera.projection_view(&info.window_size);
 
     let command_buffer = draw_image::<MyVertex>(context, canvas_context, canvas_context.render_pass.clone(), info.image.clone(), info.window_index, info.image_index,
-        viewport.clone(), [0.0, 0.0, 0.0, 0.0].into(), projection_view, canvas.as_ref(),
+        viewport.clone(), render_manager.clear_color.to_array().into(), projection_view, canvas.as_ref(),
         canvas_context.pipeline_point.clone(), canvas_context.pipeline_line.clone(), canvas_context.pipeline_triangle.clone(), canvas_context.pipeline_circle.clone());
 
     // draw eid image
