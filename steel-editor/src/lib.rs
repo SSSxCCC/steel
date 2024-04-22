@@ -2,13 +2,12 @@ mod ui;
 mod project;
 mod utils;
 
-use glam::{UVec2, Vec2, Vec3};
-use shipyard::EntityId;
-use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo, WindowIndex}};
+use glam::{Vec2, Vec3};
+use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
-use winit::{event::{Event, VirtualKeyCode, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
+use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
 use crate::{project::Project, ui::Editor, utils::LocalData};
 
@@ -126,7 +125,7 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, &mut world_data);
+                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, &mut world_data, &input, &mut editor_camera);
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
@@ -166,31 +165,17 @@ fn _main(event_loop: EventLoop<()>) {
                         gpu_future = gpu_future.join(draw_future).boxed();
                     }
 
-                    let scene_window_size = editor.scene_window().pixel();
-                    if editor.scene_focus() {
-                        update_editor_camera(&mut editor_camera, &input, &scene_window_size);
-                    }
-                    if input.mouse_pressed(0) {
-                        if let Some((x, y)) = input.mouse() {
-                            let x = x - editor.scene_window().position().x * gui.egui_ctx.pixels_per_point();
-                            let y = y - editor.scene_window().position().y * gui.egui_ctx.pixels_per_point();
-                            let screen_position = UVec2::new(x as u32, y as u32);
-                            let mut eid = EntityId::dead();
-                            engine.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
-                            log::info!("eid={eid:?}, screen_position={screen_position}");
-                        }
-                    }
-
                     let mut draw_future = engine.draw(DrawInfo {
                         before_future: vulkano::sync::now(context.device().clone()).boxed(),
                         context: &context, renderer: &renderer,
                         image: editor.scene_window().image(),
-                        window_size: scene_window_size,
+                        window_size: editor.scene_window().pixel(),
                         editor_info: Some(EditorInfo { camera: &editor_camera }),
                     });
                     if !is_running {
                         draw_future = gui.draw_on_image(draw_future, editor.scene_window().image());
                     }
+
                     gpu_future = gpu_future.join(draw_future).boxed();
                 }
 
@@ -205,40 +190,6 @@ fn _main(event_loop: EventLoop<()>) {
         }
         _ => (),
     });
-}
-
-fn update_editor_camera(editor_camera: &mut EditorCamera, input: &WinitInputHelper, window_size: &UVec2) {
-    if input.key_pressed(VirtualKeyCode::Home) {
-        editor_camera.position = Vec3::ZERO;
-        editor_camera.height = 20.0;
-    }
-
-    if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
-        editor_camera.position.x -= 1.0; // TODO: * move_speed * delta_time
-    }
-    if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
-        editor_camera.position.x += 1.0;
-    }
-    if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
-        editor_camera.position.y += 1.0;
-    }
-    if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
-        editor_camera.position.y -= 1.0;
-    }
-
-    let scroll_diff = input.scroll_diff();
-    if scroll_diff > 0.0 {
-        editor_camera.height /= 1.1;
-    } else if scroll_diff < 0.0 {
-        editor_camera.height *= 1.1;
-    }
-
-    if input.mouse_held(1) {
-        let screen_to_world = editor_camera.height / window_size.y as f32;
-        let mouse_diff = input.mouse_diff();
-        editor_camera.position.x -= mouse_diff.0 * screen_to_world;
-        editor_camera.position.y += mouse_diff.1 * screen_to_world;
-    }
 }
 
 fn process_event_for_game_gui(event: &mut WindowEvent<'static>, window_position: Vec2, scale_factor: f32) {

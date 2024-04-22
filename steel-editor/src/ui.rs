@@ -2,9 +2,11 @@ use std::{ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine}, ext::VulkanoWindowRendererExt};
+use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, EditorCamera, Engine, WindowIndex}, ext::VulkanoWindowRendererExt};
 use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
+use winit::event::VirtualKeyCode;
+use winit_input_helper::WinitInputHelper;
 use crate::{project::Project, utils::LocalData};
 
 pub struct Editor {
@@ -27,7 +29,7 @@ impl Editor {
     }
 
     pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
-            project: &mut Project, local_data: &mut LocalData, world_data: &mut Option<WorldData>) {
+            project: &mut Project, local_data: &mut LocalData, world_data: &mut Option<WorldData>, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
 
@@ -38,6 +40,7 @@ impl Editor {
             self.menu_bars(&ctx, gui, gui_game, context, renderer, project, world_data);
 
             if project.is_compiled() {
+                self.update_editor_window(&ctx, project, input, editor_camera);
                 self.scene_window.layer = None;
                 self.game_window.layer = None;
                 self.scene_window.ui(&ctx, gui, context, renderer);
@@ -224,6 +227,64 @@ impl Editor {
                 ui.label(format!("fps: {:.2}", self.fps_counter.fps));
             });
         });
+    }
+
+    fn update_editor_window(&mut self, ctx: &egui::Context, project: &mut Project, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
+        if self.scene_focus() {
+            self.update_editor_camera(input, editor_camera);
+        }
+        if let Some(engine) = project.engine() {
+            self.click_entity(ctx, engine, input);
+        }
+    }
+
+    fn update_editor_camera(&mut self, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
+        if input.key_pressed(VirtualKeyCode::Home) {
+            editor_camera.position = Vec3::ZERO;
+            editor_camera.height = 20.0;
+        }
+
+        if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
+            editor_camera.position.x -= 1.0; // TODO: * move_speed * delta_time
+        }
+        if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
+            editor_camera.position.x += 1.0;
+        }
+        if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
+            editor_camera.position.y += 1.0;
+        }
+        if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
+            editor_camera.position.y -= 1.0;
+        }
+
+        let scroll_diff = input.scroll_diff();
+        if scroll_diff > 0.0 {
+            editor_camera.height /= 1.1;
+        } else if scroll_diff < 0.0 {
+            editor_camera.height *= 1.1;
+        }
+
+        if input.mouse_held(1) {
+            let screen_to_world = editor_camera.height / self.scene_window().pixel().y as f32;
+            let mouse_diff = input.mouse_diff();
+            editor_camera.position.x -= mouse_diff.0 * screen_to_world;
+            editor_camera.position.y += mouse_diff.1 * screen_to_world;
+        }
+    }
+
+    fn click_entity(&mut self, ctx: &egui::Context, engine: &mut Box<dyn Engine>, input: &WinitInputHelper) {
+        if input.mouse_pressed(0) {
+            if let Some((x, y)) = input.mouse() {
+                let x = x - self.scene_window().position().x * ctx.pixels_per_point();
+                let y = y - self.scene_window().position().y * ctx.pixels_per_point();
+                let screen_position = UVec2::new(x as u32, y as u32);
+                let mut eid = EntityId::dead();
+                engine.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
+                if eid != EntityId::dead() {
+                    self.selected_entity = eid;
+                }
+            }
+        }
     }
 
     fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
