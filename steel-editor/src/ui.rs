@@ -16,6 +16,7 @@ pub struct Editor {
     show_open_project_dialog: bool,
     project_path: PathBuf,
     fps_counter: FpsCounter,
+    pressed_entity: EntityId,
     selected_entity: EntityId,
     selected_unique: String,
 }
@@ -25,7 +26,7 @@ impl Editor {
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
             project_path: local_data.last_open_project_path.clone(), fps_counter: FpsCounter::new(),
-            selected_entity: EntityId::dead(), selected_unique: String::new() }
+            pressed_entity: EntityId::dead(), selected_entity: EntityId::dead(), selected_unique: String::new() }
     }
 
     pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
@@ -40,7 +41,7 @@ impl Editor {
             self.menu_bars(&ctx, gui, gui_game, context, renderer, project, world_data);
 
             if project.is_compiled() {
-                self.update_editor_window(&ctx, project, input, editor_camera);
+                self.update_editor_window(&ctx, project, world_data, input, editor_camera);
                 self.scene_window.layer = None;
                 self.game_window.layer = None;
                 self.scene_window.ui(&ctx, gui, context, renderer);
@@ -229,12 +230,16 @@ impl Editor {
         });
     }
 
-    fn update_editor_window(&mut self, ctx: &egui::Context, project: &mut Project, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
+    fn update_editor_window(&mut self, ctx: &egui::Context, project: &mut Project, world_data: &mut Option<WorldData>,
+            input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
         if self.scene_focus() {
             self.update_editor_camera(input, editor_camera);
         }
         if let Some(engine) = project.engine() {
             self.click_entity(ctx, engine, input);
+            if let Some(world_data) = world_data {
+                self.drag_entity(world_data, input, editor_camera);
+            }
         }
     }
 
@@ -282,6 +287,22 @@ impl Editor {
                 engine.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
                 if eid != EntityId::dead() {
                     self.selected_entity = eid;
+                }
+                self.pressed_entity = eid;
+            }
+        }
+    }
+
+    fn drag_entity(&mut self, world_data: &mut WorldData, input: &WinitInputHelper, editor_camera: &EditorCamera) {
+        if input.mouse_held(0) && self.selected_entity == self.pressed_entity {
+            if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
+                if let Some(data) = entity_data.components.get_mut("Transform") {
+                    if let Some(Value::Vec3(position)) = data.values.get_mut("position") {
+                        let screen_to_world = editor_camera.height / self.scene_window().pixel().y as f32;
+                        let mouse_diff = input.mouse_diff();
+                        position.x += mouse_diff.0 * screen_to_world;
+                        position.y -= mouse_diff.1 * screen_to_world;
+                    }
                 }
             }
         }
