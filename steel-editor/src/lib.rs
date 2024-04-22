@@ -46,7 +46,8 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor_camera = EditorCamera { position: Vec3::ZERO, height: 20.0 };
 
     // input
-    let mut input = WinitInputHelper::new();
+    let mut input_editor = WinitInputHelper::new(); // for editor window
+    let mut input = WinitInputHelper::new(); // for game window
     let mut events = Vec::new();
 
     // egui
@@ -102,7 +103,7 @@ fn _main(event_loop: EventLoop<()>) {
 
                 if project.is_running() {
                     if let Some(gui) = gui.as_mut() {
-                        process_event_for_game_gui(&mut event, editor.game_window().position(), gui.egui_ctx.pixels_per_point());
+                        adjust_event_for_window(&mut event, editor.game_window().position(), gui.egui_ctx.pixels_per_point());
                         let _pass_events_to_game = !gui.update(&event);
                     }
                 }
@@ -110,8 +111,7 @@ fn _main(event_loop: EventLoop<()>) {
         }
         Event::RedrawRequested(_) => {
             log::trace!("Event::RedrawRequested");
-            input.step_with_window_events(&events);
-            events.clear();
+            input_editor.step_with_window_events(&events);
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let window_size = renderer.window().inner_size();
                 if window_size.width == 0 || window_size.height == 0 {
@@ -125,7 +125,7 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, &mut world_data, &input, &mut editor_camera);
+                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, &mut world_data, &input_editor, &mut editor_camera);
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
@@ -146,7 +146,10 @@ fn _main(event_loop: EventLoop<()>) {
                         engine.command(Command::Load(world_data));
                     }
 
+                    events.iter_mut().for_each(|e| adjust_event_for_window(e, editor.game_window().position(), gui.egui_ctx.pixels_per_point()));
+                    input.step_with_window_events(&events);
                     let update_info = UpdateInfo { input: &input, ctx: &gui.egui_ctx };
+
                     engine.maintain(&update_info);
                     if is_running {
                         engine.update(&update_info);
@@ -183,6 +186,7 @@ fn _main(event_loop: EventLoop<()>) {
 
                 renderer.present(gpu_future, true);
             }
+            events.clear();
         }
         Event::MainEventsCleared => {
             log::trace!("Event::MainEventsCleared");
@@ -192,7 +196,7 @@ fn _main(event_loop: EventLoop<()>) {
     });
 }
 
-fn process_event_for_game_gui(event: &mut WindowEvent<'static>, window_position: Vec2, scale_factor: f32) {
+fn adjust_event_for_window(event: &mut WindowEvent<'static>, window_position: Vec2, scale_factor: f32) {
     match event {
         WindowEvent::CursorMoved { position, .. } => {
             let (window_position, scale_factor) = (window_position.as_dvec2(), scale_factor as f64);
