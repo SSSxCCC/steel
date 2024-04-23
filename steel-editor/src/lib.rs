@@ -3,7 +3,7 @@ mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
-use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}};
+use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, FrameInfo, FrameStage}};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
@@ -149,13 +149,15 @@ fn _main(event_loop: EventLoop<()>) {
 
                     events.iter_mut().for_each(|e| adjust_event_for_window(e, editor.game_window().position(), gui.egui_ctx.pixels_per_point()));
                     input.step_with_window_events(&events);
-                    let update_info = UpdateInfo { input: &input, ctx: &gui.egui_ctx };
+                    let mut frame_info = FrameInfo { stage: FrameStage::Maintain, input: &input, ctx: &gui.egui_ctx };
 
-                    engine.maintain(&update_info);
+                    engine.frame(&frame_info);
                     if is_running {
-                        engine.update(&update_info);
+                        frame_info.stage = FrameStage::Update;
+                        engine.frame(&frame_info);
                     }
-                    engine.finish(&update_info);
+                    frame_info.stage = FrameStage::Finish;
+                    engine.frame(&frame_info);
 
                     if let Some(image) = editor.game_window().image() {
                         let mut draw_future = engine.draw(DrawInfo {

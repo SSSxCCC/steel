@@ -8,5 +8,6 @@ members = [
     "steel-dynlib",
 ]
 exclude = [
-    "examples/test-project"
+    "examples/test-project",
+    "examples/ball",
 ]

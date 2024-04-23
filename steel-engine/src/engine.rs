@@ -50,6 +50,23 @@ impl EngineImpl {
     }
 }
 
+impl EngineImpl {
+    pub fn maintain(&mut self, _info: &FrameInfo) {
+        SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
+        self.world.run(crate::render::canvas::canvas_clear_system);
+        self.world.run(crate::camera::camera_maintain_system);
+        self.world.run(crate::physics2d::physics2d_maintain_system);
+    }
+
+    pub fn update(&mut self, _info: &FrameInfo) {
+        self.world.run(crate::physics2d::physics2d_update_system);
+    }
+
+    pub fn finish(&mut self, _info: &FrameInfo) {
+        self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
+    }
+}
+
 impl Engine for EngineImpl {
     fn init(&mut self, info: InitInfo) {
         self.world.add_unique(info.platform);
@@ -60,19 +77,12 @@ impl Engine for EngineImpl {
         self.world.add_unique(SceneManager::new(info.scene));
     }
 
-    fn maintain(&mut self, _info: &UpdateInfo) {
-        SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
-        self.world.run(crate::render::canvas::canvas_clear_system);
-        self.world.run(crate::camera::camera_maintain_system);
-        self.world.run(crate::physics2d::physics2d_maintain_system);
-    }
-
-    fn update(&mut self, _info: &UpdateInfo) {
-        self.world.run(crate::physics2d::physics2d_update_system);
-    }
-
-    fn finish(&mut self, _info: &UpdateInfo) {
-        self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
+    fn frame(&mut self, info: &FrameInfo) {
+        match info.stage {
+            FrameStage::Maintain => self.maintain(info),
+            FrameStage::Update => self.update(info),
+            FrameStage::Finish => self.finish(info),
+        }
     }
 
     fn draw(&mut self, mut info: DrawInfo) -> Box<dyn GpuFuture> {

@@ -8,9 +8,7 @@ use crate::{data::WorldData, platform::Platform};
 
 pub trait Engine {
     fn init(&mut self, info: InitInfo);
-    fn maintain(&mut self, info: &UpdateInfo);
-    fn update(&mut self, info: &UpdateInfo);
-    fn finish(&mut self, info: &UpdateInfo);
+    fn frame(&mut self, info: &FrameInfo);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn command(&mut self, cmd: Command);
 }
@@ -21,9 +19,16 @@ pub struct InitInfo<'a> {
     pub scene: Option<PathBuf>,
 }
 
-pub struct UpdateInfo<'a> {
+pub struct FrameInfo<'a> {
+    pub stage: FrameStage,
     pub input: &'a WinitInputHelper,
     pub ctx: &'a egui::Context,
+}
+
+pub enum FrameStage {
+    Maintain,
+    Update,
+    Finish,
 }
 
 pub struct DrawInfo<'a> {

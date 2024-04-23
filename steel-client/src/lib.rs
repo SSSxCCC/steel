@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::UVec2;
-use steel_common::{engine::{DrawInfo, InitInfo, UpdateInfo}, platform::Platform};
+use steel_common::{engine::{DrawInfo, FrameInfo, FrameStage, InitInfo}, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
@@ -102,10 +102,12 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 let gui = gui.as_mut().unwrap();
                 gui.begin_frame();
 
-                let update_info = UpdateInfo { input: &input, ctx: &gui.egui_ctx };
-                engine.maintain(&update_info);
-                engine.update(&update_info);
-                engine.finish(&update_info);
+                let mut frame_info = FrameInfo { stage: FrameStage::Maintain, input: &input, ctx: &gui.egui_ctx };
+                engine.frame(&frame_info);
+                frame_info.stage = FrameStage::Update;
+                engine.frame(&frame_info);
+                frame_info.stage = FrameStage::Finish;
+                engine.frame(&frame_info);
 
                 gpu_future = engine.draw(DrawInfo {
                     before_future: gpu_future,

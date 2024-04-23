@@ -16,30 +16,24 @@ impl Engine for EngineWrapper {
         self.inner.init(info);
     }
 
-    fn maintain(&mut self, info: &steel::engine::UpdateInfo) {
-        self.inner.maintain(info);
-        egui::Window::new("TestWindow").show(info.ctx, |ui| {
-            if ui.button("Button").clicked() {
-                log::info!("Click button of TestWindow");
-                self.inner.world.run(|mut scene_manager: UniqueViewMut<SceneManager>| {
-                    if let Some(current_scene) = scene_manager.current_scene() {
-                        if *current_scene == PathBuf::from("scene/test.scene") {
-                            scene_manager.switch_scene("scene/scene.scene".into());
-                        } else if *current_scene == PathBuf::from("scene/scene.scene") {
-                            scene_manager.switch_scene("scene/test.scene".into());
+    fn frame(&mut self, info: &steel::engine::FrameInfo) {
+        self.inner.frame(info);
+        if matches!(info.stage, steel::engine::FrameStage::Maintain) {
+            egui::Window::new("TestWindow").show(info.ctx, |ui| {
+                if ui.button("Button").clicked() {
+                    log::info!("Click button of TestWindow");
+                    self.inner.world.run(|mut scene_manager: UniqueViewMut<SceneManager>| {
+                        if let Some(current_scene) = scene_manager.current_scene() {
+                            if *current_scene == PathBuf::from("scene/test.scene") {
+                                scene_manager.switch_scene("scene/scene.scene".into());
+                            } else if *current_scene == PathBuf::from("scene/scene.scene") {
+                                scene_manager.switch_scene("scene/test.scene".into());
+                            }
                         }
-                    }
-                });
-            }
-        });
-    }
-
-    fn update(&mut self, info: &steel::engine::UpdateInfo) {
-        self.inner.update(info);
-    }
-
-    fn finish(&mut self, info: &steel::engine::UpdateInfo) {
-        self.inner.finish(info);
+                    });
+                }
+            });
+        }
     }
 
     fn draw(&mut self, info: steel::engine::DrawInfo) -> Box<dyn vulkano::sync::GpuFuture> {
