@@ -15,6 +15,7 @@ pub struct Editor {
     game_window: ImageWindow,
     #[allow(unused)] demo_windows: egui_demo_lib::DemoWindows,
     use_dock: bool,
+    focused_tab: Option<String>,
     show_open_project_dialog: bool,
     project_path: PathBuf,
     fps_counter: FpsCounter,
@@ -26,7 +27,7 @@ pub struct Editor {
 impl Editor {
     pub fn new(local_data: &LocalData) -> Self {
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
-            demo_windows: egui_demo_lib::DemoWindows::default(), use_dock: true, show_open_project_dialog: false,
+            demo_windows: egui_demo_lib::DemoWindows::default(), use_dock: true, focused_tab: None, show_open_project_dialog: false,
             project_path: local_data.last_open_project_path.clone(), fps_counter: FpsCounter::new(),
             pressed_entity: EntityId::dead(), selected_entity: EntityId::dead(), selected_unique: String::new() }
     }
@@ -97,6 +98,8 @@ impl Editor {
                             _ => (),
                         }
                     }), }); // DockArea shows inside egui::CentralPanel
+
+                self.focused_tab = dock_state.find_active_focused().map(|(_, tab)| tab.clone());
             }
         });
     }
@@ -592,7 +595,11 @@ impl Editor {
     }
 
     pub fn scene_focus(&self) -> bool {
-        self.scene_window.layer.is_some_and(|this| !self.game_window.layer.is_some_and(|other| other > this))
+        if self.use_dock {
+            self.focused_tab.as_ref().is_some_and(|tab| tab == "Scene")
+        } else {
+            self.scene_window.layer.is_some_and(|this| !self.game_window.layer.is_some_and(|other| other > this))
+        }
     }
 
     pub fn game_window(&self) -> &ImageWindow {
@@ -601,7 +608,11 @@ impl Editor {
 
     #[allow(unused)]
     pub fn game_focus(&self) -> bool {
-        self.game_window.layer.is_some_and(|this| !self.scene_window.layer.is_some_and(|other| other > this))
+        if self.use_dock {
+            self.focused_tab.as_ref().is_some_and(|tab| tab == "Game")
+        } else {
+            self.game_window.layer.is_some_and(|this| !self.scene_window.layer.is_some_and(|other| other > this))
+        }
     }
 }
 
