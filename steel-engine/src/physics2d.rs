@@ -18,6 +18,10 @@ impl RigidBody2D {
         RigidBody2D { handle: RigidBodyHandle::invalid(), body_type, last_transform: None }
     }
 
+    pub fn handle(&self) -> RigidBodyHandle {
+        self.handle
+    }
+
     pub fn i32_to_rigid_body_type(i: &i32) -> RigidBodyType {
         match i {
             0 => RigidBodyType::Dynamic,
@@ -78,6 +82,10 @@ impl Collider2D {
         Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution, last_transform: None }
     }
 
+    pub fn handle(&self) -> ColliderHandle {
+        self.handle
+    }
+
     /// update last_transform and returns true if changed
     fn update_last_transform(&mut self, transform: &Transform) -> bool {
         let rotation = transform.rotation.to_scaled_axis().z;
@@ -131,20 +139,20 @@ impl Edit for Collider2D {
 
 #[derive(Unique)]
 pub struct Physics2DManager {
-    rigid_body_set: RigidBodySet,
-    collider_set: ColliderSet,
-    gravity: Vector<Real>,
-    integration_parameters: IntegrationParameters,
-    physics_pipeline: PhysicsPipeline,
-    island_manager: IslandManager,
-    broad_phase: BroadPhase,
-    narrow_phase: NarrowPhase,
-    impulse_joint_set: ImpulseJointSet,
-    multibody_joint_set: MultibodyJointSet,
-    ccd_solver: CCDSolver,
-    physics_hooks: Box<dyn PhysicsHooks>,
-    event_handler: Box<dyn EventHandler>,
-    debug_render_pipeline: DebugRenderPipeline,
+    pub rigid_body_set: RigidBodySet,
+    pub collider_set: ColliderSet,
+    pub gravity: Vector<Real>,
+    pub integration_parameters: IntegrationParameters,
+    pub physics_pipeline: PhysicsPipeline,
+    pub island_manager: IslandManager,
+    pub broad_phase: BroadPhase,
+    pub narrow_phase: NarrowPhase,
+    pub impulse_joint_set: ImpulseJointSet,
+    pub multibody_joint_set: MultibodyJointSet,
+    pub ccd_solver: CCDSolver,
+    pub physics_hooks: Box<dyn PhysicsHooks>,
+    pub event_handler: Box<dyn EventHandler>,
+    pub debug_render_pipeline: DebugRenderPipeline,
 }
 
 impl Physics2DManager {
