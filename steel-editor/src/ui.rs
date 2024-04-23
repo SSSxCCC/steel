@@ -1,4 +1,5 @@
 use std::{ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
+use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
@@ -13,6 +14,7 @@ pub struct Editor {
     scene_window: ImageWindow,
     game_window: ImageWindow,
     #[allow(unused)] demo_windows: egui_demo_lib::DemoWindows,
+    use_dock: bool,
     show_open_project_dialog: bool,
     project_path: PathBuf,
     fps_counter: FpsCounter,
@@ -24,12 +26,12 @@ pub struct Editor {
 impl Editor {
     pub fn new(local_data: &LocalData) -> Self {
         Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
-            demo_windows: egui_demo_lib::DemoWindows::default(), show_open_project_dialog: false,
+            demo_windows: egui_demo_lib::DemoWindows::default(), use_dock: true, show_open_project_dialog: false,
             project_path: local_data.last_open_project_path.clone(), fps_counter: FpsCounter::new(),
             pressed_entity: EntityId::dead(), selected_entity: EntityId::dead(), selected_unique: String::new() }
     }
 
-    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
+    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
             project: &mut Project, local_data: &mut LocalData, world_data: &mut Option<WorldData>, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
@@ -38,25 +40,63 @@ impl Editor {
             //self.demo_windows.ui(&ctx);
 
             self.open_project_dialog(&ctx, gui, gui_game, context, project, local_data);
-            self.menu_bars(&ctx, gui, gui_game, context, renderer, project, world_data);
+            self.menu_bars(&ctx, gui, gui_game, dock_state, context, renderer, project, world_data);
 
             if project.is_compiled() {
                 self.update_editor_window(&ctx, project, world_data, input, editor_camera);
                 self.scene_window.layer = None;
                 self.game_window.layer = None;
-                self.scene_window.ui(&ctx, gui, context, renderer);
-                if project.is_running() {
-                    self.game_window.ui(&ctx, gui, context, renderer);
+                if !self.use_dock {
+                    self.scene_window.show(&ctx, gui, context, renderer);
+                    self.game_window.show(&ctx, gui, context, renderer);
                 }
             } else if project.is_open() {
                 Self::compile_error_dialog(&ctx);
             }
 
-            if let Some(world_data) = world_data {
-                if let Some(engine) = project.engine() {
-                    self.entity_component_view(&ctx, world_data, engine);
-                    self.unique_view(&ctx, world_data);
+            if !self.use_dock {
+                if let Some(world_data) = world_data {
+                    if let Some(engine) = project.engine() {
+                        self.entity_component_windows(&ctx, world_data, engine);
+                        self.unique_windows(&ctx, world_data);
+                    }
                 }
+            }
+
+            if self.use_dock {
+                DockArea::new(dock_state)
+                    .style(egui_dock::Style::from_egui(gui.egui_ctx.style().as_ref()))
+                    .show(&ctx, &mut MyTabViewer { add_contents: Box::new(|ui, tab| {
+                        match tab.as_str() {
+                            "Scene" => if project.is_compiled() {
+                                self.scene_window.ui(ui, gui, context, renderer);
+                            },
+                            "Game" => if project.is_compiled() {
+                                self.game_window.ui(ui, gui, context, renderer);
+                            },
+                            "Entities" => if let Some(world_data) = world_data {
+                                if let Some(engine) = project.engine() {
+                                    self.entities_view(ui, world_data, engine);
+                                }
+                            },
+                            "Entity" => if let Some(world_data) = world_data {
+                                if let Some(engine) = project.engine() {
+                                    if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
+                                        self.entity_view(ui, entity_data, engine);
+                                    }
+                                }
+                            },
+                            "Uniques" => if let Some(world_data) = world_data {
+                                self.uniques_view(ui, world_data);
+                            },
+                            "Unique" => if let Some(world_data) = world_data {
+                                if let Some(unique_data) = world_data.uniques.get_mut(&self.selected_unique) {
+                                    Self::data_view(ui, &self.selected_unique, unique_data);
+                                }
+                            },
+                            _ => (),
+                        }
+                    }), }); // DockArea shows inside egui::CentralPanel
             }
         });
     }
@@ -101,8 +141,8 @@ impl Editor {
         });
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, context: &VulkanoContext,
-            renderer: &VulkanoWindowRenderer, project: &mut Project, world_data: &mut Option<WorldData>) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>,
+            context: &VulkanoContext, renderer: &VulkanoWindowRenderer, project: &mut Project, world_data: &mut Option<WorldData>) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -211,6 +251,9 @@ impl Editor {
                                 project.load_from_memory();
                             } else {
                                 project.save_to_memory();
+                                if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {
+                                    dock_state.set_active_tab(tab);
+                                }
                             }
                             project.set_running(!project.is_running());
                             ui.close_menu();
@@ -219,8 +262,12 @@ impl Editor {
                 }
 
                 ui.menu_button("Ui", |ui| {
-                    egui::gui_zoom::zoom_menu_buttons(ui, Some(renderer.window().scale_factor() as f32));
                     ui.label(format!("Current Scale: {}", ctx.pixels_per_point()));
+                    egui::gui_zoom::zoom_menu_buttons(ui, Some(renderer.window().scale_factor() as f32));
+                    if ui.button(if self.use_dock { "Disable Dock" } else { "Enable Dock" }).clicked() {
+                        self.use_dock = !self.use_dock;
+                        ui.close_menu();
+                    }
                 });
                 egui::gui_zoom::zoom_with_keyboard_shortcuts(ctx, Some(renderer.window().scale_factor() as f32));
 
@@ -308,54 +355,32 @@ impl Editor {
         }
     }
 
-    fn entity_component_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
+    fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
         egui::Window::new("Entities").show(&ctx, |ui| {
-            egui::Grid::new("Entities").show(ui, |ui| {
-                for (id, entity_data) in &world_data.entities {
-                    if ui.selectable_label(self.selected_entity == *id, Self::entity_label(id, entity_data)).clicked() {
-                        self.selected_entity = *id;
-                    }
-                    if ui.button("-").clicked() {
-                        engine.command(Command::DestroyEntity(*id));
-                    }
-                    ui.end_row();
-                }
-            });
-            if ui.button("+").clicked() {
-                engine.command(Command::CreateEntity);
-            }
+            self.entities_view(ui, world_data, engine);
         });
 
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
             egui::Window::new("Components").show(&ctx, |ui| {
-                for (component_name, component_data) in &mut entity_data.components {
-                    ui.horizontal(|ui| {
-                        ui.label(component_name);
-                        if ui.button("-").clicked() {
-                            engine.command(Command::DestroyComponent(self.selected_entity, component_name));
-                        }
-                    });
-                    Self::data_view(ui, component_name, component_data);
-                    if component_name == "EntityInfo" {
-                        ui.horizontal(|ui| {
-                            ui.label("id");
-                            Self::color_label(ui, egui::Color32::BLACK, format!("{:?}", self.selected_entity));
-                        });
-                    }
-                    ui.separator();
-                }
-
-                let mut components = Vec::new();
-                engine.command(Command::GetComponents(&mut components));
-                ui.menu_button("+", |ui| {
-                    for component in components {
-                        if ui.button(component).clicked() {
-                            engine.command(Command::CreateComponent(self.selected_entity, component));
-                            ui.close_menu();
-                        }
-                    }
-                });
+                self.entity_view(ui, entity_data, engine);
             });
+        }
+    }
+
+    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
+        egui::Grid::new("Entities").show(ui, |ui| {
+            for (id, entity_data) in &world_data.entities {
+                if ui.selectable_label(self.selected_entity == *id, Self::entity_label(id, entity_data)).clicked() {
+                    self.selected_entity = *id;
+                }
+                if ui.button("-").clicked() {
+                    engine.command(Command::DestroyEntity(*id));
+                }
+                ui.end_row();
+            }
+        });
+        if ui.button("+").clicked() {
+            engine.command(Command::CreateEntity);
         }
     }
 
@@ -368,6 +393,36 @@ impl Editor {
             }
         }
         format!("{:?}", id)
+    }
+
+    fn entity_view(&mut self, ui: &mut egui::Ui, entity_data: &mut EntityData, engine: &mut Box<dyn Engine>) {
+        for (component_name, component_data) in &mut entity_data.components {
+            ui.horizontal(|ui| {
+                ui.label(component_name);
+                if ui.button("-").clicked() {
+                    engine.command(Command::DestroyComponent(self.selected_entity, component_name));
+                }
+            });
+            Self::data_view(ui, component_name, component_data);
+            if component_name == "EntityInfo" {
+                ui.horizontal(|ui| {
+                    ui.label("id");
+                    Self::color_label(ui, egui::Color32::BLACK, format!("{:?}", self.selected_entity));
+                });
+            }
+            ui.separator();
+        }
+
+        let mut components = Vec::new();
+        engine.command(Command::GetComponents(&mut components));
+        ui.menu_button("+", |ui| {
+            for component in components {
+                if ui.button(component).clicked() {
+                    engine.command(Command::CreateComponent(self.selected_entity, component));
+                    ui.close_menu();
+                }
+            }
+        });
     }
 
     fn data_view(ui: &mut egui::Ui, data_name: &String, data: &mut Data) {
@@ -504,16 +559,9 @@ impl Editor {
         ui.add(drag_value);
     }
 
-    fn unique_view(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
+    fn unique_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
         egui::Window::new("Uniques").show(&ctx, |ui| {
-            egui::Grid::new("Uniques").show(ui, |ui| {
-                for unique_name in world_data.uniques.keys() {
-                    if ui.selectable_label(self.selected_unique == *unique_name, unique_name).clicked() {
-                        self.selected_unique = unique_name.clone();
-                    }
-                    ui.end_row();
-                }
-            });
+            self.uniques_view(ui, world_data);
         });
 
         if let Some(unique_data) = world_data.uniques.get_mut(&self.selected_unique) {
@@ -521,6 +569,17 @@ impl Editor {
                 Self::data_view(ui, &self.selected_unique, unique_data);
             });
         }
+    }
+
+    fn uniques_view(&mut self, ui: &mut egui::Ui, world_data: &mut WorldData) {
+        egui::Grid::new("Uniques").show(ui, |ui| {
+            for unique_name in world_data.uniques.keys() {
+                if ui.selectable_label(self.selected_unique == *unique_name, unique_name).clicked() {
+                    self.selected_unique = unique_name.clone();
+                }
+                ui.end_row();
+            }
+        });
     }
 
     pub fn suspend(&mut self) {
@@ -586,38 +645,40 @@ impl ImageWindow {
         ImageWindow { title: title.into(), image_index: 0, images: None, texture_ids: None, pixel: UVec2::ZERO, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
     }
 
-    fn ui(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
-        self.image_index = renderer.image_index() as usize;
+    fn show(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
         egui::Window::new(&self.title)
             .movable(ctx.input(|input| input.pointer.hover_pos())
                 .is_some_and(|hover_pos| hover_pos.y < self.position.y ))
-            .show(&ctx, |ui| {
-                let available_size = ui.available_size();
-                (self.size.x, self.size.y) = (available_size.x, available_size.y);
-                let pixel = (self.size * ctx.pixels_per_point()).as_uvec2();
-                if self.images.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
-                    self.pixel = pixel;
-                    self.close(Some(gui));
-                    self.images = Some((0..renderer.image_count()).map(|_| StorageImage::general_purpose_image_view(
-                        context.memory_allocator(),
-                        context.graphics_queue().clone(),
-                        self.pixel.to_array(),
-                        renderer.swapchain_format(),
-                        ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                    ).unwrap() as Arc<dyn ImageViewAbstract + Send + Sync>).collect());
-                    self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
-                        gui.register_user_image_view(image.clone(), Default::default())).collect());
-                    log::debug!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
-                }
-                let r = ui.image(self.texture_ids.as_ref().unwrap()[self.image_index], available_size);
-                (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
-                self.layer = ctx.memory(|mem| {
-                    match mem.focus() {
-                        Some(_) => None, // We should not have focus if any widget has keyboard focus
-                        None => mem.layer_ids().position(|layer_id| layer_id == r.layer_id),
-                    }
-                });
-            });
+            .show(&ctx, |ui| self.ui(ui, gui, context, renderer));
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
+        self.image_index = renderer.image_index() as usize;
+        let available_size = ui.available_size();
+        (self.size.x, self.size.y) = (available_size.x, available_size.y);
+        let pixel = (self.size * ui.ctx().pixels_per_point()).as_uvec2();
+        if self.images.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
+            self.pixel = pixel;
+            self.close(Some(gui));
+            self.images = Some((0..renderer.image_count()).map(|_| StorageImage::general_purpose_image_view(
+                context.memory_allocator(),
+                context.graphics_queue().clone(),
+                self.pixel.to_array(),
+                renderer.swapchain_format(),
+                ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+            ).unwrap() as Arc<dyn ImageViewAbstract + Send + Sync>).collect());
+            self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
+                gui.register_user_image_view(image.clone(), Default::default())).collect());
+            log::debug!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
+        }
+        let r = ui.image(self.texture_ids.as_ref().unwrap()[self.image_index], available_size);
+        (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
+        self.layer = ui.ctx().memory(|mem| {
+            match mem.focus() {
+                Some(_) => None, // We should not have focus if any widget has keyboard focus
+                None => mem.layer_ids().position(|layer_id| layer_id == r.layer_id),
+            }
+        });
     }
 
     fn close(&mut self, gui: Option<&mut Gui>) {
@@ -630,9 +691,9 @@ impl ImageWindow {
         self.texture_ids = None;
     }
 
-    /// Get window image of current frame, panic if images are not created yet.
-    pub fn image(&self) -> Arc<dyn ImageViewAbstract + Send + Sync> {
-        self.images.as_ref().expect(format!("images of ImageWindow({}) are not created yet", self.title).as_str())[self.image_index].clone()
+    /// Get window image of current frame, return None if images are not created yet.
+    pub fn image(&self) -> Option<&Arc<dyn ImageViewAbstract + Send + Sync>> {
+        self.images.as_ref().and_then(|images| images.get(self.image_index))
     }
 
     /// Get the exact pixel of window images
@@ -649,5 +710,36 @@ impl ImageWindow {
     /// Get the window position which is scaled by window scale factor
     pub fn position(&self) -> Vec2 {
         self.position
+    }
+}
+
+pub fn create_dock_state() -> DockState<String> {
+    let tabs = ["Scene", "Game"].map(str::to_string).into_iter().collect();
+    let mut dock_state = DockState::new(tabs);
+    let surface = dock_state.main_surface_mut();
+    let [_old_node, entities_node] = surface.split_right(NodeIndex::root(), 0.7, vec!["Entities".to_string()]);
+    let [_old_node, _entity_node] = surface.split_right(entities_node, 0.4, vec!["Entity".to_string()]);
+    let [_old_node, uniques_node] = surface.split_below(entities_node, 0.6, vec!["Uniques".to_string()]);
+    let [_old_node, _unique_node] = surface.split_right(uniques_node, 0.4, vec!["Unique".to_string()]);
+    dock_state
+}
+
+struct MyTabViewer<'a> {
+    add_contents: Box<dyn FnMut(&mut egui::Ui, &mut <MyTabViewer as TabViewer>::Tab) + 'a>,
+}
+
+impl TabViewer for MyTabViewer<'_> {
+    type Tab = String;
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        tab.as_str().into()
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        (self.add_contents)(ui, tab);
+    }
+
+    fn closeable(&mut self, _tab: &mut Self::Tab) -> bool {
+        false
     }
 }

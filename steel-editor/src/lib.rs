@@ -9,7 +9,7 @@ use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
-use crate::{project::Project, ui::Editor, utils::LocalData};
+use crate::{project::Project, ui::{create_dock_state, Editor}, utils::LocalData};
 
 // Currently we can not use cargo in android, so that running steel-editor in android is useless
 // TODO: remove android code in steel-editor, or find a way to make steel-editor work in android
@@ -54,6 +54,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut gui_editor = None; // for editor ui
     let mut gui: Option<Gui> = None; // for in-game ui
     let mut editor = Editor::new(&local_data);
+    let mut dock_state = create_dock_state();
 
     // project
     let mut project = Project::new();
@@ -125,7 +126,7 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &mut gui, &context, renderer, &mut project, &mut local_data, &mut world_data, &input_editor, &mut editor_camera);
+                editor.ui(gui_editor, &mut gui, &mut dock_state, &context, renderer, &mut project, &mut local_data, &mut world_data, &input_editor, &mut editor_camera);
 
                 let is_running = project.is_running();
                 if let Some(engine) = project.engine() {
@@ -156,30 +157,28 @@ fn _main(event_loop: EventLoop<()>) {
                     }
                     engine.finish(&update_info);
 
-                    if is_running {
+                    if let Some(image) = editor.game_window().image() {
                         let mut draw_future = engine.draw(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
-                            image: editor.game_window().image(),
+                            image: image.clone(),
                             window_size: editor.game_window().pixel(),
                             editor_info: None,
                         });
-                        draw_future = gui.draw_on_image(draw_future, editor.game_window().image());
+                        draw_future = gui.draw_on_image(draw_future, image.clone());
                         gpu_future = gpu_future.join(draw_future).boxed();
                     }
 
-                    let mut draw_future = engine.draw(DrawInfo {
-                        before_future: vulkano::sync::now(context.device().clone()).boxed(),
-                        context: &context, renderer: &renderer,
-                        image: editor.scene_window().image(),
-                        window_size: editor.scene_window().pixel(),
-                        editor_info: Some(EditorInfo { camera: &editor_camera }),
-                    });
-                    if !is_running {
-                        draw_future = gui.draw_on_image(draw_future, editor.scene_window().image());
+                    if let Some(image) = editor.scene_window().image() {
+                        let draw_future = engine.draw(DrawInfo {
+                            before_future: vulkano::sync::now(context.device().clone()).boxed(),
+                            context: &context, renderer: &renderer,
+                            image: image.clone(),
+                            window_size: editor.scene_window().pixel(),
+                            editor_info: Some(EditorInfo { camera: &editor_camera }),
+                        });
+                        gpu_future = gpu_future.join(draw_future).boxed();
                     }
-
-                    gpu_future = gpu_future.join(draw_future).boxed();
                 }
 
                 let gpu_future = gui_editor.draw_on_image(gpu_future, renderer.swapchain_image_view());
