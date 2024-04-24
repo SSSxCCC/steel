@@ -3,7 +3,7 @@ use glam::{UVec2, Vec3};
 use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use shipyard::EntityId;
-use winit_input_helper::WinitInputHelper;
+use winit::event::WindowEvent;
 use crate::{data::WorldData, platform::Platform};
 
 pub trait Engine {
@@ -21,7 +21,6 @@ pub struct InitInfo<'a> {
 
 pub struct FrameInfo<'a> {
     pub stage: FrameStage,
-    pub input: &'a WinitInputHelper,
     pub ctx: &'a egui::Context,
 }
 
@@ -65,6 +64,8 @@ pub enum Command<'a> {
     GetComponents(&'a mut Vec<&'static str>),
     CreateComponent(EntityId, &'static str),
     DestroyComponent(EntityId, &'a String),
+
+    UpdateInput(&'a Vec<WindowEvent<'static>>),
 
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid
     GetEntityAtScreen(usize, UVec2, &'a mut EntityId),

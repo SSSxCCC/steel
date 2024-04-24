@@ -2,7 +2,7 @@ pub use steel_common::engine::*;
 
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, transform::Transform};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, transform::Transform};
 
 pub struct EngineImpl {
     /// ecs world, contains entities, components and uniques
@@ -75,6 +75,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(RenderManager::new(info.context));
         self.world.add_unique(Canvas::new());
         self.world.add_unique(SceneManager::new(info.scene));
+        self.world.add_unique(Input::new());
     }
 
     fn frame(&mut self, info: &FrameInfo) {
@@ -144,6 +145,9 @@ impl Engine for EngineImpl {
                 if let Some(component_fn) = self.component_fns.get(component_name.as_str()) {
                     (component_fn.destroy)(&mut self.world, id);
                 }
+            },
+            Command::UpdateInput(events) => {
+                self.world.run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
             },
             Command::GetEntityAtScreen(window_index, screen_position, out_eid) => {
                 self.world.add_unique(GetEntityAtScreenParam { window_index, screen_position });

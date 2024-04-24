@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::UVec2;
-use steel_common::{engine::{DrawInfo, FrameInfo, FrameStage, InitInfo}, platform::Platform};
+use steel_common::{engine::{Command, DrawInfo, FrameInfo, FrameStage, InitInfo}, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
-use winit_input_helper::WinitInputHelper;
 
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;
@@ -36,7 +35,6 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let mut windows = VulkanoWindows::default();
 
     // input
-    let mut input = WinitInputHelper::new();
     let mut events = Vec::new();
 
     // egui
@@ -90,7 +88,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
         }
         Event::RedrawRequested(_) => {
             log::trace!("Event::RedrawRequested");
-            input.step_with_window_events(&events);
+            engine.command(Command::UpdateInput(&events));
             events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let window_size = renderer.window().inner_size();
@@ -102,7 +100,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 let gui = gui.as_mut().unwrap();
                 gui.begin_frame();
 
-                let mut frame_info = FrameInfo { stage: FrameStage::Maintain, input: &input, ctx: &gui.egui_ctx };
+                let mut frame_info = FrameInfo { stage: FrameStage::Maintain, ctx: &gui.egui_ctx };
                 engine.frame(&frame_info);
                 frame_info.stage = FrameStage::Update;
                 engine.frame(&frame_info);

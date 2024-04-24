@@ -47,7 +47,6 @@ fn _main(event_loop: EventLoop<()>) {
 
     // input
     let mut input_editor = WinitInputHelper::new(); // for editor window
-    let mut input = WinitInputHelper::new(); // for game window
     let mut events = Vec::new();
 
     // egui
@@ -143,14 +142,14 @@ fn _main(event_loop: EventLoop<()>) {
                     raw_input.pixels_per_point = Some(gui_editor.egui_ctx.pixels_per_point());
                     gui.egui_ctx.begin_frame(raw_input);
 
+                    events.iter_mut().for_each(|e| adjust_event_for_window(e, editor.game_window().position(), gui.egui_ctx.pixels_per_point()));
+                    engine.command(Command::UpdateInput(&events));
+
                     if let Some(world_data) = world_data.as_mut() {
                         engine.command(Command::Load(world_data));
                     }
 
-                    events.iter_mut().for_each(|e| adjust_event_for_window(e, editor.game_window().position(), gui.egui_ctx.pixels_per_point()));
-                    input.step_with_window_events(&events);
-                    let mut frame_info = FrameInfo { stage: FrameStage::Maintain, input: &input, ctx: &gui.egui_ctx };
-
+                    let mut frame_info = FrameInfo { stage: FrameStage::Maintain, ctx: &gui.egui_ctx };
                     engine.frame(&frame_info);
                     if is_running {
                         frame_info.stage = FrameStage::Update;
