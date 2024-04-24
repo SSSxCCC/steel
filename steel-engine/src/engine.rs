@@ -2,7 +2,7 @@ pub use steel_common::engine::*;
 
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, transform::Transform};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, transform::Transform, ui::EguiContext};
 
 pub struct EngineImpl {
     /// ecs world, contains entities, components and uniques
@@ -51,7 +51,8 @@ impl EngineImpl {
 }
 
 impl EngineImpl {
-    pub fn maintain(&mut self, _info: &FrameInfo) {
+    pub fn maintain(&mut self, info: &FrameInfo) {
+        self.world.add_unique(EguiContext::new(info.ctx.clone()));
         SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
         self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
@@ -64,6 +65,7 @@ impl EngineImpl {
 
     pub fn finish(&mut self, _info: &FrameInfo) {
         self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
+        self.world.remove_unique::<EguiContext>().unwrap();
     }
 }
 
