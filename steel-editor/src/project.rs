@@ -81,6 +81,12 @@ impl Project {
             log::info!("Created: {}", lib_rs_file.display());
         }
 
+        let asset_dir = path.join("asset");
+        if !asset_dir.is_dir() {
+            fs::create_dir(&asset_dir)?;
+            log::info!("Created directory: {}", asset_dir.display());
+        }
+
         Ok(())
     }
 
