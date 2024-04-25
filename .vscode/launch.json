@@ -8,6 +8,7 @@
             "program": "${workspaceRoot}/target/debug/steel-editor.exe",
             "cwd": "${workspaceRoot}",
             "console": "integratedTerminal",
+            "environment": [{ "name": "RUST_BACKTRACE", "value": "full" }],
             "preLaunchTask": "cargo build"
         }
     ]
