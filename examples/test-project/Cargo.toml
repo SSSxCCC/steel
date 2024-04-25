@@ -20,6 +20,7 @@ shipyard = { version = "0.6.2", features = [ "serde1" ] }
 rayon = "1.8.0"
 parry2d = "0.13.5"
 rapier2d = { version = "0.17.2", features = [ "debug-render" ] }
+nalgebra = { version = "0.32.3", features = [ "convert-glam024" ] }
 glam = { version = "0.24.2", features = [ "serde" ] }
 egui_winit_vulkano = "0.25.0"
 egui = "0.22.0"
