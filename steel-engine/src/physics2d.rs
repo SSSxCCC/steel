@@ -72,12 +72,13 @@ pub struct Collider2D {
     handle: ColliderHandle,
     pub shape: ShapeWrapper,
     pub restitution: f32,
+    pub sensor: bool,
     last_transform: Option<(Vec2, f32, Vec2)>, // translation, rotation and scale
 }
 
 impl Collider2D {
-    pub fn new(shape: SharedShape, restitution: f32) -> Self {
-        Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution, last_transform: None }
+    pub fn new(shape: SharedShape, restitution: f32, sensor: bool) -> Self {
+        Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution, sensor, last_transform: None }
     }
 
     pub fn handle(&self) -> ColliderHandle {
@@ -114,7 +115,7 @@ impl Collider2D {
 
 impl Default for Collider2D {
     fn default() -> Self {
-        Self { handle: ColliderHandle::invalid(), shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)), restitution: Default::default(), last_transform: None }
+        Self { handle: ColliderHandle::invalid(), shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)), restitution: Default::default(), sensor: false, last_transform: None }
     }
 }
 
@@ -125,11 +126,13 @@ impl Edit for Collider2D {
         let mut data = Data::new().insert_with_limit("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
         self.shape.get_data(&mut data);
         data.insert("restitution", Value::Float32(self.restitution))
+            .insert("sensor", Value::Bool(self.sensor))
     }
 
     fn set_data(&mut self, data: &Data) {
         self.shape.set_data(data);
         if let Some(Value::Float32(f)) = data.get("restitution") { self.restitution = *f };
+        if let Some(Value::Bool(b)) = data.get("sensor") { self.sensor = *b };
     }
 }
 
@@ -261,8 +264,9 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
         if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
             collider.set_shape(shape);
             collider.set_restitution(col2d.restitution);
+            collider.set_sensor(col2d.sensor);
         } else {
-            let mut collider = ColliderBuilder::new(shape).restitution(col2d.restitution).build();
+            let mut collider = ColliderBuilder::new(shape).restitution(col2d.restitution).sensor(col2d.sensor).build();
             if let Ok(rb2d) = &rb2d.get(e) {
                 // TODO: add position and rotation relative to parent
                 col2d.handle = physics2d_manager.collider_set.insert_with_parent(collider, rb2d.handle, &mut physics2d_manager.rigid_body_set);

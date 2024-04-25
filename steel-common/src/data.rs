@@ -43,6 +43,7 @@ pub enum Limit {
 /// Value is a data store in component or unique
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Value {
+    Bool(bool),
     Int32(i32),
     Float32(f32),
     String(String),

@@ -434,6 +434,7 @@ impl Editor {
                 ui.label(name);
                 if let Some(Limit::ReadOnly) = data.limits.get(name) {
                     Self::color_label(ui, egui::Color32::BLACK, match value {
+                        Value::Bool(b) => (if *b { "☑" } else { "☐" }).to_string(),
                         Value::Int32(v) => format!("{v}"),
                         Value::Float32(v) => format!("{v}"),
                         Value::String(v) => format!("{v}"),
@@ -443,6 +444,9 @@ impl Editor {
                     });
                 } else {
                     match value {
+                        Value::Bool(b) => {
+                            ui.checkbox(b, "");
+                        }
                         Value::Int32(v) => {
                             if let Some(Limit::Int32Enum(int_enum)) = data.limits.get(name) {
                                 if int_enum.len() > 0 {

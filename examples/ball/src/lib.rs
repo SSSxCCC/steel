@@ -1,5 +1,4 @@
 use glam::Vec2;
-use rapier2d::prelude::*;
 use shipyard::{Component, IntoIter, UniqueView, UniqueViewMut, View, ViewMut};
 use steel::{data::{Data, Limit, Value}, edit::Edit, engine::{Command, DrawInfo, Engine, EngineImpl, FrameInfo, FrameStage, InitInfo}, input::Input, physics2d::{Physics2DManager, RigidBody2D}, transform::Transform};
 use vulkano::sync::GpuFuture;
@@ -63,11 +62,11 @@ fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>
     for (player, mut transform, rb2d) in (&player, &mut transform, &rb2d).iter() {
         if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
             if input.key_held(VirtualKeyCode::Left) {
-                rb2d.set_linvel(vector![-player.move_speed, 0.0], true);
+                rb2d.set_linvel(Vec2::new(-player.move_speed, 0.0).into(), true);
             } else if input.key_held(VirtualKeyCode::Right) {
-                rb2d.set_linvel(vector![player.move_speed, 0.0], true);
+                rb2d.set_linvel(Vec2::new(player.move_speed, 0.0).into(), true);
             } else {
-                rb2d.set_linvel(vector![0.0, 0.0], false);
+                rb2d.set_linvel(Vec2::ZERO.into(), false);
             }
 
             if transform.position.x > 9.0 { transform.position.x = 9.0 }
