@@ -51,13 +51,11 @@ impl Edit for Player {
     fn name() -> &'static str { "Player" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.values.insert("move_speed".into(), Value::Float32(self.move_speed));
-        data
+        Data::new().insert("move_speed", Value::Float32(self.move_speed))
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Float32(f)) = data.values.get("move_speed") { self.move_speed = *f; }
+        if let Some(Value::Float32(f)) = data.get("move_speed") { self.move_speed = *f; }
     }
 }
 
@@ -88,14 +86,12 @@ impl Edit for Ball {
     fn name() -> &'static str { "Ball" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.values.insert("start_velocity".into(), Value::Vec2(self.start_velocity));
-        data.add("started", Value::String(format!("{}", self.started)), Limit::ReadOnly);
-        data
+        Data::new().insert("start_velocity", Value::Vec2(self.start_velocity))
+            .insert_with_limit("started", Value::String(format!("{}", self.started)), Limit::ReadOnly)
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Vec2(v)) = data.values.get("start_velocity") { self.start_velocity = *v }
+        if let Some(Value::Vec2(v)) = data.get("start_velocity") { self.start_velocity = *v }
     }
 }
 

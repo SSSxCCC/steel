@@ -55,16 +55,14 @@ impl Edit for RigidBody2D {
     fn name() -> &'static str { "RigidBody2D" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
-        data.add("body_type", Value::Int32(self.body_type as i32),
-            Limit::Int32Enum(vec![(0, "Dynamic".into()), (1, "Fixed".into()),
-            (2, "KinematicPositionBased".into()), (3, "KinematicVelocityBased".into())]));
-        data
+        Data::new().insert_with_limit("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly)
+            .insert_with_limit("body_type", Value::Int32(self.body_type as i32),
+                Limit::Int32Enum(vec![(0, "Dynamic".into()), (1, "Fixed".into()),
+                (2, "KinematicPositionBased".into()), (3, "KinematicVelocityBased".into())]))
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Int32(i)) = data.values.get("body_type") { self.body_type = Self::i32_to_rigid_body_type(i) }
+        if let Some(Value::Int32(i)) = data.get("body_type") { self.body_type = Self::i32_to_rigid_body_type(i) }
     }
 }
 
@@ -124,16 +122,14 @@ impl Edit for Collider2D {
     fn name() -> &'static str { "Collider2D" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.add("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
+        let mut data = Data::new().insert_with_limit("handle", Value::String(format!("{:?}", self.handle)), Limit::ReadOnly);
         self.shape.get_data(&mut data);
-        data.values.insert("restitution".into(), Value::Float32(self.restitution));
-        data
+        data.insert("restitution", Value::Float32(self.restitution))
     }
 
     fn set_data(&mut self, data: &Data) {
         self.shape.set_data(data);
-        if let Some(Value::Float32(f)) = data.values.get("restitution") { self.restitution = *f };
+        if let Some(Value::Float32(f)) = data.get("restitution") { self.restitution = *f };
     }
 }
 

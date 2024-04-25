@@ -37,13 +37,11 @@ impl Edit for Camera {
     fn name() -> &'static str { "Camera" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.values.insert("height".into(), Value::Float32(self.height));
-        data
+        Data::new().insert("height", Value::Float32(self.height))
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Float32(f)) = data.values.get("height") { self.height = *f }
+        if let Some(Value::Float32(f)) = data.get("height") { self.height = *f }
     }
 }
 

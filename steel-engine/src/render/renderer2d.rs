@@ -22,13 +22,12 @@ impl Edit for Renderer2D {
     fn get_data(&self) -> Data {
         let mut data = Data::new();
         self.shape.get_data(&mut data);
-        data.add("color", Value::Vec4(self.color), Limit::Vec4Color);
-        data
+        data.insert_with_limit("color", Value::Vec4(self.color), Limit::Vec4Color)
     }
 
     fn set_data(&mut self, data: &Data) {
         self.shape.set_data(data);
-        if let Some(Value::Vec4(v)) = data.values.get("color") { self.color = *v }
+        if let Some(Value::Vec4(v)) = data.get("color") { self.color = *v }
     }
 }
 

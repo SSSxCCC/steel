@@ -28,7 +28,7 @@ impl ShapeWrapper {
     }
 
     pub fn get_data(&self, data: &mut Data) {
-        data.add("shape_type", Value::Int32(self.shape_type() as i32),
+        data.add_value_with_limit("shape_type", Value::Int32(self.shape_type() as i32),
             Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]));
         if let Some(shape) = self.as_ball() {
             data.values.insert("radius".into(), Value::Float32(shape.radius));
@@ -38,17 +38,17 @@ impl ShapeWrapper {
     }
 
     pub fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Int32(i)) = data.values.get("shape_type") {
+        if let Some(Value::Int32(i)) = data.get("shape_type") {
             let shape_type = Self::i32_to_shape_type(i);
             match shape_type {
                 ShapeType::Ball => { // We have to create a new shape because SharedShape::as_shape_mut method can not compile
                     let mut shape = if let Some(shape) = self.as_ball() { *shape } else { Ball::new(0.5) };
-                    if let Some(Value::Float32(f)) = data.values.get("radius") { shape.radius = *f }
+                    if let Some(Value::Float32(f)) = data.get("radius") { shape.radius = *f }
                     self.0 = SharedShape::new(shape);
                 },
                 ShapeType::Cuboid => {
                     let mut shape = if let Some(shape) = self.as_cuboid() { *shape } else { Cuboid::new([0.5, 0.5].into()) };
-                    if let Some(Value::Vec2(v)) = data.values.get("size") { (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0) }
+                    if let Some(Value::Vec2(v)) = data.get("size") { (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0) }
                     self.0 = SharedShape::new(shape);
                 },
                 _ => (), // TODO: support all shape type

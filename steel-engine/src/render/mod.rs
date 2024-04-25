@@ -82,12 +82,10 @@ impl Edit for RenderManager {
     fn name() -> &'static str { "RenderManager" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.add("clear_color", Value::Vec4(self.clear_color), Limit::Vec4Color);
-        data
+        Data::new().insert_with_limit("clear_color", Value::Vec4(self.clear_color), Limit::Vec4Color)
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Vec4(v)) = data.values.get("clear_color") { self.clear_color = *v }
+        if let Some(Value::Vec4(v)) = data.get("clear_color") { self.clear_color = *v }
     }
 }

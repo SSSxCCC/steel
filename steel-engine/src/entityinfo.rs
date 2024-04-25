@@ -18,12 +18,10 @@ impl Edit for EntityInfo {
     fn name() -> &'static str { "EntityInfo" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.values.insert("name".into(), Value::String(self.name.clone()));
-        data
+        Data::new().insert("name", Value::String(self.name.clone()))
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::String(s)) = data.values.get("name") { self.name = s.clone() }
+        if let Some(Value::String(s)) = data.get("name") { self.name = s.clone() }
     }
 }

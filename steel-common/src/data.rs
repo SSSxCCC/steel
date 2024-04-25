@@ -62,14 +62,42 @@ pub struct Data {
 }
 
 impl Data {
+    /// create a new data, then you can continue to call insert or insert_with_limit to fill this data, example:
+    /// ```rust
+    /// let data = Data::new().insert("name", Value::String("Sam".into()))
+    ///     .insert("age", Value::Float32(18.0));
+    /// ```
     pub fn new() -> Self {
         Data { values: IndexMap::new(), limits: HashMap::new() }
     }
 
-    pub fn add(&mut self, name: impl Into<String>, value: Value, limit: Limit) {
+    /// insert a value to this data, you can chain many insert calls by using this funtion
+    pub fn insert(mut self, name: impl Into<String>, value: Value) -> Self {
+        self.add_value(name, value);
+        self
+    }
+
+    /// insert a value and its limit to this data, you can chain many insert calls by using this funtion
+    pub fn insert_with_limit(mut self, name: impl Into<String>, value: Value, limit: Limit) -> Self {
+        self.add_value_with_limit(name, value, limit);
+        self
+    }
+
+    /// add a value to this data
+    pub fn add_value(&mut self, name: impl Into<String>, value: Value) {
+        self.values.insert(name.into(), value);
+    }
+
+    /// add a value and its limit to this data
+    pub fn add_value_with_limit(&mut self, name: impl Into<String>, value: Value, limit: Limit) {
         let name = name.into();
         self.values.insert(name.clone(), value);
         self.limits.insert(name, limit);
+    }
+
+    /// get a value from this data
+    pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
+        self.values.get(name.as_ref())
     }
 }
 

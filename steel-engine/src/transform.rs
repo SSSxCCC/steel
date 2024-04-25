@@ -26,16 +26,14 @@ impl Edit for Transform {
     fn name() -> &'static str { "Transform" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.values.insert("position".into(), Value::Vec3(self.position));
-        data.add("rotation", Value::Vec3(self.rotation.to_scaled_axis()), Limit::Float32Rotation);
-        data.values.insert("scale".into(), Value::Vec3(self.scale));
-        data
+        Data::new().insert("position", Value::Vec3(self.position))
+            .insert_with_limit("rotation", Value::Vec3(self.rotation.to_scaled_axis()), Limit::Float32Rotation)
+            .insert("scale", Value::Vec3(self.scale))
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Vec3(v)) = data.values.get("position") { self.position = *v }
-        if let Some(Value::Vec3(v)) = data.values.get("rotation") { self.rotation = Quat::from_scaled_axis(*v) }
-        if let Some(Value::Vec3(v)) = data.values.get("scale") { self.scale = *v }
+        if let Some(Value::Vec3(v)) = data.get("position") { self.position = *v }
+        if let Some(Value::Vec3(v)) = data.get("rotation") { self.rotation = Quat::from_scaled_axis(*v) }
+        if let Some(Value::Vec3(v)) = data.get("scale") { self.scale = *v }
     }
 }
