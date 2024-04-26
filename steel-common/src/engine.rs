@@ -69,6 +69,8 @@ pub enum Command<'a> {
 
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid
     GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
+
+    ResetTime,
 }
 
 /// Helper struct to define window index constans: WindowIndex::GAME and WindowIndex::SCENE

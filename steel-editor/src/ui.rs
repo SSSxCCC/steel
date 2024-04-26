@@ -254,6 +254,7 @@ impl Editor {
                                 project.load_from_memory();
                             } else {
                                 project.save_to_memory();
+                                project.engine().unwrap().command(Command::ResetTime);
                                 if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {
                                     dock_state.set_active_tab(tab);
                                 }
@@ -284,11 +285,11 @@ impl Editor {
             input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
         if self.scene_focus() {
             self.update_editor_camera(input, editor_camera);
-        }
-        if let Some(engine) = project.engine() {
-            self.click_entity(ctx, engine, input);
-            if let Some(world_data) = world_data {
-                self.drag_entity(world_data, input, editor_camera);
+            if let Some(engine) = project.engine() {
+                self.click_entity(ctx, engine, input);
+                if let Some(world_data) = world_data {
+                    self.drag_entity(world_data, input, editor_camera);
+                }
             }
         }
     }

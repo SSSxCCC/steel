@@ -2,7 +2,7 @@ pub use steel_common::engine::*;
 
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, transform::Transform, ui::EguiContext};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 
 pub struct EngineImpl {
     /// ecs world, contains entities, components and uniques
@@ -54,6 +54,7 @@ impl EngineImpl {
     pub fn maintain(&mut self, info: &FrameInfo) {
         self.world.add_unique(EguiContext::new(info.ctx.clone()));
         SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
+        self.world.run(crate::time::time_maintain_system);
         self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
         self.world.run(crate::physics2d::physics2d_maintain_system);
@@ -78,6 +79,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(Canvas::new());
         self.world.add_unique(SceneManager::new(info.scene));
         self.world.add_unique(Input::new());
+        self.world.add_unique(Time::new());
     }
 
     fn frame(&mut self, info: &FrameInfo) {
@@ -155,6 +157,9 @@ impl Engine for EngineImpl {
                 self.world.add_unique(GetEntityAtScreenParam { window_index, screen_position });
                 *out_eid = self.world.run(crate::render::canvas::get_entity_at_screen_system);
                 self.world.remove_unique::<GetEntityAtScreenParam>().unwrap();
+            },
+            Command::ResetTime => {
+                self.world.run(|mut time: UniqueViewMut<Time>| time.reset());
             },
         }
     }

@@ -1,0 +1,48 @@
+{
+  "entities": [
+    [
+      {
+        "index": 0,
+        "gen": 0
+      },
+      {
+        "components": {
+          "EntityInfo": {
+            "values": {
+              "name": {
+                "String": "Main Menu"
+              }
+            }
+          },
+          "MainMenu": {
+            "values": {}
+          }
+        }
+      }
+    ]
+  ],
+  "uniques": {
+    "Physics2DManager": {
+      "values": {
+        "gravity": {
+          "Vec2": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  }
+}

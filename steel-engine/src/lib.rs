@@ -10,6 +10,7 @@ pub mod data;
 pub mod scene;
 pub mod input;
 pub mod ui;
+pub mod time;
 pub mod platform {
     pub use steel_common::platform::*;
 }
