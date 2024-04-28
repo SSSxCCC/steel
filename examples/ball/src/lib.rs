@@ -169,11 +169,13 @@ impl Edit for MainMenu {
 fn main_menu_system(main_menu_component: View<MainMenu>, egui_ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
     for _ in main_menu_component.iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
-            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                if ui.button(egui::RichText::new("Start Game").size(30.0)).clicked() {
-                    scene_manager.switch_scene("game.scene".into());
-                }
-            });
+            let available_size = ui.available_size();
+            let button_center = egui::pos2(available_size.x / 2.0, available_size.y / 2.0);
+            let button_size = egui::vec2(200.0, 100.0);
+            let button_rect = egui::Rect::from_center_size(button_center, button_size);
+            if ui.put(button_rect, egui::Button::new(egui::RichText::new("Start Game").size(30.0))).clicked() {
+                scene_manager.switch_scene("game.scene".into());
+            }
         });
     }
 }

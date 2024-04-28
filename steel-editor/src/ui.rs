@@ -718,7 +718,6 @@ impl ImageWindow {
     }
 
     /// Get the window size which is scaled by window scale factor
-    #[allow(unused)]
     pub fn size(&self) -> Vec2 {
         self.size
     }
