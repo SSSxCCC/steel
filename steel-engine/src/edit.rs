@@ -1,3 +1,5 @@
+pub use steel_proc::Edit;
+
 use steel_common::data::Data;
 
 /// You can impl Edit for a Component or Unique so that they can be edited in steel-editor

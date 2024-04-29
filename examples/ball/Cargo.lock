@@ -1849,6 +1849,7 @@ dependencies = [
  "serde_json",
  "shipyard",
  "steel-common",
+ "steel-proc",
  "vulkano",
  "vulkano-shaders",
  "vulkano-util",
@@ -1883,6 +1884,14 @@ dependencies = [
  "vulkano-win",
  "winit",
  "winit_input_helper",
+]
+
+[[package]]
+name = "steel-proc"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.60",
 ]
 
 [[package]]

@@ -111,12 +111,8 @@ fn push_ball_system(mut ball: ViewMut<Ball>, rb2d: View<RigidBody2D>, mut physic
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Edit, Component, Default)]
 struct Border;
-
-impl Edit for Border {
-    fn name() -> &'static str { "Border" }
-}
 
 fn border_check_system(border: View<Border>, ball: View<Ball>, mut lose: ViewMut<Lose>, col2d: View<Collider2D>, physics2d_manager: UniqueView<Physics2DManager>) {
     let mut border_entity = EntityId::dead();
@@ -159,12 +155,8 @@ fn lose_system(mut lose: ViewMut<Lose>, time: UniqueView<Time>, egui_ctx: Unique
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Edit, Component, Default)]
 struct MainMenu;
-
-impl Edit for MainMenu {
-    fn name() -> &'static str { "MainMenu" }
-}
 
 fn main_menu_system(main_menu_component: View<MainMenu>, egui_ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
     for _ in main_menu_component.iter() {
