@@ -2646,6 +2646,7 @@ dependencies = [
  "parry2d",
  "rapier2d",
  "rayon",
+ "regex",
  "rfd",
  "serde",
  "serde_json",

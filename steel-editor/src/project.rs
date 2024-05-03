@@ -1,5 +1,6 @@
 use std::{error::Error, fs, path::{Path, PathBuf}};
 use egui_winit_vulkano::Gui;
+use regex::Regex;
 use shipyard::EntityId;
 use steel_common::{data::{Data, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
@@ -128,30 +129,8 @@ impl Project {
                 fs::remove_file(&lib_path)?;
             }
 
-            // There is a problem with compilation failure due to the pdb file being locked:
-            // https://developercommunity.visualstudio.com/t/pdb-is-locked-even-after-dll-is-unloaded/690640
-            // We avoid this problem by rename it so that compiler can generate a new pdb file.
-            let pdb_dir = PathBuf::from("target/debug/deps");
-            let pdb_file = pdb_dir.join("steel.pdb");
-            if pdb_file.exists() {
-                let pdb_files = fs::read_dir(&pdb_dir)?
-                    .filter_map(|entry| entry.ok())
-                    .filter(|entry| entry.path().is_file())
-                    .filter_map(|entry| entry.file_name().into_string().ok())
-                    .filter(|file_name| file_name.starts_with("steel") && file_name.ends_with(".pdb"))
-                    .filter_map(|file_name| file_name[5..(file_name.len() - 4)].parse::<u32>().ok().map(|n| (file_name, n)))
-                    .filter(|(file_name, _)| fs::remove_file(pdb_dir.join(file_name)).is_err())
-                    .collect::<Vec<_>>();
-                let n = match pdb_files.iter().max_by(|(_, n1), (_, n2)| n1.cmp(n2)) {
-                    Some((_, n)) => n + 1,
-                    None => 1,
-                };
-                let to_pdb_file = pdb_dir.join(format!("steel{n}.pdb"));
-                log::info!("Rename {} to {}, pdb_files={pdb_files:?}", pdb_file.display(), to_pdb_file.display());
-                if let Err(error) = fs::rename(pdb_file, to_pdb_file) {
-                    log::warn!("Failed to rename steel.pdb, error={error}");
-                }
-            }
+            Self::_handle_pdb_file(Regex::new(r"^steel\.pdb$").unwrap())?;
+            Self::_handle_pdb_file(Regex::new(r"^steel_proc-.*\.pdb$").unwrap())?;
 
             Self::_modify_files_while_compiling(&state.path, None, Self::_build_steel_dynlib)?;
 
@@ -172,6 +151,44 @@ impl Project {
         } else {
             Err(ProjectError::new("No open project").boxed())
         }
+    }
+
+    /// There is a problem with compilation failure due to the pdb file being locked:
+    /// https://developercommunity.visualstudio.com/t/pdb-is-locked-even-after-dll-is-unloaded/690640
+    /// We avoid this problem by rename it so that compiler can generate a new pdb file.
+    fn _handle_pdb_file(pdb_file_regex: Regex) -> Result<(), Box<dyn Error>> {
+        let pdb_dir = PathBuf::from("target/debug/deps");
+        let pdb_file_name = fs::read_dir(&pdb_dir)?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().is_file())
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .filter(|file_name| pdb_file_regex.is_match(file_name))
+            .collect::<Vec<_>>();
+        if pdb_file_name.is_empty() {
+            return Ok(()); // Currently no pdb file exists
+        } else if pdb_file_name.len() > 1 {
+            log::warn!("Found more than one pdb file: {pdb_file_name:?}");
+        }
+        let pdb_file_name = &pdb_file_name[0];
+        let pdb_file = pdb_dir.join(pdb_file_name);
+        let pdb_files = fs::read_dir(&pdb_dir)?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().is_file())
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .filter(|file_name| file_name.starts_with(pdb_file_name))
+            .filter_map(|file_name| file_name[pdb_file_name.len()..file_name.len()].parse::<u32>().ok().map(|n| (file_name, n)))
+            .filter(|(file_name, _)| fs::remove_file(pdb_dir.join(file_name)).is_err())
+            .collect::<Vec<_>>();
+        let n = match pdb_files.iter().max_by(|(_, n1), (_, n2)| n1.cmp(n2)) {
+            Some((_, n)) => n + 1,
+            None => 1,
+        };
+        let to_pdb_file = pdb_dir.join(format!("{pdb_file_name}{n}"));
+        log::info!("Rename {} to {}, pdb_files={pdb_files:?}", pdb_file.display(), to_pdb_file.display());
+        if let Err(error) = fs::rename(pdb_file, to_pdb_file) {
+            log::warn!("Failed to rename {pdb_file_name}, error={error}");
+        }
+        Ok(())
     }
 
     fn _build_steel_dynlib() -> Result<(), Box<dyn Error>> {
