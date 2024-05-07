@@ -189,13 +189,11 @@ impl Edit for Physics2DManager {
     fn name() -> &'static str { "Physics2DManager" }
 
     fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.values.insert("gravity".into(), Value::Vec2(Vec2::new(self.gravity.x, self.gravity.y)));
-        data
+        Data::new().insert("gravity", Value::Vec2(self.gravity.into()))
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Vec2(v)) = data.values.get("gravity") { self.gravity = vector![v.x, v.y] }
+        if let Some(Value::Vec2(v)) = data.get("gravity") { self.gravity = (*v).into() }
     }
 }
 

@@ -28,21 +28,9 @@ impl CameraInfo {
     }
 }
 
-#[derive(Component, Default, Debug)]
+#[derive(Component, Edit, Default, Debug)]
 pub struct Camera {
     pub height: f32,
-}
-
-impl Edit for Camera {
-    fn name() -> &'static str { "Camera" }
-
-    fn get_data(&self) -> Data {
-        Data::new().insert("height", Value::Float32(self.height))
-    }
-
-    fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Float32(f)) = data.get("height") { self.height = *f }
-    }
 }
 
 pub fn camera_maintain_system(mut transform: ViewMut<Transform>, camera: View<Camera>, mut info: UniqueViewMut<CameraInfo>) {

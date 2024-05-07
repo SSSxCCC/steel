@@ -47,21 +47,9 @@ impl Engine for EngineWrapper {
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Edit, Default)]
 struct Player {
     move_speed: f32,
-}
-
-impl Edit for Player {
-    fn name() -> &'static str { "Player" }
-
-    fn get_data(&self) -> Data {
-        Data::new().insert("move_speed", Value::Float32(self.move_speed))
-    }
-
-    fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Float32(f)) = data.get("move_speed") { self.move_speed = *f; }
-    }
 }
 
 fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>, rb2d: View<RigidBody2D>, mut physics2d_manager: UniqueViewMut<Physics2DManager>, input: UniqueView<Input>) {
@@ -81,23 +69,11 @@ fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Edit, Default)]
 struct Ball {
     start_velocity: Vec2,
+    #[edit(limit = "Limit::ReadOnly")]
     started: bool,
-}
-
-impl Edit for Ball {
-    fn name() -> &'static str { "Ball" }
-
-    fn get_data(&self) -> Data {
-        Data::new().insert("start_velocity", Value::Vec2(self.start_velocity))
-            .insert_with_limit("started", Value::String(format!("{}", self.started)), Limit::ReadOnly)
-    }
-
-    fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Vec2(v)) = data.get("start_velocity") { self.start_velocity = *v }
-    }
 }
 
 fn push_ball_system(mut ball: ViewMut<Ball>, rb2d: View<RigidBody2D>, mut physics2d_manager: UniqueViewMut<Physics2DManager>) {
