@@ -560,7 +560,9 @@ impl Editor {
     }
 
     fn drag_float32(ui: &mut egui::Ui, v: &mut f32, range: Option<RangeInclusive<f32>>) {
-        let mut drag_value = egui::DragValue::new(v);
+        let mut drag_value = egui::DragValue::new(v)
+            .max_decimals(100)
+            .speed(0.01);
         if let Some(range) = range {
             drag_value = drag_value.clamp_range(range);
         }

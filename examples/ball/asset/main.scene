@@ -29,6 +29,51 @@
             0.0,
             0.0
           ]
+        },
+        "steps_per_second": {
+          "Float32": 59.999996
+        },
+        "min_ccd_dt": {
+          "Float32": 0.00016666668
+        },
+        "erp": {
+          "Float32": 0.8
+        },
+        "damping_ratio": {
+          "Float32": 0.25
+        },
+        "joint_erp": {
+          "Float32": 1.0
+        },
+        "joint_damping_ratio": {
+          "Float32": 1.0
+        },
+        "allowed_linear_error": {
+          "Float32": 0.001
+        },
+        "max_penetration_correction": {
+          "Float32": 3.4028235e38
+        },
+        "prediction_distance": {
+          "Float32": 0.002
+        },
+        "max_velocity_iterations": {
+          "Int32": 4
+        },
+        "max_velocity_friction_iterations": {
+          "Int32": 8
+        },
+        "max_stabilization_iterations": {
+          "Int32": 1
+        },
+        "interleave_restitution_and_friction_resolution": {
+          "Bool": true
+        },
+        "min_island_size": {
+          "Int32": 128
+        },
+        "max_ccd_substeps": {
+          "Int32": 1
         }
       }
     },
