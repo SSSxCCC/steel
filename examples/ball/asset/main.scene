@@ -30,9 +30,6 @@
             0.0
           ]
         },
-        "steps_per_second": {
-          "Float32": 59.999996
-        },
         "min_ccd_dt": {
           "Float32": 0.00016666668
         },

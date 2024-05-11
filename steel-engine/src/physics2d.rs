@@ -1,9 +1,9 @@
 use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
-use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueViewMut, ViewMut};
+use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, ViewMut};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::data::{Data, Limit, Value};
-use crate::{render::canvas::Canvas, shape::ShapeWrapper, transform::Transform, edit::Edit};
+use crate::{edit::Edit, render::canvas::Canvas, shape::ShapeWrapper, time::Time, transform::Transform};
 
 #[derive(Component, Debug)]
 #[track(All)]
@@ -176,12 +176,22 @@ impl Physics2DManager {
 
 impl Default for Physics2DManager {
     fn default() -> Self {
-        Physics2DManager { rigid_body_set: RigidBodySet::new(), collider_set: ColliderSet::new(), gravity: vector![0.0, -9.81],
-            integration_parameters: IntegrationParameters::default(), physics_pipeline: PhysicsPipeline::new(),
-            island_manager: IslandManager::new(), broad_phase: BroadPhase::new(), narrow_phase: NarrowPhase::new(),
-            impulse_joint_set: ImpulseJointSet::new(), multibody_joint_set: MultibodyJointSet::new(),
-            ccd_solver: CCDSolver::new(), physics_hooks: Box::new(()), event_handler: Box::new(()),
-            debug_render_pipeline: DebugRenderPipeline::default() }
+        Physics2DManager {
+            rigid_body_set: RigidBodySet::new(),
+            collider_set: ColliderSet::new(),
+            gravity: vector![0.0, -9.81],
+            integration_parameters: IntegrationParameters::default(),
+            physics_pipeline: PhysicsPipeline::new(),
+            island_manager: IslandManager::new(),
+            broad_phase: BroadPhase::new(),
+            narrow_phase: NarrowPhase::new(),
+            impulse_joint_set: ImpulseJointSet::new(),
+            multibody_joint_set: MultibodyJointSet::new(),
+            ccd_solver: CCDSolver::new(),
+            physics_hooks: Box::new(()),
+            event_handler: Box::new(()),
+            debug_render_pipeline: DebugRenderPipeline::default(),
+        }
     }
 }
 
@@ -190,7 +200,7 @@ impl Edit for Physics2DManager {
 
     fn get_data(&self) -> Data {
         Data::new().insert("gravity", Value::Vec2(self.gravity.into()))
-            .insert("steps_per_second", Value::Float32(1.0 / self.integration_parameters.dt))
+            // Currently integration_parameters.dt is dynamically changed so that it should not be edited
             .insert("min_ccd_dt", Value::Float32(self.integration_parameters.min_ccd_dt))
             .insert("erp", Value::Float32(self.integration_parameters.erp))
             .insert("damping_ratio", Value::Float32(self.integration_parameters.damping_ratio))
@@ -209,7 +219,6 @@ impl Edit for Physics2DManager {
 
     fn set_data(&mut self, data: &Data) {
         if let Some(Value::Vec2(v)) = data.get("gravity") { self.gravity = (*v).into() }
-        if let Some(Value::Float32(v)) = data.get("steps_per_second") { self.integration_parameters.dt = 1.0 / *v }
         if let Some(Value::Float32(v)) = data.get("min_ccd_dt") { self.integration_parameters.min_ccd_dt = *v }
         if let Some(Value::Float32(v)) = data.get("erp") { self.integration_parameters.erp = *v }
         if let Some(Value::Float32(v)) = data.get("damping_ratio") { self.integration_parameters.damping_ratio = *v }
@@ -339,9 +348,13 @@ fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, tra
     }
 }
 
-pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
+pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>, time: UniqueView<Time>,
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>, mut transform: ViewMut<Transform>) {
     let physics2d_manager = physics2d_manager.as_mut();
+
+    // Dynamically change integration_parameters.dt according to time.delta()
+    physics2d_manager.integration_parameters.dt = time.delta();
+
     physics2d_update_from_transform(physics2d_manager, &transform, &mut rb2d, &mut col2d);
 
     physics2d_manager.update();
