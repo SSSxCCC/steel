@@ -1,6 +1,6 @@
 use glam::Vec2;
 use shipyard::{AddComponent, Component, EntityId, IntoIter, IntoWithId, UniqueView, UniqueViewMut, View, ViewMut};
-use steel::{data::{Data, Limit, Value}, edit::Edit, engine::{Command, DrawInfo, Engine, EngineImpl, FrameInfo, FrameStage, InitInfo}, input::Input, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
+use steel::{data::{Data, Limit, Value}, edit::Edit, engine::{Command, DrawInfo, Engine, EngineImpl, FrameInfo, FrameStage, InitInfo}, input::Input, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, platform::BuildTarget, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 use vulkano::sync::GpuFuture;
 use winit::event::VirtualKeyCode;
 
@@ -52,16 +52,28 @@ struct Player {
     move_speed: f32,
 }
 
-fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>, rb2d: View<RigidBody2D>, mut physics2d_manager: UniqueViewMut<Physics2DManager>, input: UniqueView<Input>) {
+fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>, rb2d: View<RigidBody2D>,
+        mut physics2d_manager: UniqueViewMut<Physics2DManager>, input: UniqueView<Input>, egui_ctx: UniqueView<EguiContext>) {
     for (player, mut transform, rb2d) in (&player, &mut transform, &rb2d).iter() {
         if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
+            let mut linvel = Vec2::ZERO;
             if input.key_held(VirtualKeyCode::Left) {
-                rb2d.set_linvel(Vec2::new(-player.move_speed, 0.0).into(), true);
+                linvel = Vec2::new(-player.move_speed, 0.0);
             } else if input.key_held(VirtualKeyCode::Right) {
-                rb2d.set_linvel(Vec2::new(player.move_speed, 0.0).into(), true);
-            } else {
-                rb2d.set_linvel(Vec2::ZERO.into(), false);
+                linvel = Vec2::new(player.move_speed, 0.0);
             }
+            if steel::platform::BUILD_TARGET == BuildTarget::Android {
+                egui_ctx.input(|input| {
+                    if let Some(press_origin) = input.pointer.press_origin() {
+                        if press_origin.x < input.screen_rect.center().x {
+                            linvel = Vec2::new(-player.move_speed, 0.0);
+                        } else {
+                            linvel = Vec2::new(player.move_speed, 0.0);
+                        }
+                    }
+                });
+            }
+            rb2d.set_linvel(linvel.into(), true);
 
             if transform.position.x > 9.0 { transform.position.x = 9.0 }
             if transform.position.x < -9.0 { transform.position.x = -9.0 }
