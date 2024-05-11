@@ -230,7 +230,13 @@
           },
           "Camera": {
             "values": {
-              "height": {
+              "spec": {
+                "Int32": 2
+              },
+              "min_width": {
+                "Float32": 25.0
+              },
+              "min_height": {
                 "Float32": 20.0
               }
             }
