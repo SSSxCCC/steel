@@ -1,7 +1,10 @@
 [package]
-name = "steel"
+name = "steel-engine"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+name = "steel"
 
 [dependencies]
 steel-common = { path = "../steel-common" }

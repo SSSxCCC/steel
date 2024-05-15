@@ -2534,36 +2534,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
-name = "steel"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "egui",
- "egui_demo_lib",
- "egui_dock",
- "egui_winit_vulkano",
- "env_logger",
- "glam",
- "indexmap 2.2.2",
- "log",
- "nalgebra",
- "parry2d",
- "rapier2d",
- "rayon",
- "serde",
- "serde_json",
- "shipyard",
- "steel-common",
- "steel-proc",
- "vulkano",
- "vulkano-shaders",
- "vulkano-util",
- "vulkano-win",
- "winit",
- "winit_input_helper",
-]
-
-[[package]]
 name = "steel-client"
 version = "0.1.0"
 dependencies = [
@@ -2661,6 +2631,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "steel-engine"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "egui",
+ "egui_demo_lib",
+ "egui_dock",
+ "egui_winit_vulkano",
+ "env_logger",
+ "glam",
+ "indexmap 2.2.2",
+ "log",
+ "nalgebra",
+ "parry2d",
+ "rapier2d",
+ "rayon",
+ "serde",
+ "serde_json",
+ "shipyard",
+ "steel-common",
+ "steel-proc",
+ "vulkano",
+ "vulkano-shaders",
+ "vulkano-util",
+ "vulkano-win",
+ "winit",
+ "winit_input_helper",
+]
+
+[[package]]
 name = "steel-proc"
 version = "0.1.0"
 dependencies = [
@@ -2689,7 +2689,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shipyard",
- "steel",
+ "steel-engine",
  "vulkano",
  "vulkano-shaders",
  "vulkano-util",
