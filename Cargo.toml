@@ -6,6 +6,7 @@ members = [
     "steel-editor",
     "steel-client",
     "steel-dynlib",
+    "steel-server",
 ]
 exclude = [
     "steel-project",

@@ -2699,6 +2699,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "steel-server"
+version = "0.1.0"
+
+[[package]]
 name = "str-buf"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
