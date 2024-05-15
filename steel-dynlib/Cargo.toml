@@ -6,8 +6,8 @@ description = "The dynamic library for the steel game engine to reload at runtim
 license = "MIT"
 
 [dependencies]
-# steel-project is set to test-project for rust-analyzer, and is modified to open project temporily while compiling
-steel-project = { path = "../examples/test-project" }
+# steel-project path is set for rust-analyzer, and is modified to open project temporily while compiling
+steel-project = { version = "0.1.0", path = "../steel-project" }
 
 [lib]
 name = "steel"

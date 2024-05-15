@@ -215,9 +215,9 @@ impl Project {
         for path in &cargo_toml_paths {
             log::info!("Read {}", path.display());
             let original_content = fs::read_to_string(path)?;
-            let num_match = original_content.matches(TEST_PROJECT_PATH).collect::<Vec<_>>().len();
+            let num_match = original_content.matches(STEEL_PROJECT_PATH).collect::<Vec<_>>().len();
             if num_match != 1 {
-                return Err(ProjectError::new(format!("Expected only 1 match '{TEST_PROJECT_PATH}' in {}, \
+                return Err(ProjectError::new(format!("Expected only 1 match '{STEEL_PROJECT_PATH}' in {}, \
                     actual number of match: {num_match}", path.display())).boxed());
             }
             cargo_toml_original_contents.push(original_content);
@@ -237,7 +237,7 @@ impl Project {
             .ok_or(ProjectError::new(format!("{} to_str() returns None", project_path.as_ref().display())))?
             .replace("\\", "/");
         let cargo_toml_new_contents = cargo_toml_original_contents.iter()
-            .map(|original_content| original_content.replacen(TEST_PROJECT_PATH, open_project_path.as_str(), 1))
+            .map(|original_content| original_content.replacen(STEEL_PROJECT_PATH, open_project_path.as_str(), 1))
             .collect::<Vec<_>>();
 
         let scene_path = if let Some(scene_path) = &scene_path {
@@ -639,7 +639,7 @@ edition = "2021"
 name = "steel"
 
 [dependencies]
-steel-engine = { path = "../../steel-engine" }
+steel-engine = { version = "0.1.0", path = "../../steel-engine" }
 
 vulkano = "0.33.0"
 vulkano-shaders = "0.33.0"
@@ -678,6 +678,6 @@ pub fn create() -> Box<dyn Engine> {
 }
 ";
 
-const TEST_PROJECT_PATH: &'static str = "../examples/test-project";
+const STEEL_PROJECT_PATH: &'static str = "../steel-project";
 
 const SCENE_PATH: &'static str = "scene_path";

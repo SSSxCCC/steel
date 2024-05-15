@@ -6,8 +6,8 @@ description = "The game client for the steel game engine."
 license = "MIT"
 
 [dependencies]
-# steel-project is set to test-project for rust-analyzer, and is modified to open project temporily while compiling
-steel-project = { path = "../examples/test-project" }
+# steel-project path is set for rust-analyzer, and is modified to open project temporily while compiling
+steel-project = { version = "0.1.0", path = "../steel-project" }
 steel-common = { version = "0.1.0", path = "../steel-common" }
 
 vulkano = "0.33.0"
