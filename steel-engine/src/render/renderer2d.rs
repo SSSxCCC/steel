@@ -4,6 +4,7 @@ use glam::{Vec4, Vec4Swizzles};
 use steel_common::data::{Data, Limit, Value};
 use crate::{edit::Edit, render::canvas::Canvas, shape::ShapeWrapper, transform::Transform};
 
+/// Renderer2D component is used to draw a 2D shape on an entity.
 #[derive(Component, Debug)]
 pub struct Renderer2D {
     pub shape: ShapeWrapper,
@@ -31,6 +32,7 @@ impl Edit for Renderer2D {
     }
 }
 
+/// Add drawing data to the Canvas unique according to the Renderer2D components.
 pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transform: View<Transform>, mut canvas: UniqueViewMut<Canvas>) {
     for (eid, (transform, renderer2d)) in (&transform, &renderer2d).iter().with_id() {
         match renderer2d.shape.shape_type() {

@@ -3,6 +3,7 @@ use shipyard::Component;
 use steel_common::data::{Data, Limit, Value};
 use crate::edit::Edit;
 
+/// The Transform component defines position, rotation, and scale of an entity.
 #[derive(Component, Debug)]
 pub struct Transform {
     pub position: Vec3,
@@ -11,6 +12,7 @@ pub struct Transform {
 }
 
 impl Transform {
+    /// Get the model matrix of this transform.
     pub fn model(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
     }

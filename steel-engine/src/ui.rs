@@ -6,6 +6,7 @@ use shipyard::Unique;
 pub struct EguiContext(egui::Context);
 
 impl EguiContext {
+    /// Create a new EguiContext, which wraps an egui::Context.
     pub fn new(ctx: egui::Context) -> Self {
         EguiContext(ctx)
     }

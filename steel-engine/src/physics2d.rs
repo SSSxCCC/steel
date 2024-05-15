@@ -5,6 +5,7 @@ use rayon::iter::ParallelIterator;
 use steel_common::data::{Data, Limit, Value};
 use crate::{edit::Edit, render::canvas::Canvas, shape::ShapeWrapper, time::Time, transform::Transform};
 
+/// A 2D rigid body in physics world of rapier2d.
 #[derive(Component, Debug)]
 #[track(All)]
 pub struct RigidBody2D {
@@ -14,14 +15,17 @@ pub struct RigidBody2D {
 }
 
 impl RigidBody2D {
+    /// Create a RigidBody2D with body_type.
     pub fn new(body_type: RigidBodyType) -> Self {
         RigidBody2D { handle: RigidBodyHandle::invalid(), body_type, last_transform: None }
     }
 
+    /// Get the raw handle of this rigid body.
     pub fn handle(&self) -> RigidBodyHandle {
         self.handle
     }
 
+    /// Convert i32 to RigidBodyType.
     pub fn i32_to_rigid_body_type(i: &i32) -> RigidBodyType {
         match i {
             0 => RigidBodyType::Dynamic,
@@ -32,7 +36,7 @@ impl RigidBody2D {
         }
     }
 
-    /// update last_transform and returns true if changed
+    /// update last_transform and returns true if changed.
     fn update_last_transform(&mut self, transform: &Transform) -> bool {
         let rotation = transform.rotation.to_scaled_axis().z;
         if let Some(last_transform) = self.last_transform {
@@ -66,6 +70,7 @@ impl Edit for RigidBody2D {
     }
 }
 
+/// A 2D collider in physics world of rapier2d.
 #[derive(Component, Debug)]
 #[track(All)]
 pub struct Collider2D {
@@ -77,15 +82,17 @@ pub struct Collider2D {
 }
 
 impl Collider2D {
+    /// Create a new Collider2D with shape, restitution, and sensor.
     pub fn new(shape: SharedShape, restitution: f32, sensor: bool) -> Self {
         Collider2D { handle: ColliderHandle::invalid(), shape: ShapeWrapper(shape), restitution, sensor, last_transform: None }
     }
 
+    /// Get the raw handle of this collider.
     pub fn handle(&self) -> ColliderHandle {
         self.handle
     }
 
-    /// update last_transform and returns true if changed
+    /// update last_transform and returns true if changed.
     fn update_last_transform(&mut self, transform: &Transform) -> bool {
         let rotation = transform.rotation.to_scaled_axis().z;
         if let Some(last_transform) = self.last_transform {
@@ -97,6 +104,7 @@ impl Collider2D {
         true
     }
 
+    /// Create a new shape scaled by transform.
     fn scaled_shape(&self, transform: &Transform) -> SharedShape {
         let scale = transform.scale.xy();
         match self.shape.shape_type() {
@@ -136,6 +144,7 @@ impl Edit for Collider2D {
     }
 }
 
+/// This unique contains all core objects in physics world of rapier2d.
 #[derive(Unique)]
 pub struct Physics2DManager {
     pub rigid_body_set: RigidBodySet,
@@ -155,6 +164,7 @@ pub struct Physics2DManager {
 }
 
 impl Physics2DManager {
+    /// Call physics_pipeline.step to update the physics world.
     pub fn update(&mut self) {
         self.physics_pipeline.step(
             &self.gravity,
@@ -236,6 +246,7 @@ impl Edit for Physics2DManager {
     }
 }
 
+/// Modify, add, remove rigid bodies and colliders according to RigidBody2D and Collider2D components.
 pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>,
         mut transform: ViewMut<Transform>) {
@@ -325,6 +336,7 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
     col2d.clear_all_inserted_and_modified();
 }
 
+/// Update rigid bodies and colliders according to Transform component.
 fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, transform: &ViewMut<Transform>,
         rb2d: &mut ViewMut<RigidBody2D>, col2d: &mut ViewMut<Collider2D>) {
     // TODO: find a way to use par_iter here (&mut physics2d_manager.rigid_body_set can not be passed to par_iter)
@@ -348,6 +360,7 @@ fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, tra
     }
 }
 
+/// Update physics world.
 pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>, time: UniqueView<Time>,
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>, mut transform: ViewMut<Transform>) {
     let physics2d_manager = physics2d_manager.as_mut();
@@ -387,6 +400,7 @@ impl DebugRenderBackend for DebugRenderer<'_> {
     }
 }
 
+/// Drawing physics debug lines to the Canvas.
 pub fn physics2d_debug_render_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>, mut canvas: UniqueViewMut<Canvas>) {
     let physics2d_manager = physics2d_manager.as_mut();
     let mut debug_render_backend = DebugRenderer { canvas: &mut canvas };

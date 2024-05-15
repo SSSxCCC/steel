@@ -18,6 +18,7 @@ pub mod ext {
 
 use log::{Log, LevelFilter, SetLoggerError};
 
+/// This function is used by steel-dynlib to enable log output of log crate.
 #[no_mangle]
 pub fn setup_logger(logger: &'static dyn Log, level: LevelFilter) -> Result<(), SetLoggerError> {
     log::set_max_level(level);

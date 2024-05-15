@@ -4,14 +4,14 @@ use steel_common::{data::{Data, Limit, Value}, engine::EditorCamera};
 use crate::{edit::Edit, transform::Transform};
 
 /// The camera size specify. Since we can not fix the screen aspect ratio,
-/// we must choose to either specify the width or height, or specify the minimum width and height
+/// we must choose to either specify the width or height, or specify the minimum width and height.
 #[derive(Debug, Clone, Copy)]
 pub enum CameraSpec {
-    /// Specify a width and caculate height by width / aspect_ratio
+    /// Specify a width and caculate height by width / aspect_ratio.
     FixedWidth,
-    /// Specify a height and caculate with by height * aspect_ratio
+    /// Specify a height and caculate with by height * aspect_ratio.
     FixedHeight,
-    /// Specify a min width and a min height
+    /// Specify a min width and a min height.
     MinWidthHeight,
 }
 
@@ -38,10 +38,12 @@ pub struct CameraInfo {
 }
 
 impl CameraInfo {
+    /// Create a new CameraInfo.
     pub fn new() -> Self {
         CameraInfo { position: Vec3::ZERO, width: 20.0, height: 20.0, spec: CameraSpec::FixedHeight }
     }
 
+    /// Caculate the (projection * view) matrix of camera.
     pub fn projection_view(&self, window_size: &UVec2) -> Mat4 {
         let view = Mat4::look_at_lh(self.position, self.position + Vec3::NEG_Z, Vec3::Y);
         let (half_width, half_height) = match self.spec {
@@ -127,6 +129,7 @@ impl Edit for Camera {
     }
 }
 
+/// Modify CameraInfo unique according to the Camera component.
 pub fn camera_maintain_system(mut transform: ViewMut<Transform>, camera: View<Camera>, mut info: UniqueViewMut<CameraInfo>) {
     if let Some((e, camera)) = camera.iter().with_id().next() {
         if !transform.contains(e) {

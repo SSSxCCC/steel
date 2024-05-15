@@ -4,16 +4,18 @@ use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Compon
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 
+/// An implementation for engine::Engine trait, see [Engine] for more introduction.
 pub struct EngineImpl {
-    /// ecs world, contains entities, components and uniques
+    /// The ecs world, contains entities, components, and uniques.
     pub world: World,
-    /// registered components
+    /// Registered components.
     pub component_fns: ComponentFns,
-    /// registered uniques
+    /// Registered uniques.
     pub unique_fns: UniqueFns,
 }
 
 impl EngineImpl {
+    /// Create a new EngineImpl.
     pub fn new() -> Self {
         EngineImpl { world: World::new(), component_fns: ComponentFn::with_core_components(), unique_fns: UniqueFn::with_core_uniques() }
     }
@@ -51,6 +53,7 @@ impl EngineImpl {
 }
 
 impl EngineImpl {
+    /// For FrameStage::Maintain.
     pub fn maintain(&mut self, info: &FrameInfo) {
         self.world.add_unique(EguiContext::new(info.ctx.clone()));
         SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
@@ -60,10 +63,12 @@ impl EngineImpl {
         self.world.run(crate::physics2d::physics2d_maintain_system);
     }
 
+    /// For FrameStage::Update.
     pub fn update(&mut self, _info: &FrameInfo) {
         self.world.run(crate::physics2d::physics2d_update_system);
     }
 
+    /// For FrameStage::Finish.
     pub fn finish(&mut self, _info: &FrameInfo) {
         self.world.run(crate::render::renderer2d::renderer2d_to_canvas_system);
         self.world.remove_unique::<EguiContext>().unwrap();

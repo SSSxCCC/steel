@@ -3,6 +3,8 @@ use winit::platform::android::activity::AndroidApp;
 use shipyard::Unique;
 use crate::platform::PlatformError;
 
+/// Platform struct stores some platform specific data,
+/// and has methods that have different implementations in different platforms.
 #[derive(Unique)]
 pub struct Platform {
     android_app: AndroidApp,

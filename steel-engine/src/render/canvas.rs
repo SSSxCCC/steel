@@ -5,6 +5,8 @@ use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
 use super::{FrameRenderInfo, RenderContext, RenderManager};
 
+/// Canvas contains current frame's drawing data, which will be converted to vertex data, and send to gpu to draw.
+/// You can use this unique to draw points, lines, triangles, rectangles, cicles to the screen.
 #[derive(Unique)]
 pub struct Canvas {
     /// 1 vertex: (position, color, eid)
@@ -20,30 +22,37 @@ pub struct Canvas {
 }
 
 impl Canvas {
+    /// Create an empty Canvas.
     pub fn new() -> Self {
         Canvas { points: Vec::new(), lines: Vec::new(), triangles: Vec::new(), rectangles: Vec::new(), cicles: Vec::new() }
     }
 
+    /// Draw a point with position p, color, and EntityId eid. The EntityId is used for screen object picking.
     pub fn point(&mut self, p: Vec3, color: Vec4, eid: EntityId) {
         self.points.push((p, color, eid));
     }
 
+    /// Draw a line from p1 to p2 with color and EntityId eid. The EntityId is used for screen object picking.
     pub fn line(&mut self, p1: Vec3, p2: Vec3, color: Vec4, eid: EntityId) {
         self.lines.push([(p1, color, eid), (p2, color, eid)]);
     }
 
+    /// Draw a triangle with vertices p1, p2, p3, color, and EntityId eid. The EntityId is used for screen object picking.
     pub fn triangle(&mut self, p1: Vec3, p2: Vec3, p3: Vec3, color: Vec4, eid: EntityId) {
         self.triangles.push([(p1, color, eid), (p2, color, eid), (p3, color, eid)]);
     }
 
+    /// Draw a rectangle with vertices p1, p2, p3, p4 (indices 0, 1, 2, 2, 3, 0), color, and EntityId eid. The EntityId is used for screen object picking.
     pub fn rectangle(&mut self, p1: Vec3, p2: Vec3, p3: Vec3, p4: Vec3, color: Vec4, eid: EntityId) {
         self.rectangles.push([(p1, color, eid), (p2, color, eid), (p3, color, eid), (p4, color, eid)]);
     }
 
+    /// Draw a circle with center, rotation, radius, color, and EntityId eid. The EntityId is used for screen object picking.
     pub fn circle(&mut self, center: Vec3, rotation: Quat, radius: f32, color: Vec4, eid: EntityId) {
         self.cicles.push((center, rotation, radius, color, eid));
     }
 
+    /// Clear all drawing data.
     pub fn clear(&mut self) {
         self.points.clear();
         self.lines.clear();
@@ -53,13 +62,14 @@ impl Canvas {
     }
 }
 
+/// Clear the canvas.
 pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
 }
 
-/// CanvasRenderContext stores many render objects that exist between frames
+/// CanvasRenderContext stores many render objects that exist between frames.
 pub struct CanvasRenderContext {
-    /// The image vectors whose index at WindowIndex::GAME and WindowIndex::SCENE are for game window and scene window
+    /// The image vectors whose index at WindowIndex::GAME and WindowIndex::SCENE are for game window and scene window.
     pub depth_stencil_images: [Vec<Arc<ImageView<StorageImage>>>; 2],
     pub eid_images: [Vec<Arc<ImageView<StorageImage>>>; 2],
     pub eid_image_futures: [Vec<Box<dyn GpuFuture + Send + Sync>>; 2],
@@ -192,6 +202,7 @@ impl CanvasRenderContext {
     }
 }
 
+/// Send all canvas drawing data to the gpu to draw.
 pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, mut render_manager: UniqueViewMut<RenderManager>) -> PrimaryAutoCommandBuffer {
     render_manager.update(&info);
     let context = &render_manager.context;
@@ -490,6 +501,7 @@ mod circle {
     }
 }
 
+/// This union is used to convert between u64 and two u32.
 union Eid {
     u64: u64,
     array_u32: [u32; 2],
@@ -634,6 +646,7 @@ pub struct GetEntityAtScreenParam {
     pub screen_position: UVec2,
 }
 
+/// Screen object picking system.
 pub fn get_entity_at_screen_system(mut render_manager: UniqueViewMut<RenderManager>, param: UniqueView<GetEntityAtScreenParam>) -> EntityId {
     let render_manager = render_manager.as_mut();
     if let Some(canvas_contex) = render_manager.canvas_context.as_mut() {

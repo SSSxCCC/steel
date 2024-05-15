@@ -13,22 +13,23 @@ pub struct Time {
 }
 
 impl Time {
+    /// Create a new Time.
     pub fn new() -> Time {
         let now_instant = Instant::now();
         Time { now: 0.0, delta: 0.0, start_instant: now_instant, last_instant: now_instant }
     }
 
-    /// get the number of seconds at the start of this frame since game start
+    /// Get the number of seconds at the start of this frame since game start.
     pub fn now(&self) -> f32 {
         self.now
     }
 
-    /// get the number of seconds spent in last frame
+    /// Get the number of seconds spent in last frame.
     pub fn delta(&self) -> f32 {
         self.delta
     }
 
-    /// reset time so that now is the game start time
+    /// Reset time so that now is the game start time.
     pub fn reset(&mut self) {
         let now_instant = Instant::now();
         self.now = 0.0;
@@ -38,6 +39,7 @@ impl Time {
     }
 }
 
+/// Update Time::now and Time::delta.
 pub fn time_maintain_system(mut time: UniqueViewMut<Time>) {
     let now_instant = Instant::now();
     time.now = (now_instant - time.start_instant).as_secs_f32();

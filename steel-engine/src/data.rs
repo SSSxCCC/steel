@@ -14,10 +14,11 @@ pub struct ComponentFn {
     pub load_from_data: fn(&mut World, &WorldData),
 }
 
-/// key is component name
+/// A map of ComponentFn, key is component name.
 pub type ComponentFns = IndexMap<&'static str, ComponentFn>;
 
 impl ComponentFn {
+    /// Create a ComponentFns with all core components already registered.
     pub fn with_core_components() -> ComponentFns {
         let mut component_fns = ComponentFns::new();
         Self::register::<EntityInfo>(&mut component_fns);
@@ -29,6 +30,7 @@ impl ComponentFn {
         component_fns
     }
 
+    /// Insert a type of Component<Tracking = Untracked> to ComponentFns.
     pub fn register<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
@@ -39,6 +41,7 @@ impl ComponentFn {
         });
     }
 
+    /// Insert a type of Component<Tracking = Insertion> to ComponentFns.
     pub fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
@@ -49,6 +52,7 @@ impl ComponentFn {
         });
     }
 
+    /// Insert a type of Component<Tracking = Modification> to ComponentFns.
     pub fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
@@ -59,6 +63,7 @@ impl ComponentFn {
         });
     }
 
+    /// Insert a type of Component<Tracking = Removal> to ComponentFns.
     pub fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
@@ -69,6 +74,7 @@ impl ComponentFn {
         });
     }
 
+    /// Insert a type of Component<Tracking = All> to ComponentFns.
     pub fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
         component_fns.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
@@ -100,8 +106,8 @@ impl ComponentFn {
         });
     }
 
-    /// Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157
-    /// TODO: find a way to write only one generic function to cover all tracking type
+    /// Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157.
+    /// TODO: find a way to write only one generic function to cover all tracking type.
     fn load_from_data_untracked_fn<C: Component<Tracking = Untracked> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
         world.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
@@ -158,10 +164,11 @@ pub struct UniqueFn {
     pub load_from_data: fn(&mut World, &WorldData),
 }
 
-/// key is unique name
+/// A map of UniqueFn, key is unique name.
 pub type UniqueFns = IndexMap<&'static str, UniqueFn>;
 
 impl UniqueFn {
+    /// Create a UniqueFns with all core uniques already registered.
     pub fn with_core_uniques() -> UniqueFns {
         let mut unique_fns = UniqueFns::new();
         Self::register::<Physics2DManager>(&mut unique_fns);
@@ -169,6 +176,7 @@ impl UniqueFn {
         unique_fns
     }
 
+    /// Insert a type of Unique to UniqueFns.
     pub fn register<U: Unique + Edit + Send + Sync>(unique_fns: &mut UniqueFns) {
         unique_fns.insert(U::name(), UniqueFn {
             save_to_data: Self::save_to_data_fn::<U>,

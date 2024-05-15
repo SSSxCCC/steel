@@ -1,7 +1,7 @@
 use shipyard::Unique;
 use winit_input_helper::WinitInputHelper;
 
-/// The input struct contains inputs happened in this frame, it is just a wrapper of winit_input_helper::WinitInputHelper
+/// The Input contains inputs happened in this frame, it is just a wrapper of [winit_input_helper::WinitInputHelper].
 #[derive(Unique)]
 pub struct Input(WinitInputHelper);
 

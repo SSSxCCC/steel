@@ -4,8 +4,10 @@
 #[cfg(target_os = "android")] mod platform_android;
 #[cfg(target_os = "android")] pub use platform_android::*;
 
+/// The error happend when calling methods in Platform.
+/// The std::fmt::Display is implemented for PlatformError, you can print it to get the error message.
 #[derive(Debug)]
-struct PlatformError {
+pub struct PlatformError {
     message: String,
 }
 

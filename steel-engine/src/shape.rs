@@ -2,6 +2,7 @@ use glam::Vec2;
 use parry2d::shape::{Ball, Cuboid, ShapeType, SharedShape};
 use steel_common::data::{Data, Limit, Value};
 
+/// A wrapper of parry2d::shape::SharedShape.
 pub struct ShapeWrapper(pub SharedShape);
 
 impl std::ops::Deref for ShapeWrapper {
@@ -19,6 +20,7 @@ impl std::fmt::Debug for ShapeWrapper {
 }
 
 impl ShapeWrapper {
+    /// Convert i32 to ShapeType.
     fn i32_to_shape_type(i: &i32) -> ShapeType {
         match i {
             0 => ShapeType::Ball,
@@ -27,6 +29,7 @@ impl ShapeWrapper {
         }
     }
 
+    /// Hepler funtion to edit the shape, used in Edit::get_data.
     pub fn get_data(&self, data: &mut Data) {
         data.add_value_with_limit("shape_type", Value::Int32(self.shape_type() as i32),
             Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]));
@@ -37,6 +40,7 @@ impl ShapeWrapper {
         } // TODO: support all shape type
     }
 
+    /// Hepler funtion to edit the shape, used in Edit::set_data.
     pub fn set_data(&mut self, data: &Data) {
         if let Some(Value::Int32(i)) = data.get("shape_type") {
             let shape_type = Self::i32_to_shape_type(i);

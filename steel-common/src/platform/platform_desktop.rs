@@ -1,6 +1,8 @@
 use std::{error::Error, path::{Path, PathBuf}};
 use shipyard::Unique;
 
+/// Platform struct stores some platform specific data,
+/// and has methods that have different implementations in different platforms.
 #[derive(Unique)]
 pub struct Platform {
     project_path: PathBuf,
@@ -11,7 +13,7 @@ impl Platform {
         Platform { project_path }
     }
 
-    /// steel-client can use relative path to access asset folder, so that we set project_path to empty
+    /// steel-client can use relative path to access asset folder, so that we set project_path to empty.
     pub fn new_client() -> Self {
         Platform { project_path: PathBuf::from("") }
     }
