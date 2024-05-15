@@ -1,3 +1,5 @@
+//! The [steel game engine](https://github.com/SSSxCCC/steel) core library.
+
 pub mod engine;
 pub mod edit;
 pub mod transform;

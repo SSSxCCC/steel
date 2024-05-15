@@ -2,11 +2,13 @@
 name = "steel-client"
 version = "0.1.0"
 edition = "2021"
+description = "The game client for the steel game engine."
+license = "MIT"
 
 [dependencies]
 # steel-project is set to test-project for rust-analyzer, and is modified to open project temporily while compiling
 steel-project = { path = "../examples/test-project" }
-steel-common = { path = "../steel-common" }
+steel-common = { version = "0.1.0", path = "../steel-common" }
 
 vulkano = "0.33.0"
 vulkano-shaders = "0.33.0"

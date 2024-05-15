@@ -1,3 +1,5 @@
+//! The game client for the [steel game engine](https://github.com/SSSxCCC/steel).
+
 use std::path::PathBuf;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::UVec2;

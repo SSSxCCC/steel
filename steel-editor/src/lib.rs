@@ -1,3 +1,5 @@
+//! The editor for the [steel game engine](https://github.com/SSSxCCC/steel).
+
 mod ui;
 mod project;
 mod utils;

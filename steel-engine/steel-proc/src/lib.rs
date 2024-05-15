@@ -1,3 +1,5 @@
+//! The [steel game engine](https://github.com/SSSxCCC/steel) proc-macro library.
+
 mod edit;
 
 use syn;

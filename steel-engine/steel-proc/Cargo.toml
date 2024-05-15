@@ -2,6 +2,8 @@
 name = "steel-proc"
 version = "0.1.0"
 edition = "2021"
+description = "The steel game engine proc-macro library."
+license = "MIT"
 
 [lib]
 proc-macro = true
