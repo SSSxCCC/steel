@@ -17,6 +17,10 @@ Currently, it is recommended to run in VSCode, convenient for debugging.
 4. Download the code of this project and use VSCode to open the root directory of this project
 5. Press F5 to compile and run
 
+## Editor demo
+
+![image](demo.png)
+
 ## Development Roadmap
 
 - [x] Game core module
@@ -29,6 +33,11 @@ Currently, it is recommended to run in VSCode, convenient for debugging.
 - [ ] Ray traced rendering
 - [x] 2D physics
 - [ ] 3D physics
+- [ ] Audio
+- [ ] Animation
+- [ ] Particle System
+- [ ] Network synchronization
+- [ ] AI
 - [x] Build Windows program
 - [x] Build Android application
 - [ ] Customize build
@@ -66,6 +75,11 @@ Steel引擎是一个开源跨平台rust游戏引擎，主要有以下特性：
 - [ ] 光线追踪渲染
 - [x] 2D物理
 - [ ] 3D物理
+- [ ] 音频
+- [ ] 动画
+- [ ] 粒子效果
+- [ ] 网络同步
+- [ ] AI
 - [x] 编译Windows程序
 - [x] 编译Android应用
 - [ ] 定制编译
