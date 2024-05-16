@@ -65,7 +65,7 @@ fn _main(event_loop: EventLoop<()>) {
         Event::Resumed => {
             log::debug!("Event::Resumed");
             windows.create_window(&event_loop, &context,
-                &WindowDescriptor::default(), |_|{});
+                &WindowDescriptor { title: "Steel Editor".into(), ..Default::default() }, |_|{});
             let renderer = windows.get_primary_renderer().unwrap();
             gui_editor = Some(Gui::new(&event_loop, renderer.surface(),
                 renderer.graphics_queue(),
