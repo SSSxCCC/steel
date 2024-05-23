@@ -199,61 +199,6 @@
           "EntityInfo": {
             "values": {
               "name": {
-                "String": "Camera"
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  5.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Camera": {
-            "values": {
-              "spec": {
-                "Int32": 2
-              },
-              "min_width": {
-                "Float32": 25.0
-              },
-              "min_height": {
-                "Float32": 20.0
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 3,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
                 "String": "Left Wall"
               }
             }
@@ -328,7 +273,7 @@
     ],
     [
       {
-        "index": 4,
+        "index": 3,
         "gen": 0
       },
       {
@@ -410,7 +355,7 @@
     ],
     [
       {
-        "index": 5,
+        "index": 4,
         "gen": 0
       },
       {
@@ -484,6 +429,61 @@
                   1.0,
                   1.0
                 ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    [
+      {
+        "index": 5,
+        "gen": 0
+      },
+      {
+        "components": {
+          "EntityInfo": {
+            "values": {
+              "name": {
+                "String": "Camera"
+              }
+            }
+          },
+          "Transform": {
+            "values": {
+              "position": {
+                "Vec3": [
+                  0.0,
+                  5.0,
+                  0.0
+                ]
+              },
+              "rotation": {
+                "Vec3": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "scale": {
+                "Vec3": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            }
+          },
+          "Camera": {
+            "values": {
+              "spec": {
+                "Int32": 2
+              },
+              "min_width": {
+                "Float32": 25.0
+              },
+              "min_height": {
+                "Float32": 20.0
               }
             }
           }
