@@ -45,7 +45,7 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [x] Build Windows program
 - [x] Build Android application
 - [ ] Customize build
-- [ ] Write a tutorial
+- [x] Write a tutorial
 - [ ] Tests
 
 ---
@@ -91,7 +91,7 @@ Steel是一个开源跨平台rust游戏引擎，主要有以下特性：
 - [x] 编译Windows程序
 - [x] 编译Android应用
 - [ ] 定制编译
-- [ ] 写一个教程
+- [x] 写一个教程
 - [ ] 测试
 
 [rapier]: https://rapier.rs/
