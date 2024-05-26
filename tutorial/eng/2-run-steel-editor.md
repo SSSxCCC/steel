@@ -6,8 +6,13 @@ Currently, it is recommended to run in VSCode, convenient for debugging.
 1. Install [Visual Studio 2022][Visual Studio 2022] with "Desktop development with C++" in Windows, keep the default check
 2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs]
 3. Install [VSCode][VSCode] with "C/C++" and "rust-analyzer" extensions
-4. Download the code of this project
-5. Use VSCode to open the root directory of this project, press F5 to compile and run
+4. Download the code of the Steel, and checkout "v0.1" branch, because the current tutorial is written based on this version:
+```
+git clone https://github.com/SSSxCCC/steel
+cd steel
+git checkout v0.1
+```
+5. Use VSCode to open the root directory "steel", press F5 to compile and run
 
 There is a bug in VSCode failing to run the exe file when pressing the F5 for the first time. You can compile and run the exe file in terminal:
 ```
