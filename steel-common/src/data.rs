@@ -1,5 +1,5 @@
 use std::{collections::HashMap, error::Error, ops::RangeInclusive, path::Path};
-use glam::{Vec2, Vec3, Vec4};
+use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use serde::{Serialize, Deserialize};
 use shipyard::EntityId;
@@ -9,40 +9,33 @@ use crate::platform::Platform;
 #[derive(Debug)]
 pub enum Limit {
     /// Limit i32 value to a range.
+    /// Int32Range can be used in IVec types to apply to all values.
     Int32Range(RangeInclusive<i32>),
     /// Limit i32 value to serval values and use String to display them.
     Int32Enum(Vec<(i32, String)>),
+    /// Limit u32 value to a range.
+    /// UInt32Range can be used in UVec types to apply to all values.
+    UInt32Range(RangeInclusive<u32>),
     /// Limit f32 value to [0, 2π) and display in [0, 360).
     /// Float32Rotation can be used in Vec types to apply to all values.
     Float32Rotation,
     /// Limit f32 value to a range.
+    /// Float32Range can be used in Vec types to apply to all values.
     Float32Range(RangeInclusive<f32>),
-    /// Limit each element in a Vec2 to a different range.
-    Vec2Range {
-        x: Option<RangeInclusive<f32>>,
-        y: Option<RangeInclusive<f32>>,
-    },
-    /// Limit each element in a Vec3 to a different range.
-    Vec3Range {
-        x: Option<RangeInclusive<f32>>,
-        y: Option<RangeInclusive<f32>>,
-        z: Option<RangeInclusive<f32>>,
-    },
     /// Regard xyz in Vec3 as rgb, and use rgb color picker to edit.
     Vec3Color,
-    /// Limit each element in a Vec4 to a different range.
-    Vec4Range {
-        x: Option<RangeInclusive<f32>>,
-        y: Option<RangeInclusive<f32>>,
-        z: Option<RangeInclusive<f32>>,
-        w: Option<RangeInclusive<f32>>,
-    },
     /// Regard xyzw in Vec3 as rgba, and use rgba color picker to edit.
     Vec4Color,
     /// Display String in multiline text edit.
     StringMultiline,
     /// The value can not be changed.
     ReadOnly,
+    /// Limit each element in a Vec2/Vec3/Vec4 to a different range.
+    VecRange(Vec<Option<RangeInclusive<f32>>>),
+    /// Limit each element in a IVec2/IVec3/IVec4 to a different range.
+    IVecRange(Vec<Option<RangeInclusive<i32>>>),
+    /// Limit each element in a UVec2/UVec3/UVec4 to a different range.
+    UVecRange(Vec<Option<RangeInclusive<u32>>>),
 }
 
 /// Value is a data which stores in component or unique.
@@ -50,11 +43,19 @@ pub enum Limit {
 pub enum Value {
     Bool(bool),
     Int32(i32),
+    UInt32(u32),
     Float32(f32),
     String(String),
+    Entity(EntityId),
     Vec2(Vec2),
     Vec3(Vec3),
     Vec4(Vec4),
+    IVec2(IVec2),
+    IVec3(IVec3),
+    IVec4(IVec4),
+    UVec2(UVec2),
+    UVec3(UVec3),
+    UVec4(UVec4),
 }
 
 /// Data contains all Value with Limit in a component or unique.

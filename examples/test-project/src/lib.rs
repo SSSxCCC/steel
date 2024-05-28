@@ -1,6 +1,7 @@
 use std::path::PathBuf;
-use shipyard::{UniqueView, UniqueViewMut};
-use steel::{engine::{Engine, EngineImpl}, scene::SceneManager, ui::EguiContext};
+use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
+use shipyard::{Component, EntityId, UniqueView, UniqueViewMut};
+use steel::{data::{Data, Value}, edit::Edit, engine::{Engine, EngineImpl}, scene::SceneManager, ui::EguiContext};
 
 #[no_mangle]
 pub fn create() -> Box<dyn Engine> {
@@ -14,6 +15,7 @@ struct EngineWrapper {
 impl Engine for EngineWrapper {
     fn init(&mut self, info: steel::engine::InitInfo) {
         self.inner.init(info);
+        self.inner.register_component::<TestComponent>();
     }
 
     fn frame(&mut self, info: &steel::engine::FrameInfo) {
@@ -30,6 +32,25 @@ impl Engine for EngineWrapper {
     fn command(&mut self, cmd: steel::engine::Command) {
         self.inner.command(cmd);
     }
+}
+
+#[derive(Component, Edit, Default)]
+struct TestComponent {
+    bool: bool,
+    int32: i32,
+    uint32: u32,
+    float32: f32,
+    string: String,
+    entity: EntityId,
+    vec2: Vec2,
+    vec3: Vec3,
+    vec4: Vec4,
+    ivec2: IVec2,
+    ivec3: IVec3,
+    ivec4: IVec4,
+    uvec2: UVec2,
+    uvec3: UVec3,
+    uvec4: UVec4,
 }
 
 fn test_system(ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {

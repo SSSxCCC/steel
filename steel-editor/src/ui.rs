@@ -437,11 +437,19 @@ impl Editor {
                     Self::color_label(ui, egui::Color32::BLACK, match value {
                         Value::Bool(b) => (if *b { "☑" } else { "☐" }).to_string(),
                         Value::Int32(v) => format!("{v}"),
+                        Value::UInt32(v) => format!("{v}"),
                         Value::Float32(v) => format!("{v}"),
                         Value::String(v) => format!("{v}"),
+                        Value::Entity(v) => format!("{v:?}"),
                         Value::Vec2(v) => format!("{v}"),
                         Value::Vec3(v) => format!("{v}"),
                         Value::Vec4(v) => format!("{v}"),
+                        Value::IVec2(v) => format!("{v}"),
+                        Value::IVec3(v) => format!("{v}"),
+                        Value::IVec4(v) => format!("{v}"),
+                        Value::UVec2(v) => format!("{v}"),
+                        Value::UVec3(v) => format!("{v}"),
+                        Value::UVec4(v) => format!("{v}"),
                     });
                 } else {
                     match value {
@@ -462,12 +470,19 @@ impl Editor {
                                     Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
                                 }
                             } else {
-                                let mut drag_value = egui::DragValue::new(v);
-                                if let Some(Limit::Int32Range(range)) = data.limits.get(name) {
-                                    drag_value = drag_value.clamp_range(range.clone());
-                                }
-                                ui.add(drag_value);
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::Int32Range(range)) => Some(range.clone()),
+                                    _ => None,
+                                };
+                                Self::drag_value(ui, v, range);
                             }
+                        }
+                        Value::UInt32(v) => {
+                            let range = match data.limits.get(name) {
+                                Some(Limit::UInt32Range(range)) => Some(range.clone()),
+                                _ => None,
+                            };
+                            Self::drag_value(ui, v, range);
                         }
                         Value::String(v) => {
                             if let Some(Limit::StringMultiline) = data.limits.get(name) {
@@ -475,6 +490,9 @@ impl Editor {
                             } else {
                                 ui.text_edit_singleline(v);
                             }
+                        }
+                        Value::Entity(v) => {
+                            ui.label(format!("{v:?}")); // TODO: change entity in editor
                         }
                         Value::Float32(v) => {
                             if let Some(Limit::Float32Rotation) = data.limits.get(name) {
@@ -492,12 +510,13 @@ impl Editor {
                                     ui.drag_angle(&mut v.x);
                                     ui.drag_angle(&mut v.y);
                                 } else {
-                                    let (range_x, range_y) = match data.limits.get(name) {
-                                        Some(Limit::Vec2Range { x, y }) => (x.clone(), y.clone()),
-                                        _ => (None, None),
+                                    let range = match data.limits.get(name) {
+                                        Some(Limit::Float32Range(range)) => vec![Some(range.clone()); 2],
+                                        Some(Limit::VecRange(range)) => range.clone(),
+                                        _ => Vec::new(),
                                     };
-                                    Self::drag_float32(ui, &mut v.x, range_x);
-                                    Self::drag_float32(ui, &mut v.y, range_y);
+                                    Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                    Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
                                 }
                             });
                         }
@@ -512,13 +531,14 @@ impl Editor {
                                     ui.drag_angle(&mut v.y);
                                     ui.drag_angle(&mut v.z);
                                 } else {
-                                    let (range_x, range_y, range_z) = match data.limits.get(name) {
-                                        Some(Limit::Vec3Range { x, y, z }) => (x.clone(), y.clone(), z.clone()),
-                                        _ => (None, None, None),
+                                    let range = match data.limits.get(name) {
+                                        Some(Limit::Float32Range(range)) => vec![Some(range.clone()); 3],
+                                        Some(Limit::VecRange(range)) => range.clone(),
+                                        _ => Vec::new(),
                                     };
-                                    Self::drag_float32(ui, &mut v.x, range_x);
-                                    Self::drag_float32(ui, &mut v.y, range_y);
-                                    Self::drag_float32(ui, &mut v.z, range_z);
+                                    Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                    Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                    Self::drag_float32(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
                                 }
                             });
                         }
@@ -534,15 +554,88 @@ impl Editor {
                                     ui.drag_angle(&mut v.z);
                                     ui.drag_angle(&mut v.w);
                                 } else {
-                                    let (range_x, range_y, range_z, range_w) = match data.limits.get(name) {
-                                        Some(Limit::Vec4Range { x, y, z, w }) => (x.clone(), y.clone(), z.clone(), w.clone()),
-                                        _ => (None, None, None, None),
+                                    let range = match data.limits.get(name) {
+                                        Some(Limit::Float32Range(range)) => vec![Some(range.clone()); 4],
+                                        Some(Limit::VecRange(range)) => range.clone(),
+                                        _ => Vec::new(),
                                     };
-                                    Self::drag_float32(ui, &mut v.x, range_x);
-                                    Self::drag_float32(ui, &mut v.y, range_y);
-                                    Self::drag_float32(ui, &mut v.z, range_z);
-                                    Self::drag_float32(ui, &mut v.w, range_w);
+                                    Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                    Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                    Self::drag_float32(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                                    Self::drag_float32(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
                                 }
+                            });
+                        }
+                        Value::IVec2(v) => {
+                            ui.horizontal(|ui| {
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 2],
+                                    Some(Limit::IVecRange(range)) => range.clone(),
+                                    _ => Vec::new(),
+                                };
+                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                            });
+                        }
+                        Value::IVec3(v) => {
+                            ui.horizontal(|ui| {
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 3],
+                                    Some(Limit::IVecRange(range)) => range.clone(),
+                                    _ => Vec::new(),
+                                };
+                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                            });
+                        }
+                        Value::IVec4(v) => {
+                            ui.horizontal(|ui| {
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 4],
+                                    Some(Limit::IVecRange(range)) => range.clone(),
+                                    _ => Vec::new(),
+                                };
+                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                            });
+                        }
+                        Value::UVec2(v) => {
+                            ui.horizontal(|ui| {
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 2],
+                                    Some(Limit::UVecRange(range)) => range.clone(),
+                                    _ => Vec::new(),
+                                };
+                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                            });
+                        }
+                        Value::UVec3(v) => {
+                            ui.horizontal(|ui| {
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 3],
+                                    Some(Limit::UVecRange(range)) => range.clone(),
+                                    _ => Vec::new(),
+                                };
+                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                            });
+                        }
+                        Value::UVec4(v) => {
+                            ui.horizontal(|ui| {
+                                let range = match data.limits.get(name) {
+                                    Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 4],
+                                    Some(Limit::UVecRange(range)) => range.clone(),
+                                    _ => Vec::new(),
+                                };
+                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                                Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
                             });
                         }
                     }
@@ -563,6 +656,14 @@ impl Editor {
         let mut drag_value = egui::DragValue::new(v)
             .max_decimals(100)
             .speed(0.01);
+        if let Some(range) = range {
+            drag_value = drag_value.clamp_range(range);
+        }
+        ui.add(drag_value);
+    }
+
+    fn drag_value<V: egui::emath::Numeric>(ui: &mut egui::Ui, v: &mut V, range: Option<RangeInclusive<V>>) {
+        let mut drag_value = egui::DragValue::new(v);
         if let Some(range) = range {
             drag_value = drag_value.clamp_range(range);
         }
