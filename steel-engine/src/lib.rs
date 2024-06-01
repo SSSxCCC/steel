@@ -14,6 +14,7 @@ pub mod input;
 pub mod ui;
 pub mod time;
 pub mod platform;
+pub mod hierarchy;
 pub mod ext {
     pub use steel_common::ext::*;
 }

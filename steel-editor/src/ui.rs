@@ -371,20 +371,100 @@ impl Editor {
         }
     }
 
-    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
-        egui::Grid::new("Entities").show(ui, |ui| {
-            for (id, entity_data) in &world_data.entities {
-                if ui.selectable_label(self.selected_entity == *id, Self::entity_label(id, entity_data)).clicked() {
-                    self.selected_entity = *id;
-                }
-                if ui.button("-").clicked() {
-                    engine.command(Command::DestroyEntity(*id));
-                }
-                ui.end_row();
-            }
-        });
+    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
+        let hierarchy = world_data.uniques.get("Hierarchy").expect("Hierarchy unique is missing!");
+        let first_entity = match hierarchy.get("first_child") {
+            Some(Value::Entity(e)) => *e,
+            _ => panic!("Hierarchy does not have first_child!"),
+        };
+        if first_entity != EntityId::dead() {
+            self.entity_level(first_entity, ui, world_data, engine);
+        } else if !world_data.entities.is_empty() {
+            panic!("entities_view: hierarchy.first_entity is EntityId::dead() but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
+        }
+
         if ui.button("+").clicked() {
             engine.command(Command::CreateEntity);
+        }
+    }
+
+    fn entity_level(&mut self, first_entity: EntityId, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
+        let mut entity = first_entity;
+        loop {
+            let entity_data = world_data.entities.get(&entity).expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
+            let child = entity_data.components.get("Child").expect(format!("entity_level: no Child component in entity: {entity:?}").as_str());
+            let parent = entity_data.components.get("Parent");
+
+            let mut entity_item = |ui: &mut egui::Ui| ui.horizontal(|ui| {
+                Self::drag_source(ui, egui::Id::new(entity), |ui| {
+                    if ui.selectable_label(self.selected_entity == entity, Self::entity_label(&entity, entity_data)).clicked() {
+                        self.selected_entity = entity;
+                    }
+                });
+
+                if ui.button("-").clicked() {
+                    engine.command(Command::DestroyEntity(entity));
+                }
+            });
+
+            if let Some(parent) = parent {
+                egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new(entity), false)
+                .show_header(ui, |ui| entity_item(ui))
+                .body(|ui| {
+                    let first_entity = match parent.get("first_entity") {
+                        Some(Value::Entity(e)) => *e,
+                        _ => panic!("entity_level: no first_child value in Parent component: {parent:?}"),
+                    };
+                    self.entity_level(first_entity, ui, world_data, engine)
+                });
+            } else {
+                entity_item(ui);
+            }
+
+            entity = match child.get("next") {
+                Some(Value::Entity(e)) => *e,
+                _ => panic!("entity_level: no next value in Child component: {child:?}"),
+            };
+            if entity == first_entity {
+                break;
+            }
+        }
+    }
+
+    fn drag_source<R>(ui: &mut egui::Ui, id: egui::Id, body: impl FnOnce(&mut egui::Ui) -> R) {
+        let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(id));
+
+        if !is_being_dragged {
+            let response = ui.scope(body).response;
+
+            // caculate press time
+            let press_time = ui.input(|input| {
+                if let Some(press_origin) = input.pointer.press_origin() {
+                    if response.rect.contains(press_origin) {
+                        if let Some(press_start_time) = input.pointer.press_start_time() {
+                            return input.time - press_start_time;
+                        }
+                    }
+                }
+                return 0.0;
+            });
+
+            // start drag after pressing some time
+            if press_time > 0.1 {
+                ui.memory_mut(|mem| mem.set_dragged_id(id));
+            }
+        } else {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+
+            // paint the body to a new layer
+            let layer_id = egui::LayerId::new(egui::Order::Tooltip, id);
+            let response = ui.with_layer_id(layer_id, body).response;
+
+            // now we move the visuals of the body to where the mouse is
+            if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
+                let delta = pointer_pos - response.rect.center();
+                ui.ctx().translate_layer(layer_id, delta);
+            }
         }
     }
 
@@ -403,8 +483,10 @@ impl Editor {
         for (component_name, component_data) in &mut entity_data.components {
             ui.horizontal(|ui| {
                 ui.label(component_name);
-                if ui.button("-").clicked() {
-                    engine.command(Command::DestroyComponent(self.selected_entity, component_name));
+                if component_name != "Child" && component_name != "Parent" { // TODO: use a more generic way to prevent some components from being destroyed by user
+                    if ui.button("-").clicked() {
+                        engine.command(Command::DestroyComponent(self.selected_entity, component_name));
+                    }
                 }
             });
             Self::data_view(ui, component_name, component_data);
@@ -420,7 +502,7 @@ impl Editor {
         let mut components = Vec::new();
         engine.command(Command::GetComponents(&mut components));
         ui.menu_button("+", |ui| {
-            for component in components {
+            for component in components.into_iter().filter(|c| *c != "Child" && *c != "Parent") { // TODO: use a more generic way to prevent some components from being created by user
                 if ui.button(component).clicked() {
                     engine.command(Command::CreateComponent(self.selected_entity, component));
                     ui.close_menu();
@@ -682,7 +764,7 @@ impl Editor {
         }
     }
 
-    fn uniques_view(&mut self, ui: &mut egui::Ui, world_data: &mut WorldData) {
+    fn uniques_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData) {
         egui::Grid::new("Uniques").show(ui, |ui| {
             for unique_name in world_data.uniques.keys() {
                 if ui.selectable_label(self.selected_unique == *unique_name, unique_name).clicked() {

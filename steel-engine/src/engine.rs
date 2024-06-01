@@ -2,7 +2,7 @@ pub use steel_common::engine::*;
 
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
+use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, hierarchy::Hierarchy, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 
 /// An implementation for engine::Engine trait, see [Engine] for more introduction.
 pub struct EngineImpl {
@@ -57,6 +57,7 @@ impl EngineImpl {
     pub fn maintain(&mut self, info: &FrameInfo) {
         self.world.add_unique(EguiContext::new(info.ctx.clone()));
         SceneManager::maintain_system(&mut self.world, &self.component_fns, &self.unique_fns);
+        self.world.run(crate::hierarchy::hierarchy_maintain_system);
         self.world.run(crate::time::time_maintain_system);
         self.world.run(crate::render::canvas::canvas_clear_system);
         self.world.run(crate::camera::camera_maintain_system);
@@ -85,6 +86,7 @@ impl Engine for EngineImpl {
         self.world.add_unique(SceneManager::new(info.scene));
         self.world.add_unique(Input::new());
         self.world.add_unique(Time::new());
+        self.world.add_unique(Hierarchy::default());
     }
 
     fn frame(&mut self, info: &FrameInfo) {

@@ -2,7 +2,7 @@ pub use steel_common::data::*;
 
 use indexmap::IndexMap;
 use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
-use crate::{camera::Camera, edit::Edit, entityinfo::EntityInfo, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{renderer2d::Renderer2D, RenderManager}, transform::Transform};
+use crate::{camera::Camera, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{renderer2d::Renderer2D, RenderManager}, transform::Transform};
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
@@ -22,6 +22,8 @@ impl ComponentFn {
     pub fn with_core_components() -> ComponentFns {
         let mut component_fns = ComponentFns::new();
         Self::register::<EntityInfo>(&mut component_fns);
+        Self::register::<Parent>(&mut component_fns);
+        Self::register::<Child>(&mut component_fns);
         Self::register::<Transform>(&mut component_fns);
         Self::register::<Camera>(&mut component_fns);
         Self::register_track_all::<RigidBody2D>(&mut component_fns);
@@ -173,6 +175,7 @@ impl UniqueFn {
         let mut unique_fns = UniqueFns::new();
         Self::register::<Physics2DManager>(&mut unique_fns);
         Self::register::<RenderManager>(&mut unique_fns);
+        Self::register::<Hierarchy>(&mut unique_fns);
         unique_fns
     }
 
