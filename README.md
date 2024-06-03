@@ -1,6 +1,6 @@
 # The Steel Game Engine
 
-The Steel is an open source cross-platform rust game engine with the following features:
+Steel is an open source cross-platform rust game engine with the following features:
 * It is completely open source, and the engine layer code can be easily modified if there is a need for customization;
 * With a visual editor, you can develop games efficiently;
 * The game can be compiled into a Windows program or an Android application with one click;
