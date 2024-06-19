@@ -25,7 +25,9 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
 
         let value_type = match &field.ty {
             syn::Type::Path(type_path) => {
-                let type_last_ident = &type_path.path.segments.last().expect(format!("No type path segment for field {field_ident:?}").as_str()).ident;
+                let type_last_segment = type_path.path.segments.last()
+                    .expect(format!("No type path segment for field {field_ident:?}").as_str());
+                let type_last_ident = &type_last_segment.ident;
                 match type_last_ident.to_string().as_str() {
                     "bool" => quote! { Value::Bool },
                     "i32" => quote! { Value::Int32 },
@@ -42,9 +44,26 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
                     "UVec2" => quote! { Value::UVec2 },
                     "UVec3" => quote! { Value::UVec3 },
                     "UVec4" => quote! { Value::UVec4 },
+                    "Vec" => {
+                        let generic_arg = match &type_last_segment.arguments {
+                            syn::PathArguments::AngleBracketed(generic_arguments) => generic_arguments.args.first().unwrap(),
+                            _ => return None,
+                        };
+                        match generic_arg {
+                            syn::GenericArgument::Type(syn::Type::Path(generic_path)) => {
+                                let generic_type_last_ident = &generic_path.path.segments.last()
+                                    .expect(format!("No type path segment for field {field_ident:?}").as_str()).ident;
+                                match generic_type_last_ident.to_string().as_str() {
+                                    "EntityId" => quote! { Value::VecEntity },
+                                    _ => return None,
+                                }
+                            }
+                            _ => return None,
+                        }
+                    }
                     _ => return None,
                 }
-            },
+            }
             _ => return None,
         };
 

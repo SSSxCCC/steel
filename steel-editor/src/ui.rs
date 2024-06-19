@@ -373,14 +373,15 @@ impl Editor {
 
     fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
         let hierarchy = world_data.uniques.get("Hierarchy").expect("Hierarchy unique is missing!");
-        let first_entity = match hierarchy.get("first_child") {
-            Some(Value::Entity(e)) => *e,
-            _ => panic!("Hierarchy does not have first_child!"),
+        let root_entities = match hierarchy.get("roots") {
+            Some(Value::VecEntity(v)) => v,
+            _ => panic!("Hierarchy does not have roots!"),
         };
-        if first_entity != EntityId::dead() {
-            self.entity_level(first_entity, ui, world_data, engine);
+
+        if !root_entities.is_empty() {
+            self.entity_level(root_entities, ui, world_data, engine);
         } else if !world_data.entities.is_empty() {
-            panic!("entities_view: hierarchy.first_entity is EntityId::dead() but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
+            panic!("entities_view: hierarchy.roots is empty but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
         }
 
         if ui.button("+").clicked() {
@@ -388,12 +389,10 @@ impl Editor {
         }
     }
 
-    fn entity_level(&mut self, first_entity: EntityId, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
-        let mut entity = first_entity;
-        loop {
+    fn entity_level(&mut self, entities: &Vec<EntityId>, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
+        for entity in entities {
+            let entity = *entity;
             let entity_data = world_data.entities.get(&entity).expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
-            let child = entity_data.components.get("Child").expect(format!("entity_level: no Child component in entity: {entity:?}").as_str());
-            let parent = entity_data.components.get("Parent");
 
             let mut entity_item = |ui: &mut egui::Ui| ui.horizontal(|ui| {
                 Self::drag_source(ui, egui::Id::new(entity), |ui| {
@@ -407,26 +406,18 @@ impl Editor {
                 }
             });
 
-            if let Some(parent) = parent {
+            if let Some(parent) = entity_data.components.get("Parent") {
                 egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new(entity), false)
                 .show_header(ui, |ui| entity_item(ui))
                 .body(|ui| {
-                    let first_entity = match parent.get("first_entity") {
-                        Some(Value::Entity(e)) => *e,
-                        _ => panic!("entity_level: no first_child value in Parent component: {parent:?}"),
+                    let chldren = match parent.get("chldren") {
+                        Some(Value::VecEntity(v)) => v,
+                        _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
                     };
-                    self.entity_level(first_entity, ui, world_data, engine)
+                    self.entity_level(chldren, ui, world_data, engine)
                 });
             } else {
                 entity_item(ui);
-            }
-
-            entity = match child.get("next") {
-                Some(Value::Entity(e)) => *e,
-                _ => panic!("entity_level: no next value in Child component: {child:?}"),
-            };
-            if entity == first_entity {
-                break;
             }
         }
     }
@@ -516,23 +507,31 @@ impl Editor {
             ui.horizontal(|ui| {
                 ui.label(name);
                 if let Some(Limit::ReadOnly) = data.limits.get(name) {
-                    Self::color_label(ui, egui::Color32::BLACK, match value {
-                        Value::Bool(b) => (if *b { "☑" } else { "☐" }).to_string(),
-                        Value::Int32(v) => format!("{v}"),
-                        Value::UInt32(v) => format!("{v}"),
-                        Value::Float32(v) => format!("{v}"),
-                        Value::String(v) => format!("{v}"),
-                        Value::Entity(v) => format!("{v:?}"),
-                        Value::Vec2(v) => format!("{v}"),
-                        Value::Vec3(v) => format!("{v}"),
-                        Value::Vec4(v) => format!("{v}"),
-                        Value::IVec2(v) => format!("{v}"),
-                        Value::IVec3(v) => format!("{v}"),
-                        Value::IVec4(v) => format!("{v}"),
-                        Value::UVec2(v) => format!("{v}"),
-                        Value::UVec3(v) => format!("{v}"),
-                        Value::UVec4(v) => format!("{v}"),
-                    });
+                    let color = egui::Color32::BLACK;
+                    match value {
+                        Value::Bool(b) => Self::color_label(ui, color, if *b { "☑" } else { "☐" }),
+                        Value::Int32(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::UInt32(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::Float32(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::String(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::Entity(v) => Self::color_label(ui, color, format!("{v:?}")),
+                        Value::Vec2(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::Vec3(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::Vec4(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::IVec2(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::IVec3(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::IVec4(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::VecEntity(v) => {
+                            ui.vertical(|ui| {
+                                for e in v {
+                                    Self::color_label(ui, color, format!("{e:?}"));
+                                }
+                            });
+                        }
+                    }
                 } else {
                     match value {
                         Value::Bool(b) => {
@@ -718,6 +717,13 @@ impl Editor {
                                 Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
                                 Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
                                 Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                            });
+                        }
+                        Value::VecEntity(v) => {
+                            ui.vertical(|ui| {
+                                for e in v {
+                                    Self::color_label(ui, egui::Color32::BLACK, format!("{e:?}")); // TODO: add/remove/change entity in editor
+                                }
                             });
                         }
                     }

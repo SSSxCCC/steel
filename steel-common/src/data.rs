@@ -56,6 +56,7 @@ pub enum Value {
     UVec2(UVec2),
     UVec3(UVec3),
     UVec4(UVec4),
+    VecEntity(Vec<EntityId>),
 }
 
 /// Data contains all Value with Limit in a component or unique.
