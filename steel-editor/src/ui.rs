@@ -379,7 +379,13 @@ impl Editor {
         };
 
         if !root_entities.is_empty() {
-            self.entity_level(root_entities, ui, world_data, engine);
+            let (mut drag_entity, mut drop_parent, mut drop_before) = (EntityId::dead(), None, EntityId::dead());
+            self.entity_level(root_entities, EntityId::dead(), ui, world_data, engine, &mut drag_entity, &mut drop_parent, &mut drop_before);
+            if let Some(drop_parent) = drop_parent {
+                if ui.input(|input| input.pointer.any_released()) {
+                    engine.command(Command::AttachEntity(drag_entity, drop_parent, drop_before));
+                }
+            }
         } else if !world_data.entities.is_empty() {
             panic!("entities_view: hierarchy.roots is empty but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
         }
@@ -389,17 +395,43 @@ impl Editor {
         }
     }
 
-    fn entity_level(&mut self, entities: &Vec<EntityId>, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
-        for entity in entities {
+    fn entity_level(&mut self, entities: &Vec<EntityId>, parent: EntityId, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>,
+            drag_entity: &mut EntityId, drop_parent: &mut Option<EntityId>, drop_before: &mut EntityId) {
+        for (i, entity) in entities.iter().enumerate() {
             let entity = *entity;
             let entity_data = world_data.entities.get(&entity).expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
 
             let mut entity_item = |ui: &mut egui::Ui| ui.horizontal(|ui| {
-                Self::drag_source(ui, egui::Id::new(entity), |ui| {
-                    if ui.selectable_label(self.selected_entity == entity, Self::entity_label(&entity, entity_data)).clicked() {
-                        self.selected_entity = entity;
-                    }
+                let drag_id = egui::Id::new(entity);
+                if ui.memory(|mem| mem.is_being_dragged(drag_id)) {
+                    *drag_entity = entity;
+                }
+
+                let can_accept_what_is_being_dragged = entity != *drag_entity;
+                let can_insert_before = true;
+                let can_insert_after = i == entities.len() - 1;
+
+                let drop_result = Self::drop_target(ui, can_accept_what_is_being_dragged, can_insert_before, can_insert_after, |ui| {
+                    Self::drag_source(ui, drag_id, |ui| {
+                        if ui.selectable_label(self.selected_entity == entity, Self::entity_label(&entity, entity_data)).clicked() {
+                            self.selected_entity = entity;
+                        }
+                    });
                 });
+
+                if let Some(drop_result) = drop_result {
+                    match drop_result {
+                        DropResult::Before => {
+                            *drop_parent = Some(parent);
+                            *drop_before = entity;
+                        }
+                        DropResult::Into => *drop_parent = Some(entity),
+                        DropResult::After => {
+                            *drop_parent = Some(parent);
+                            *drop_before = if i + 1 < entities.len() { entities[i + 1] } else { EntityId::dead() };
+                        }
+                    }
+                }
 
                 if ui.button("-").clicked() {
                     engine.command(Command::DestroyEntity(entity));
@@ -410,11 +442,11 @@ impl Editor {
                 egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new(entity), false)
                 .show_header(ui, |ui| entity_item(ui))
                 .body(|ui| {
-                    let chldren = match parent.get("chldren") {
+                    let children = match parent.get("children") {
                         Some(Value::VecEntity(v)) => v,
                         _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
                     };
-                    self.entity_level(chldren, ui, world_data, engine)
+                    self.entity_level(children, entity, ui, world_data, engine, drag_entity, drop_parent, drop_before)
                 });
             } else {
                 entity_item(ui);
@@ -441,7 +473,7 @@ impl Editor {
             });
 
             // start drag after pressing some time
-            if press_time > 0.1 {
+            if press_time > 0.3 {
                 ui.memory_mut(|mem| mem.set_dragged_id(id));
             }
         } else {
@@ -457,6 +489,37 @@ impl Editor {
                 ui.ctx().translate_layer(layer_id, delta);
             }
         }
+    }
+
+    fn drop_target<R>(ui: &mut egui::Ui, can_accept_what_is_being_dragged: bool, can_insert_before: bool, can_insert_after: bool,
+            body: impl FnOnce(&mut egui::Ui) -> R) -> Option<DropResult> {
+        let is_anything_being_dragged = ui.memory(|mem| mem.is_anything_being_dragged());
+
+        let margin = egui::Vec2::splat(1.0);
+        let outer_rect_bounds = ui.available_rect_before_wrap();
+        let inner_rect = outer_rect_bounds.shrink2(margin);
+        let where_to_put_background = ui.painter().add(egui::Shape::Noop);
+        let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
+        body(&mut content_ui);
+        let outer_rect = egui::Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
+        let (rect, response) = ui.allocate_at_least(outer_rect.size(), egui::Sense::hover());
+
+        if is_anything_being_dragged && can_accept_what_is_being_dragged && response.hovered() {
+            if let Some(hover_pos) = ui.input(|input| input.pointer.hover_pos()) {
+                let style = ui.visuals().widgets.active;
+                if can_insert_before && hover_pos.y - rect.top() < rect.height() / 4.0 {
+                    ui.painter().set(where_to_put_background, egui::epaint::Shape::line_segment([rect.left_top(), rect.right_top()], style.bg_stroke));
+                    return Some(DropResult::Before);
+                } else if can_insert_after && hover_pos.y - rect.top() > rect.height() * 3.0 / 4.0 {
+                    ui.painter().set(where_to_put_background, egui::epaint::Shape::line_segment([rect.left_bottom(), rect.right_bottom()], style.bg_stroke));
+                    return Some(DropResult::After);
+                } else {
+                    ui.painter().set(where_to_put_background, egui::epaint::Shape::rect_stroke(rect, style.rounding, style.bg_stroke));
+                    return Some(DropResult::Into);
+                }
+            }
+        }
+        None
     }
 
     fn entity_label(id: &EntityId, entity_data: &EntityData) -> impl Into<egui::WidgetText> {
@@ -948,4 +1011,10 @@ impl TabViewer for MyTabViewer<'_> {
     fn closeable(&mut self, _tab: &mut Self::Tab) -> bool {
         false
     }
+}
+
+enum DropResult {
+    Before,
+    Into,
+    After,
 }

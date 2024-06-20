@@ -118,7 +118,7 @@ impl Engine for EngineImpl {
                 for unique_fn in self.unique_fns.values() {
                     (unique_fn.save_to_data)(world_data, &self.world);
                 }
-            },
+            }
             Command::Load(world_data) => {
                 for component_fn in self.component_fns.values() {
                     (component_fn.load_from_data)(&mut self.world, world_data);
@@ -126,10 +126,10 @@ impl Engine for EngineImpl {
                 for unique_fn in self.unique_fns.values() {
                     (unique_fn.load_from_data)(&mut self.world, world_data);
                 }
-            },
+            }
             Command::Reload(world_data) => {
                 SceneManager::load(&mut self.world, world_data, &self.component_fns, &self.unique_fns);
-            },
+            }
             Command::SetCurrentScene(scene) => {
                 SceneManager::set_current_scene(&mut self.world, scene);
             }
@@ -137,37 +137,40 @@ impl Engine for EngineImpl {
                 self.world.add_entity((EntityInfo::new("New Entity"),
                     Transform::default(),
                     Renderer2D::default()));
-            },
+            }
             Command::DestroyEntity(id) => {
                 self.world.delete_entity(id);
-            },
+            }
             Command::ClearEntity => {
                 self.world.clear();
-            },
+            }
             Command::GetComponents(components) => {
                 *components = self.component_fns.keys().map(|s| *s).collect(); // TODO: cache components
-            },
+            }
             Command::CreateComponent(id, component_name) => {
                 if let Some(component_fn) = self.component_fns.get(component_name) {
                     (component_fn.create)(&mut self.world, id);
                 }
-            },
+            }
             Command::DestroyComponent(id, component_name) => {
                 if let Some(component_fn) = self.component_fns.get(component_name.as_str()) {
                     (component_fn.destroy)(&mut self.world, id);
                 }
-            },
+            }
             Command::UpdateInput(events) => {
                 self.world.run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
-            },
+            }
             Command::GetEntityAtScreen(window_index, screen_position, out_eid) => {
                 self.world.add_unique(GetEntityAtScreenParam { window_index, screen_position });
                 *out_eid = self.world.run(crate::render::canvas::get_entity_at_screen_system);
                 self.world.remove_unique::<GetEntityAtScreenParam>().unwrap();
-            },
+            }
             Command::ResetTime => {
                 self.world.run(|mut time: UniqueViewMut<Time>| time.reset());
-            },
+            }
+            Command::AttachEntity(eid, parent, before) => {
+                crate::hierarchy::attach(&mut self.world, eid, parent, before);
+            }
         }
     }
 }

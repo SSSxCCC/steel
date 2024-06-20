@@ -199,6 +199,9 @@ pub enum Command<'a> {
     GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
 
     ResetTime,
+
+    // attached_entity, parent, before
+    AttachEntity(EntityId, EntityId, EntityId),
 }
 
 /// Helper struct to define window index constants: WindowIndex::GAME and WindowIndex::SCENE.
