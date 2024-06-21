@@ -382,7 +382,7 @@ impl Editor {
             let (mut drag_entity, mut drop_parent, mut drop_before) = (EntityId::dead(), None, EntityId::dead());
             self.entity_level(root_entities, EntityId::dead(), ui, world_data, engine, &mut drag_entity, &mut drop_parent, &mut drop_before);
             if let Some(drop_parent) = drop_parent {
-                if ui.input(|input| input.pointer.any_released()) {
+                if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released()) {
                     engine.command(Command::AttachEntity(drag_entity, drop_parent, drop_before));
                 }
             }
@@ -440,16 +440,19 @@ impl Editor {
 
             if let Some(parent) = entity_data.components.get("Parent") {
                 egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new(entity), false)
-                .show_header(ui, |ui| entity_item(ui))
-                .body(|ui| {
-                    let children = match parent.get("children") {
-                        Some(Value::VecEntity(v)) => v,
-                        _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
-                    };
-                    self.entity_level(children, entity, ui, world_data, engine, drag_entity, drop_parent, drop_before)
-                });
+                    .show_header(ui, |ui| entity_item(ui))
+                    .body(|ui| {
+                        let children = match parent.get("children") {
+                            Some(Value::VecEntity(v)) => v,
+                            _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
+                        };
+                        self.entity_level(children, entity, ui, world_data, engine, drag_entity, drop_parent, drop_before)
+                    });
             } else {
-                entity_item(ui);
+                ui.horizontal(|ui| {
+                    ui.add_space(18.0); // align with header, TODO: get correct space value dynamically
+                    entity_item(ui);
+                });
             }
         }
     }

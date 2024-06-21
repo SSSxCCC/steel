@@ -1,7 +1,7 @@
 pub use steel_common::data::*;
 
 use indexmap::IndexMap;
-use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
+use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, EntitiesView, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
 use crate::{camera::Camera, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{renderer2d::Renderer2D, RenderManager}, transform::Transform};
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
@@ -24,6 +24,7 @@ impl ComponentFn {
         Self::register::<EntityInfo>(&mut component_fns);
         Self::register::<Parent>(&mut component_fns);
         Self::register::<Child>(&mut component_fns);
+        //Self::register_track_deletion::<Child>(&mut component_fns);
         Self::register::<Transform>(&mut component_fns);
         Self::register::<Camera>(&mut component_fns);
         Self::register_track_all::<RigidBody2D>(&mut component_fns);
@@ -62,6 +63,17 @@ impl ComponentFn {
             destroy: Self::destroy_fn::<C>,
             save_to_data: Self::save_to_data_fn::<C>,
             load_from_data: Self::load_from_data_track_modification_fn::<C>,
+        });
+    }
+
+    /// Insert a type of Component<Tracking = Deletion> to ComponentFns.
+    pub fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
+        component_fns.insert(C::name(), ComponentFn {
+            create: Self::create_fn::<C>,
+            create_with_data: Self::create_with_data_fn::<C>,
+            destroy: Self::destroy_fn::<C>,
+            save_to_data: Self::save_to_data_fn::<C>,
+            load_from_data: Self::load_from_data_track_deletion_fn::<C>,
         });
     }
 
@@ -131,6 +143,15 @@ impl ComponentFn {
             for (id, mut c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c.as_mut(), world_data);
             }
+        })
+    }
+
+    fn load_from_data_track_deletion_fn<C: Component<Tracking = Deletion> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut c: ViewMut<C>| {
+            // TODO: fix compile error here
+            //for (id, c) in (&mut c).iter().with_id() {
+            //    Self::_load_from_data(id, c.as_mut(), world_data);
+            //}
         })
     }
 

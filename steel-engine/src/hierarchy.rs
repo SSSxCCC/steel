@@ -1,5 +1,6 @@
+use std::collections::HashSet;
 use steel_common::data::{Data, Value, Limit};
-use shipyard::{Component, EntitiesViewMut, EntityId, Get, Remove, Unique, UniqueViewMut, ViewMut, World};
+use shipyard::{AllStoragesViewMut, Component, EntitiesViewMut, EntityId, Get, Remove, Unique, UniqueViewMut, ViewMut, World};
 use crate::edit::Edit;
 
 /// A parent in the hierarchy tree.
@@ -22,6 +23,7 @@ impl Parent {
 ///
 /// Warning: Users should not add or remove this component, otherwise a panic will occur.
 #[derive(Component, Edit, Default)]
+//#[track(Deletion)]
 pub struct Child {
     #[edit(limit = "Limit::ReadOnly")]
     parent: EntityId,
@@ -50,13 +52,57 @@ impl Hierarchy {
 
 /// The hierarchy maintain system. After running this system:
 /// * All entities must have a Child component.
-pub fn hierarchy_maintain_system(mut hierarchy: UniqueViewMut<Hierarchy>, parents: ViewMut<Parent>, mut children: ViewMut<Child>, entities: EntitiesViewMut) {
-    // all entities must have a Child component
-    let entities_without_child_component = entities.iter().filter(|eid| !children.contains(*eid)).collect::<Vec<_>>();
-    for eid in entities_without_child_component {
-        hierarchy.roots.push(eid);
-        entities.add_component(eid, &mut children, Child { parent: EntityId::dead() });
+/// * Entities which are not in hierarchy are deleted.
+pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
+    let entities_to_delete = all_storages.run(|mut hierarchy: UniqueViewMut<Hierarchy>,
+            parents: ViewMut<Parent>, mut children: ViewMut<Child>, entities: EntitiesViewMut| {
+        // all entities must have a Child component
+        let entities_without_child_component = entities.iter().filter(|eid| !children.contains(*eid)).collect::<Vec<_>>();
+        for eid in entities_without_child_component {
+            hierarchy.roots.push(eid);
+            entities.add_component(eid, &mut children, Child { parent: EntityId::dead() });
+        }
+
+        // find entities which are not in hierarchy
+        let (mut alive, mut dead) = (HashSet::new(), HashSet::new());
+        for eid in entities.iter() {
+            check_in_hierarchy(eid, &mut alive, &mut dead, &children, &parents, &entities);
+        }
+        dead
+    });
+
+    // delete them
+    for eid in entities_to_delete {
+        all_storages.delete_entity(eid);
     }
+}
+
+fn check_in_hierarchy(eid: EntityId, alive: &mut HashSet<EntityId>, dead: &mut HashSet<EntityId>,
+        children: &ViewMut<Child>, parents: &ViewMut<Parent>, entities: &EntitiesViewMut) -> bool {
+    // already checked entity
+    if alive.contains(&eid) {
+        return true;
+    } else if dead.contains(&eid) {
+        return false;
+    }
+
+    // not yet checked, check now
+    let child = children.get(eid).expect(format!("No Child component in entity {eid:?}").as_str());
+    let in_hierarchy = if child.parent == EntityId::dead() { // eid is a root entity in top level
+        true
+    } else if entities.is_alive(child.parent) { // alive or dead depends on parent
+        check_in_hierarchy(child.parent, alive, dead, children, parents, entities)
+    } else { // parent is dead
+        false
+    };
+
+    // remember check result and return
+    if in_hierarchy {
+        alive.insert(eid);
+    } else {
+        dead.insert(eid);
+    }
+    in_hierarchy
 }
 
 /// Dettach a Child form its Parent.

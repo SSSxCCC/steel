@@ -1,6 +1,6 @@
 pub use steel_common::engine::*;
 
-use shipyard::{track::{All, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
+use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, Unique, UniqueViewMut, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
 use crate::{camera::CameraInfo, data::{ComponentFn, ComponentFns, UniqueFn, UniqueFns}, edit::Edit, entityinfo::EntityInfo, hierarchy::Hierarchy, input::Input, physics2d::Physics2DManager, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 
@@ -34,6 +34,11 @@ impl EngineImpl {
     /// Register a component type with <Tracking = Modification> so that this component can be edited in steel-editor.
     pub fn register_component_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register_track_modification::<C>(&mut self.component_fns);
+    }
+
+    /// Register a component type with <Tracking = Deletion> so that this component can be edited in steel-editor.
+    pub fn register_component_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(&mut self) {
+        ComponentFn::register_track_deletion::<C>(&mut self.component_fns);
     }
 
     /// Register a component type with <Tracking = Removal> so that this component can be edited in steel-editor.
