@@ -37,6 +37,9 @@ impl EngineImpl {
     }
 
     /// Register a component type with <Tracking = Deletion> so that this component can be edited in steel-editor.
+    ///
+    /// Note: currently there is a bug that track deletion component can not be modified, see ComponentFn::load_from_data_track_deletion_fn.
+    /// So we can not register track deletion component for now, please use track all instead.
     pub fn register_component_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(&mut self) {
         ComponentFn::register_track_deletion::<C>(&mut self.component_fns);
     }

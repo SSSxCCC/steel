@@ -23,7 +23,7 @@ impl Parent {
 ///
 /// Warning: Users should not add or remove this component, otherwise a panic will occur.
 #[derive(Component, Edit, Default)]
-//#[track(Deletion)]
+#[track(All)]
 pub struct Child {
     #[edit(limit = "Limit::ReadOnly")]
     parent: EntityId,
@@ -52,15 +52,33 @@ impl Hierarchy {
 
 /// The hierarchy maintain system. After running this system:
 /// * All entities must have a Child component.
+/// * All entities in children list of Parent compnents must be alive.
 /// * Entities which are not in hierarchy are deleted.
 pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     let entities_to_delete = all_storages.run(|mut hierarchy: UniqueViewMut<Hierarchy>,
-            parents: ViewMut<Parent>, mut children: ViewMut<Child>, entities: EntitiesViewMut| {
+            mut parents: ViewMut<Parent>, mut children: ViewMut<Child>, entities: EntitiesViewMut| {
         // all entities must have a Child component
         let entities_without_child_component = entities.iter().filter(|eid| !children.contains(*eid)).collect::<Vec<_>>();
         for eid in entities_without_child_component {
             hierarchy.roots.push(eid);
             entities.add_component(eid, &mut children, Child { parent: EntityId::dead() });
+        }
+
+        // remove deleted entities with Child component from children list of Parent component
+        for (eid, child) in children.deleted() {
+            log::trace!("hierarchy_maintain_system: Deleted child eid: {eid:?}");
+            if child.parent == EntityId::dead() {
+                if let Some(i) = hierarchy.roots.iter().position(|c| *c == eid) {
+                    hierarchy.roots.remove(i);
+                }
+            } else if let Ok(parent) = (&mut parents).get(child.parent) {
+                if let Some(i) = parent.children.iter().position(|c| *c == eid) {
+                    parent.children.remove(i);
+                    if parent.children.is_empty() {
+                        parents.remove(child.parent);
+                    }
+                }
+            }
         }
 
         // find entities which are not in hierarchy
@@ -75,6 +93,12 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     for eid in entities_to_delete {
         all_storages.delete_entity(eid);
     }
+
+    // clear track data
+    all_storages.run(|mut children: ViewMut<Child>| {
+        children.clear_all_removed_and_deleted();
+        children.clear_all_inserted_and_modified();
+    });
 }
 
 fn check_in_hierarchy(eid: EntityId, alive: &mut HashSet<EntityId>, dead: &mut HashSet<EntityId>,
@@ -128,7 +152,7 @@ fn dettach(world: &mut World, eid: EntityId) {
 /// Attach a Child to a Parent previous to before entity. If before is EntityId::dead(), attach as the last child.
 /// This function must be called after hierarchy_maintain_system, or may panic.
 pub(crate) fn attach(world: &mut World, eid: EntityId, parent: EntityId, before: EntityId) {
-    log::debug!("Attach {eid:?} to {parent:?} before {before:?}");
+    log::trace!("Attach {eid:?} to {parent:?} before {before:?}");
 
     // the entity we want to attach might already be attached to another parent
     dettach(world, eid);
