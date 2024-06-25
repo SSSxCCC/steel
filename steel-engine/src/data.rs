@@ -23,7 +23,7 @@ impl ComponentFn {
         let mut component_fns = ComponentFns::new();
         Self::register::<EntityInfo>(&mut component_fns);
         Self::register::<Parent>(&mut component_fns);
-        Self::register_track_all::<Child>(&mut component_fns);
+        Self::register_track_deletion::<Child>(&mut component_fns);
         Self::register::<Transform>(&mut component_fns);
         Self::register::<Camera>(&mut component_fns);
         Self::register_track_all::<RigidBody2D>(&mut component_fns);
@@ -103,7 +103,7 @@ impl ComponentFn {
     }
 
     fn create_with_data_fn<C: Component + Edit + Default + Send + Sync>(world: &mut World, entity: EntityId, data: &Data) {
-        world.add_component(entity, (C::from(data),))
+        world.add_component(entity, (C::from_data(data),))
     }
 
     fn destroy_fn<C: Component + Edit + Send + Sync>(world: &mut World, entity: EntityId) {
@@ -145,13 +145,12 @@ impl ComponentFn {
         })
     }
 
-    fn load_from_data_track_deletion_fn<C: Component<Tracking = Deletion> + Edit + Send + Sync>(_world: &mut World, _world_data: &WorldData) {
-        todo!("fix compile error here. https://github.com/leudz/shipyard/issues/196");
-        /*world.run(|mut c: ViewMut<C>| {
+    fn load_from_data_track_deletion_fn<C: Component<Tracking = Deletion> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        world.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c.as_mut(), world_data);
+                Self::_load_from_data(id, c, world_data);
             }
-        })*/
+        })
     }
 
     fn load_from_data_track_removal_fn<C: Component<Tracking = Removal> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
@@ -184,6 +183,7 @@ impl ComponentFn {
 pub struct UniqueFn {
     pub save_to_data: fn(&mut WorldData, &World),
     pub load_from_data: fn(&mut World, &WorldData),
+    pub load_from_scene_data: fn(&mut World, &WorldData),
 }
 
 /// A map of UniqueFn, key is unique name.
@@ -204,6 +204,7 @@ impl UniqueFn {
         unique_fns.insert(U::name(), UniqueFn {
             save_to_data: Self::save_to_data_fn::<U>,
             load_from_data: Self::load_from_data_fn::<U>,
+            load_from_scene_data: Self::load_from_scene_data_fn::<U>,
         });
     }
 
@@ -214,6 +215,12 @@ impl UniqueFn {
     fn load_from_data_fn<U: Unique + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
         if let Some(unique_data) = world_data.uniques.get(U::name()) {
             world.run(|mut u: UniqueViewMut<U>| u.set_data(unique_data));
+        }
+    }
+
+    fn load_from_scene_data_fn<U: Unique + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+        if let Some(unique_data) = world_data.uniques.get(U::name()) {
+            world.run(|mut u: UniqueViewMut<U>| u.load_data(unique_data));
         }
     }
 }

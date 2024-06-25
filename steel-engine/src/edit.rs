@@ -2,6 +2,8 @@ pub use steel_proc::Edit;
 
 use steel_common::data::Data;
 
+// TODO: prevent data clone between ecs world and editor.
+
 /// You can impl Edit for a Component or Unique so that they can be edited in steel-editor.
 /// # Examples
 /// ## Use Edit derive macro
@@ -56,19 +58,32 @@ use steel_common::data::Data;
 /// }
 /// ```
 pub trait Edit {
+    /// The name of this component or unique.
     fn name() -> &'static str;
 
+    /// Create a Data struct from self.
     fn get_data(&self) -> Data {
         Data::new()
     }
 
+    /// Modify self according to a Data struct. This function is called every frame in editor
+    /// to make user able to modify component or unique in editor. You should omit read-only
+    /// values so that they are never modified.
     fn set_data(&mut self, data: &Data) {
         let _ = data; // disable unused variable warning
     }
 
-    fn from(data: &Data) -> Self where Self: Default {
+    /// Modify self according to a Data struct. This function is called during Edit::from_data.
+    /// By default, this calls Edit::set_data so that you do not need to implement this for the
+    /// component/unique which has the same behaviour between scene loading and editor modify.
+    fn load_data(&mut self, data: &Data) {
+        self.set_data(data);
+    }
+
+    /// Create Self from a Data struct. This function is usually called during scene loading.
+    fn from_data(data: &Data) -> Self where Self: Default {
         let mut e = Self::default();
-        e.set_data(data);
+        e.load_data(data);
         e
     }
 }

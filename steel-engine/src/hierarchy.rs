@@ -6,9 +6,8 @@ use crate::edit::Edit;
 /// A parent in the hierarchy tree.
 ///
 /// Warning: Users should not add or remove this component, otherwise a panic will occur.
-#[derive(Component, Edit, Default)]
+#[derive(Component, Default)]
 pub struct Parent {
-    #[edit(limit = "Limit::ReadOnly")]
     children: Vec<EntityId>,
 }
 
@@ -19,13 +18,24 @@ impl Parent {
     }
 }
 
+impl Edit for Parent {
+    fn name() -> &'static str { "Parent" }
+
+    fn get_data(&self) -> Data {
+        Data::new().insert_with_limit("children", Value::VecEntity(self.children.clone()), Limit::ReadOnly)
+    }
+
+    fn load_data(&mut self, data: &Data) {
+        if let Some(Value::VecEntity(v)) = data.get("children") { self.children = v.clone(); }
+    }
+}
+
 /// A child in the hierarchy tree. An entity is at the top level if the parent field of Child component is EntityId::dead().
 ///
 /// Warning: Users should not add or remove this component, otherwise a panic will occur.
-#[derive(Component, Edit, Default)]
-#[track(All)]
+#[derive(Component, Default)]
+#[track(Deletion)]
 pub struct Child {
-    #[edit(limit = "Limit::ReadOnly")]
     parent: EntityId,
 }
 
@@ -36,10 +46,21 @@ impl Child {
     }
 }
 
+impl Edit for Child {
+    fn name() -> &'static str { "Child" }
+
+    fn get_data(&self) -> Data {
+        Data::new().insert_with_limit("parent", Value::Entity(self.parent), Limit::ReadOnly)
+    }
+
+    fn load_data(&mut self, data: &Data) {
+        if let Some(Value::Entity(v)) = data.get("parent") { self.parent = *v; }
+    }
+}
+
 /// The Hierarchy unique stores all root entities at the top level.
-#[derive(Unique, Edit, Default)]
+#[derive(Unique, Default)]
 pub struct Hierarchy {
-    #[edit(limit = "Limit::ReadOnly")]
     roots: Vec<EntityId>,
 }
 
@@ -47,6 +68,18 @@ impl Hierarchy {
     /// Get all root entities at the top level.
     pub fn roots(&self) -> &Vec<EntityId> {
         &self.roots
+    }
+}
+
+impl Edit for Hierarchy {
+    fn name() -> &'static str { "Hierarchy" }
+
+    fn get_data(&self) -> Data {
+        Data::new().insert_with_limit("roots", Value::VecEntity(self.roots.clone()), Limit::ReadOnly)
+    }
+
+    fn load_data(&mut self, data: &Data) {
+        if let Some(Value::VecEntity(v)) = data.get("roots") { self.roots = v.clone(); }
     }
 }
 
@@ -60,6 +93,7 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
         // all entities must have a Child component
         let entities_without_child_component = entities.iter().filter(|eid| !children.contains(*eid)).collect::<Vec<_>>();
         for eid in entities_without_child_component {
+            log::trace!("hierarchy_maintain_system: Add Child component for {eid:?}");
             hierarchy.roots.push(eid);
             entities.add_component(eid, &mut children, Child { parent: EntityId::dead() });
         }
@@ -95,10 +129,11 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     }
 
     // clear track data
-    all_storages.run(|mut children: ViewMut<Child>| {
-        children.clear_all_removed_and_deleted();
-        children.clear_all_inserted_and_modified();
-    });
+    all_storages.run(clear_track_data_system);
+}
+
+pub(crate) fn clear_track_data_system(mut children: ViewMut<Child>) {
+    children.clear_all_deleted();
 }
 
 fn check_in_hierarchy(eid: EntityId, alive: &mut HashSet<EntityId>, dead: &mut HashSet<EntityId>,

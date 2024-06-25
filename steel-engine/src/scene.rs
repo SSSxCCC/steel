@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
-use shipyard::{Unique, UniqueView, UniqueViewMut, World};
-use steel_common::{data::WorldData, platform::Platform};
+use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut, World};
+use steel_common::{data::{Data, EntityData, Value, WorldData}, platform::Platform};
 use crate::data::{ComponentFns, UniqueFns};
 
 /// The SceneManager unique. You can use SceneManager::current_scene to get the current scene
@@ -44,21 +44,71 @@ impl SceneManager {
         }
     }
 
-    /// Clear world and load world from world_data, also be sure to call Self::set_current_scene if scene path has changed
+    /// Clear world and load world from world_data, also be sure to call Self::set_current_scene if scene path has changed.
     pub(crate) fn load(world: &mut World, world_data: &WorldData, component_fns: &ComponentFns, unique_fns: &UniqueFns) {
+        // clear all entities in ecs world.
         world.clear();
+        // fix https://github.com/leudz/shipyard/issues/197
+        let entites = world.run(|e: shipyard::EntitiesView| e.iter().collect::<Vec<_>>());
+        for e in entites {
+            world.delete_entity(e);
+        }
+
+        // clear hierachy track data since the whole hierachy tree is going to be rebuilt.
+        world.run(crate::hierarchy::clear_track_data_system);
+
+        // create new_world_data from world_data by changing old entity ids to new entity ids.
+        let mut new_world_data = WorldData::new();
         let mut old_id_to_new_id = HashMap::new();
+        for old_id in world_data.entities.keys() {
+            old_id_to_new_id.insert(*old_id, world.add_entity(()));
+        }
         for (old_id, entity_data) in &world_data.entities {
-            let new_id = *old_id_to_new_id.entry(old_id).or_insert_with(|| world.add_entity(()));
+            let new_id = *old_id_to_new_id.get(old_id).unwrap();
+            let mut new_entity_data = EntityData::new();
+            for (component_name, component_data) in &entity_data.components {
+                let new_component_data = Self::_update_data(component_data, &old_id_to_new_id);
+                new_entity_data.components.insert(component_name.clone(), new_component_data);
+            }
+            new_world_data.entities.insert(new_id, new_entity_data);
+        }
+        for (unique_name, unique_data) in &world_data.uniques {
+            let new_unique_data = Self::_update_data(unique_data, &old_id_to_new_id);
+            new_world_data.uniques.insert(unique_name.clone(), new_unique_data);
+        }
+
+        // create components and uniques in ecs world.
+        for (new_id, entity_data) in &new_world_data.entities {
             for (component_name, component_data) in &entity_data.components {
                 if let Some(component_fn) = component_fns.get(component_name.as_str()) {
-                    (component_fn.create_with_data)(world, new_id, component_data);
+                    (component_fn.create_with_data)(world, *new_id, component_data);
                 }
             }
         }
         for unique_fn in unique_fns.values() {
-            (unique_fn.load_from_data)(world, world_data);
+            (unique_fn.load_from_scene_data)(world, &new_world_data);
         }
+    }
+
+    fn _update_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId>) -> Data {
+        let get_id_fn = |e: &EntityId| {
+            if e.gen() == 1 { // generation of EntityId::dead() was changed to 1 before saving scene to file.
+                EntityId::dead()
+            } else {
+                *old_id_to_new_id.get(e).expect(format!("non-exist EntityId: {e:?}").as_str())
+            }
+        };
+
+        let mut new_data = Data::new();
+        for (name, value) in &data.values {
+            let new_value = match value {
+                Value::Entity(e) => Value::Entity(get_id_fn(e)),
+                Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| get_id_fn(e)).collect()),
+                _ => value.clone(),
+            };
+            new_data.add_value(name, new_value);
+        }
+        new_data
     }
 
     /// Update scene_manager.current_scene to the scene.

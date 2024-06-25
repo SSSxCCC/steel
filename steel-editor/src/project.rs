@@ -2,7 +2,7 @@ use std::{error::Error, fs, path::{Path, PathBuf}};
 use egui_winit_vulkano::Gui;
 use regex::Regex;
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
+use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 use vulkano_util::context::VulkanoContext;
@@ -555,24 +555,40 @@ impl Project {
         for (eid, entity_data) in &world_data.entities {
             let mut entity_data_cut = EntityData::new();
             for (comopnent_name, component_data) in &entity_data.components {
-                entity_data_cut.components.insert(comopnent_name.clone(), Self::_cut_data(component_data));
+                let cut_read_only = comopnent_name != "Child" && comopnent_name != "Parent"; // TODO: use a more generic way to allow read-only values of some components to save to file
+                let component_data_cut = Self::_cut_data(component_data, cut_read_only);
+                entity_data_cut.components.insert(comopnent_name.clone(), component_data_cut);
             }
-            world_data_cut.entities.insert(EntityId::new_from_index_and_gen(eid.index(), 0), entity_data_cut);
+            world_data_cut.entities.insert(Self::_erase_generation(eid), entity_data_cut);
         }
         for (unique_name, unique_data) in &world_data.uniques {
-            world_data_cut.uniques.insert(unique_name.clone(), Self::_cut_data(unique_data));
+            let cut_read_only = unique_name != "Hierarchy"; // TODO: use a more generic way to allow read-only values of some uniques to save to file
+            let unique_data_cut = Self::_cut_data(unique_data, cut_read_only);
+            world_data_cut.uniques.insert(unique_name.clone(), unique_data_cut);
         }
         world_data_cut
     }
 
-    fn _cut_data(data: &Data) -> Data {
+    fn _cut_data(data: &Data, cut_read_only: bool) -> Data {
         let mut data_cut = Data::new();
         for (name, value) in &data.values {
-            if !matches!(data.limits.get(name), Some(Limit::ReadOnly)) {
-                data_cut.values.insert(name.clone(), value.clone());
+            if !(cut_read_only && matches!(data.limits.get(name), Some(Limit::ReadOnly))) {
+                let value = match value {
+                    Value::Entity(e) => Value::Entity(Self::_erase_generation(e)),
+                    Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| Self::_erase_generation(e)).collect()),
+                    _ => value.clone(),
+                };
+                data_cut.values.insert(name.clone(), value);
             }
         }
         data_cut
+    }
+
+    /// There is a crash when deserialize EntityId::dead(): "assertion failed: gen <= Self::max_gen()".
+    /// So we just change generation of EntityId::dead() to 1, and change generation of other EntityId to 0.
+    fn _erase_generation(eid: &EntityId) -> EntityId {
+        let gen = if *eid == EntityId::dead() { 1 } else { 0 };
+        EntityId::new_from_index_and_gen(eid.index(), gen)
     }
 
     /// Load world_data from file, scene is the load file path,
@@ -648,7 +664,7 @@ vulkano-util = "0.33.0"
 log = "0.4"
 winit = { version = "0.28.6", features = [ "android-game-activity" ] }
 winit_input_helper = "0.14.1"
-shipyard = { version = "0.6.2", features = [ "serde1" ] }
+shipyard = { version = "0.6.3", features = [ "serde1" ] }
 rayon = "1.8.0"
 parry2d = "0.13.5"
 rapier2d = { version = "0.17.2", features = [ "debug-render" ] }
