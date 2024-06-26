@@ -2403,9 +2403,9 @@ dependencies = [
 
 [[package]]
 name = "shipyard"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "585b2b50ac69ff5a7444ed3b196e04cd56e1959fdd6301a00f4f526407a2b242"
+checksum = "81dead10c3d08885383b8844ba9f668a11bc4e573172a0cee5ae93853eda236c"
 dependencies = [
  "hashbrown 0.12.3",
  "lock_api",

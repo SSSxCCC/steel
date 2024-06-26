@@ -19,7 +19,7 @@ vulkano-util = "0.33.0"
 log = "0.4"
 winit = { version = "0.28.6", features = [ "android-game-activity" ] }
 winit_input_helper = "0.14.1"
-shipyard = { version = "0.6.3", features = [ "serde1" ] }
+shipyard = { version = "0.6.4", features = [ "serde1" ] }
 rayon = "1.8.0"
 parry2d = "0.13.5"
 rapier2d = { version = "0.17.2", features = [ "debug-render" ] }

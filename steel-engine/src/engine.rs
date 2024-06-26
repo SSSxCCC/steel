@@ -148,11 +148,6 @@ impl Engine for EngineImpl {
             }
             Command::ClearEntity => {
                 self.world.clear();
-                // fix https://github.com/leudz/shipyard/issues/197
-                let entites = self.world.run(|e: shipyard::EntitiesView| e.iter().collect::<Vec<_>>());
-                for e in entites {
-                    self.world.delete_entity(e);
-                }
             }
             Command::GetComponents(components) => {
                 *components = self.component_fns.keys().map(|s| *s).collect(); // TODO: cache components

@@ -48,11 +48,6 @@ impl SceneManager {
     pub(crate) fn load(world: &mut World, world_data: &WorldData, component_fns: &ComponentFns, unique_fns: &UniqueFns) {
         // clear all entities in ecs world.
         world.clear();
-        // fix https://github.com/leudz/shipyard/issues/197
-        let entites = world.run(|e: shipyard::EntitiesView| e.iter().collect::<Vec<_>>());
-        for e in entites {
-            world.delete_entity(e);
-        }
 
         // clear hierachy track data since the whole hierachy tree is going to be rebuilt.
         world.run(crate::hierarchy::clear_track_data_system);
