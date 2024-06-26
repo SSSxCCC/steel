@@ -1,9 +1,11 @@
-use glam::{Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
-use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, ViewMut};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
+use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
 use steel_common::data::{Data, Limit, Value};
-use crate::{edit::Edit, render::canvas::Canvas, shape::ShapeWrapper, time::Time, transform::Transform};
+use crate::{edit::Edit, hierarchy::Child, render::canvas::Canvas, shape::ShapeWrapper, time::Time, transform::{Mat4Transform2D, Transform}};
+
+pub const F32_MAX_DIFF: f32 = 0.000001;
 
 /// A 2D rigid body in physics world of rapier2d.
 #[derive(Component, Debug)]
@@ -37,14 +39,14 @@ impl RigidBody2D {
     }
 
     /// update last_transform and returns true if changed.
-    fn update_last_transform(&mut self, transform: &Transform) -> bool {
-        let rotation = transform.rotation.to_scaled_axis().z;
+    fn update_last_transform(&mut self, position: Vec2, rotation: f32) -> bool {
         if let Some(last_transform) = self.last_transform {
-            if last_transform.0 == transform.position.xy() && last_transform.1 == rotation {
+            if last_transform.0.abs_diff_eq(position, F32_MAX_DIFF) &&
+                    (last_transform.1 - rotation).abs() <= F32_MAX_DIFF {
                 return false;
             }
         }
-        self.last_transform = Some((transform.position.xy(), rotation));
+        self.last_transform = Some((position, rotation));
         true
     }
 }
@@ -93,20 +95,20 @@ impl Collider2D {
     }
 
     /// update last_transform and returns true if changed.
-    fn update_last_transform(&mut self, transform: &Transform) -> bool {
-        let rotation = transform.rotation.to_scaled_axis().z;
+    fn update_last_transform(&mut self, position: Vec2, rotation: f32, scale: Vec2) -> bool {
         if let Some(last_transform) = self.last_transform {
-            if last_transform.0 == transform.position.xy() && last_transform.1 == rotation && last_transform.2 == transform.scale.xy() {
+            if last_transform.0.abs_diff_eq(position, F32_MAX_DIFF) &&
+                    (last_transform.1 - rotation).abs() <= F32_MAX_DIFF &&
+                    last_transform.2.abs_diff_eq(scale, F32_MAX_DIFF) {
                 return false;
             }
         }
-        self.last_transform = Some((transform.position.xy(), rotation, transform.scale.xy()));
+        self.last_transform = Some((position, rotation, scale));
         true
     }
 
     /// Create a new shape scaled by transform.
-    fn scaled_shape(&self, transform: &Transform) -> SharedShape {
-        let scale = transform.scale.xy();
+    fn scaled_shape(&self, scale: Vec2) -> SharedShape {
         match self.shape.shape_type() {
             ShapeType::Ball => {
                 let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());
@@ -114,7 +116,7 @@ impl Collider2D {
                 SharedShape::new(Ball::new(radius))
             },
             ShapeType::Cuboid => {
-                SharedShape::new(self.shape.as_cuboid().unwrap().scaled(&vector![scale.x, scale.y]))
+                SharedShape::new(self.shape.as_cuboid().unwrap().scaled(&scale.into()))
             }
             _ => self.shape.clone(), // TODO: support all shape type
         }
@@ -249,7 +251,7 @@ impl Edit for Physics2DManager {
 /// Modify, add, remove rigid bodies and colliders according to RigidBody2D and Collider2D components.
 pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>,
         mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>,
-        mut transform: ViewMut<Transform>) {
+        mut transforms: ViewMut<Transform>, children: View<Child>) {
     let physics2d_manager = physics2d_manager.as_mut();
 
     for e in rb2d.removed() {
@@ -285,13 +287,14 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
         if let Some(rigid_body) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
             rigid_body.set_body_type(rb2d.body_type, true);
         } else {
-            if !transform.contains(e) {
-                transform.add_component_unchecked(e, Transform::default());
+            if !transforms.contains(e) {
+                transforms.add_component_unchecked(e, Transform::default());
             }
-            let transform = transform.get(e).unwrap();
+            let model = Transform::entity_final_model(e, &children, &transforms).unwrap_or_default();
+            let (_, rotation, position) = model.to_2d_scale_rotation_translation();
             let rigid_body = RigidBodyBuilder::new(rb2d.body_type)
-                    .translation(vector![transform.position.x, transform.position.y])
-                    .rotation(transform.rotation.to_scaled_axis().z).build();
+                    .translation(position.into())
+                    .rotation(rotation).build();
             rb2d.handle = physics2d_manager.rigid_body_set.insert(rigid_body);
         }
 
@@ -303,11 +306,12 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
     }
 
     for (e, mut col2d) in col2d.inserted_or_modified_mut().iter().with_id() {
-        if !transform.contains(e) {
-            transform.add_component_unchecked(e, Transform::default());
+        if !transforms.contains(e) {
+            transforms.add_component_unchecked(e, Transform::default());
         }
-        let transform = transform.get(e).unwrap();
-        let shape = col2d.scaled_shape(transform);
+        let model = Transform::entity_final_model(e, &children, &transforms).unwrap_or_default();
+        let (scale, rotation, position) = model.to_2d_scale_rotation_translation();
+        let shape = col2d.scaled_shape(scale);
 
         if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
             collider.set_shape(shape);
@@ -319,8 +323,8 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
                 // TODO: add position and rotation relative to parent
                 col2d.handle = physics2d_manager.collider_set.insert_with_parent(collider, rb2d.handle, &mut physics2d_manager.rigid_body_set);
             } else {
-                collider.set_translation(vector![transform.position.x, transform.position.y]);
-                collider.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z));
+                collider.set_translation(position.into());
+                collider.set_rotation(Rotation::from_angle(rotation));
                 col2d.handle = physics2d_manager.collider_set.insert(collider);
             }
         }
@@ -328,7 +332,7 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
 
     // also call this in maintain system for steel-editor when update systems do not run
     // TODO: do not call this when update systems are running
-    physics2d_update_from_transform(physics2d_manager, &transform, &mut rb2d, &mut col2d);
+    physics2d_update_from_transform(physics2d_manager, &transforms, &children, &mut rb2d, &mut col2d);
 
     rb2d.clear_all_removed_and_deleted();
     col2d.clear_all_removed_and_deleted();
@@ -337,24 +341,28 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
 }
 
 /// Update rigid bodies and colliders according to Transform component.
-fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, transform: &ViewMut<Transform>,
-        rb2d: &mut ViewMut<RigidBody2D>, col2d: &mut ViewMut<Collider2D>) {
+fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, transforms: &ViewMut<Transform>,
+        children: &View<Child>, rb2d: &mut ViewMut<RigidBody2D>, col2d: &mut ViewMut<Collider2D>) {
     // TODO: find a way to use par_iter here (&mut physics2d_manager.rigid_body_set can not be passed to par_iter)
-    for (transform, mut rb2d) in (transform, rb2d).iter() {
-        if rb2d.update_last_transform(transform) {
+    for (transform, child, mut rb2d) in (transforms, children, rb2d).iter() {
+        let model = transform.final_model(child, children, transforms);
+        let (_, rotation, position) = model.to_2d_scale_rotation_translation();
+        if rb2d.update_last_transform(position, rotation) {
             if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
-                rb2d.set_translation(vector![transform.position.x, transform.position.y], true);
-                rb2d.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z), true);
+                rb2d.set_translation(position.into(), true);
+                rb2d.set_rotation(Rotation::from_angle(rotation), true);
             }
         }
     }
 
-    for (transform, mut col2d) in (transform, col2d).iter() {
-        if col2d.update_last_transform(transform) {
+    for (transform, child, mut col2d) in (transforms, children, col2d).iter() {
+        let model = transform.final_model(child, children, transforms);
+        let (scale, rotation, position) = model.to_2d_scale_rotation_translation();
+        if col2d.update_last_transform(position, rotation, scale) {
             if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
-                collider.set_shape(col2d.scaled_shape(transform));
-                collider.set_translation(vector![transform.position.x, transform.position.y]);
-                collider.set_rotation(Rotation::from_angle(transform.rotation.to_scaled_axis().z));
+                collider.set_shape(col2d.scaled_shape(scale));
+                collider.set_translation(position.into());
+                collider.set_rotation(Rotation::from_angle(rotation));
             }
         }
     }
@@ -362,28 +370,66 @@ fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, tra
 
 /// Update physics world.
 pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DManager>, time: UniqueView<Time>,
-        mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>, mut transform: ViewMut<Transform>) {
+        mut rb2d: ViewMut<RigidBody2D>, mut col2d: ViewMut<Collider2D>, mut transforms: ViewMut<Transform>, children: View<Child>) {
     let physics2d_manager = physics2d_manager.as_mut();
 
-    // Dynamically change integration_parameters.dt according to time.delta()
+    // dynamically change integration_parameters.dt according to time.delta()
     physics2d_manager.integration_parameters.dt = time.delta();
 
-    physics2d_update_from_transform(physics2d_manager, &transform, &mut rb2d, &mut col2d);
+    physics2d_update_from_transform(physics2d_manager, &transforms, &children, &mut rb2d, &mut col2d);
 
     physics2d_manager.update();
 
-    (&mut rb2d, &mut transform).par_iter().for_each(|(mut rb2d, transform)| {
+    // TODO: find a way to use par_iter here
+    for (e, (rb2d, child)) in (&rb2d, &children).iter().with_id() {
         let rigid_body = &physics2d_manager.rigid_body_set[rb2d.handle];
-        transform.position.x = rigid_body.translation().x;
-        transform.position.y = rigid_body.translation().y;
-        let mut rotation = transform.rotation.to_scaled_axis();
-        rotation.z = rigid_body.rotation().angle();
-        transform.rotation = Quat::from_scaled_axis(rotation);
-        rb2d.update_last_transform(transform);
-    });
 
-    (&mut col2d, &transform).par_iter().for_each(|(mut col2d, transform)| {
-        col2d.update_last_transform(transform);
+        // get transform
+        if !transforms.contains(e) {
+            transforms.add_component_unchecked(e, Transform::default());
+        }
+        let transform = transforms.get(e).unwrap();
+
+        // get old final model and decompose
+        let final_model = transform.final_model(child, &children, &transforms);
+        let (scale, mut rotation, mut position) = final_model.to_scale_rotation_translation();
+
+        // update position and rotation
+        position.x = rigid_body.translation().x;
+        position.y = rigid_body.translation().y;
+        let mut rot = rotation.to_scaled_axis();
+        rot.z = rigid_body.rotation().angle();
+        rotation = Quat::from_scaled_axis(rot);
+
+        // get new final model
+        let final_model = Mat4::from_scale_rotation_translation(scale, rotation, position);
+
+        // get new model
+        let model = if let Some(parent_final_model) = Transform::entity_final_model(child.parent(), &children, &transforms) {
+            // parent_final_model * model = final_model => model = parent_final_model.inverse() * final_model
+            parent_final_model.inverse() * final_model
+        } else {
+            final_model
+        };
+
+        // update transform according to new model
+        let (scale, rotation, position) = model.to_scale_rotation_translation();
+        let transform = (&mut transforms).get(e).unwrap();
+        transform.position = position;
+        transform.rotation = rotation;
+        transform.scale = scale;
+    };
+
+    // update last_transform using final model
+    (&mut rb2d, &transforms, &children).par_iter().for_each(|(mut rb2d, transform, child)| {
+        let model = transform.final_model(child, &children, &transforms);
+        let (_, rotation, position) = model.to_2d_scale_rotation_translation();
+        rb2d.update_last_transform(position, rotation);
+    });
+    (&mut col2d, &transforms, &children).par_iter().for_each(|(mut col2d, transform, child)| {
+        let model = transform.final_model(child, &children, &transforms);
+        let (scale, rotation, position) = model.to_2d_scale_rotation_translation();
+        col2d.update_last_transform(position, rotation, scale);
     });
 }
 

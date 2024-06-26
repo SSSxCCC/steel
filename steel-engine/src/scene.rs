@@ -87,10 +87,13 @@ impl SceneManager {
 
     fn _update_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId>) -> Data {
         let get_id_fn = |e: &EntityId| {
-            if e.gen() == 1 { // generation of EntityId::dead() was changed to 1 before saving scene to file.
+            if let Some(new_id) = old_id_to_new_id.get(e) {
+                *new_id
+            } else if e.gen() == 1 || // generation of EntityId::dead() was changed to 1 when saving scene to file.
+                    *e == EntityId::dead() { // EntityId::dead() is still EntityId::dead() when saving scene to memory.
                 EntityId::dead()
             } else {
-                *old_id_to_new_id.get(e).expect(format!("non-exist EntityId: {e:?}").as_str())
+                panic!("non-exist EntityId: {e:?}");
             }
         };
 
