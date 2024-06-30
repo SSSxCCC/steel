@@ -1,9 +1,11 @@
-use glam::{Affine2, Affine3A, Quat, Vec3, Vec3Swizzles};
+use glam::{Affine2, Affine3A, Quat, Vec2, Vec3, Vec3Swizzles};
 use shipyard::{Component, EntityId, Get};
 use steel_common::data::{Data, Limit, Value};
 use crate::{edit::Edit, hierarchy::Child};
 
 /// The Transform component defines position, rotation, and scale of an entity.
+/// If this entity has any ancestor which also has Transform component,
+/// the transform values are relative to this entity's parent.
 #[derive(Component, Debug)]
 pub struct Transform {
     pub position: Vec3,
@@ -17,7 +19,7 @@ impl Transform {
         Affine3A::from_scale_rotation_translation(self.scale, self.rotation, self.position)
     }
 
-    /// Get the final model matrix of this transform, which is parent_final_model * self.model().
+    /// Get the final model matrix of this transform.
     /// # Example
     /// ```rust
     /// fn my_system(transforms: View<Transform>, children: View<Child>) {
@@ -26,16 +28,16 @@ impl Transform {
     ///     }
     /// }
     /// ```
-    pub fn final_model<'a>(&self, child: &Child, children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
-            transforms: impl Get<Out = &'a Transform> + Copy) -> Affine3A { // &View<Transform> or &ViewMut<Transform>
-        if let Some(parent_final_model) = Self::entity_final_model(child.parent(), children, transforms) {
-            parent_final_model * self.model()
-        } else {
-            self.model()
-        }
+    pub fn final_model<'a>(&self, child: &Child,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> Affine3A {
+        let (final_position, final_rotation, final_scale) =
+            self.final_position_rotation_scale(child, children, transforms);
+        Affine3A::from_scale_rotation_translation(final_scale, final_rotation, final_position)
     }
 
-    /// Get the final model matrix of entity eid, which is parent_final_model * eid_model.
+    /// Get the final model matrix of entity eid.
     /// Returns None if eid and ancestors do not have any Transform component.
     /// # Example
     /// ```rust
@@ -46,21 +48,64 @@ impl Transform {
     ///     }
     /// }
     /// ```
-    pub fn entity_final_model<'a>(eid: EntityId, children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
-            transforms: impl Get<Out = &'a Transform> + Copy) -> Option<Affine3A> { // &View<Transform> or &ViewMut<Transform>
+    pub fn entity_final_model<'a>(eid: EntityId,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> Option<Affine3A> {
+        if let Some((final_position, final_rotation, final_scale)) =
+                Self::entity_final_position_rotation_scale(eid, children, transforms) {
+            Some(Affine3A::from_scale_rotation_translation(final_scale, final_rotation, final_position))
+        } else {
+            None
+        }
+    }
+
+    /// Get the final position, rotation, scale of this transform.
+    /// * final_position = parent_final_position + self.position
+    /// * final_rotation = parent_final_rotation.mul_quat(self.rotation)
+    /// * final_scale = parent_final_scale * self.scale
+    pub fn final_position_rotation_scale<'a>(&self, child: &Child,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> (Vec3, Quat, Vec3) {
+        if let Some((parent_final_position, parent_final_rotation, parent_final_scale)) =
+                Self::entity_final_position_rotation_scale(child.parent(), children, transforms) {
+            (
+                parent_final_position + self.position,
+                parent_final_rotation.mul_quat(self.rotation),
+                parent_final_scale * self.scale,
+            )
+        } else {
+            (self.position, self.rotation, self.scale)
+        }
+    }
+
+    /// Get the final position, rotation, scale of entity eid.
+    /// * final_position = parent_final_position + self.position
+    /// * final_rotation = parent_final_rotation.mul_quat(self.rotation)
+    /// * final_scale = parent_final_scale * self.scale
+    pub fn entity_final_position_rotation_scale<'a>(eid: EntityId,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> Option<(Vec3, Quat, Vec3)> {
         if eid == EntityId::dead() {
             None
         } else {
             let child = children.get(eid).expect(format!("Missing Child component in entity: {eid:?}").as_str());
-            if let Some(parent_final_model) = Self::entity_final_model(child.parent(), children, transforms) {
+            if let Some((parent_final_position, parent_final_rotation, parent_final_scale)) =
+                    Self::entity_final_position_rotation_scale(child.parent(), children, transforms) {
                 if let Ok(transform) = transforms.get(eid) {
-                    Some(parent_final_model * transform.model())
+                    Some((
+                        parent_final_position + transform.position,
+                        parent_final_rotation.mul_quat(transform.rotation),
+                        parent_final_scale * transform.scale,
+                    ))
                 } else {
-                    Some(parent_final_model)
+                    Some((parent_final_position, parent_final_rotation, parent_final_scale))
                 }
             } else {
                 if let Ok(transform) = transforms.get(eid) {
-                    Some(transform.model())
+                    Some((transform.position, transform.rotation, transform.scale))
                 } else {
                     None
                 }
@@ -73,7 +118,7 @@ impl Transform {
         Affine2::from_scale_angle_translation(self.scale.xy(), self.rotation.to_scaled_axis().z, self.position.xy())
     }
 
-    /// Get the 2d final model matrix of this transform, which is parent_final_model_2d * self.model_2d().
+    /// Get the 2d final model matrix of this transform.
     /// # Example
     /// ```rust
     /// fn my_system(transforms: View<Transform>, children: View<Child>) {
@@ -82,16 +127,16 @@ impl Transform {
     ///     }
     /// }
     /// ```
-    pub fn final_model_2d<'a>(&self, child: &Child, children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
-            transforms: impl Get<Out = &'a Transform> + Copy) -> Affine2 { // &View<Transform> or &ViewMut<Transform>
-        if let Some(parent_final_model) = Self::entity_final_model_2d(child.parent(), children, transforms) {
-            parent_final_model * self.model_2d()
-        } else {
-            self.model_2d()
-        }
+    pub fn final_model_2d<'a>(&self, child: &Child,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> Affine2 {
+        let (final_position, final_rotation, final_scale) =
+            self.final_position_rotation_scale_2d(child, children, transforms);
+        Affine2::from_scale_angle_translation(final_scale, final_rotation, final_position)
     }
 
-    /// Get the final 2d model matrix of entity eid, which is parent_final_model_2d * eid_model_2d.
+    /// Get the final 2d model matrix of entity eid.
     /// Returns None if eid and ancestors do not have any Transform component.
     /// # Example
     /// ```rust
@@ -102,21 +147,64 @@ impl Transform {
     ///     }
     /// }
     /// ```
-    pub fn entity_final_model_2d<'a>(eid: EntityId, children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
-            transforms: impl Get<Out = &'a Transform> + Copy) -> Option<Affine2> { // &View<Transform> or &ViewMut<Transform>
+    pub fn entity_final_model_2d<'a>(eid: EntityId,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> Option<Affine2> {
+        if let Some((final_position, final_rotation, final_scale)) =
+                Self::entity_final_position_rotation_scale_2d(eid, children, transforms) {
+            Some(Affine2::from_scale_angle_translation(final_scale, final_rotation, final_position))
+        } else {
+            None
+        }
+    }
+
+    /// Get the 2d final position, rotation, scale of this transform.
+    /// * final_position = parent_final_position + self.position
+    /// * final_rotation = parent_final_rotation + self.rotation
+    /// * final_scale = parent_final_scale * self.scale
+    pub fn final_position_rotation_scale_2d<'a>(&self, child: &Child,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> (Vec2, f32, Vec2) {
+        if let Some((parent_final_position, parent_final_rotation, parent_final_scale)) =
+                Self::entity_final_position_rotation_scale_2d(child.parent(), children, transforms) {
+            (
+                parent_final_position + self.position.xy(),
+                parent_final_rotation + self.rotation.to_scaled_axis().z,
+                parent_final_scale * self.scale.xy(),
+            )
+        } else {
+            (self.position.xy(), self.rotation.to_scaled_axis().z, self.scale.xy())
+        }
+    }
+
+    /// Get the 2d final position, rotation, scale of entity eid.
+    /// * final_position = parent_final_position + self.position
+    /// * final_rotation = parent_final_rotation + self.rotation
+    /// * final_scale = parent_final_scale * self.scale
+    pub fn entity_final_position_rotation_scale_2d<'a>(eid: EntityId,
+            children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+            transforms: impl Get<Out = &'a Transform> + Copy) // &View<Transform> or &ViewMut<Transform>
+            -> Option<(Vec2, f32, Vec2)> {
         if eid == EntityId::dead() {
             None
         } else {
             let child = children.get(eid).expect(format!("Missing Child component in entity: {eid:?}").as_str());
-            if let Some(parent_final_model) = Self::entity_final_model_2d(child.parent(), children, transforms) {
+            if let Some((parent_final_position, parent_final_rotation, parent_final_scale)) =
+                    Self::entity_final_position_rotation_scale_2d(child.parent(), children, transforms) {
                 if let Ok(transform) = transforms.get(eid) {
-                    Some(parent_final_model * transform.model_2d())
+                    Some((
+                        parent_final_position + transform.position.xy(),
+                        parent_final_rotation + transform.rotation.to_scaled_axis().z,
+                        parent_final_scale * transform.scale.xy(),
+                    ))
                 } else {
-                    Some(parent_final_model)
+                    Some((parent_final_position, parent_final_rotation, parent_final_scale))
                 }
             } else {
                 if let Ok(transform) = transforms.get(eid) {
-                    Some(transform.model_2d())
+                    Some((transform.position.xy(), transform.rotation.to_scaled_axis().z, transform.scale.xy()))
                 } else {
                     None
                 }

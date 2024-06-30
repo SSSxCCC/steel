@@ -1,4 +1,4 @@
-use glam::{Affine2, Quat, Vec2, Vec3, Vec4};
+use glam::{Quat, Vec2, Vec3, Vec4};
 use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut};
 use rapier2d::prelude::*;
 use rayon::iter::ParallelIterator;
@@ -290,8 +290,9 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
             if !transforms.contains(e) {
                 transforms.add_component_unchecked(e, Transform::default());
             }
-            let model = Transform::entity_final_model_2d(e, &children, &transforms).unwrap_or_default();
-            let (_, rotation, position) = model.to_scale_angle_translation();
+            let (position, rotation, _) =
+                Transform::entity_final_position_rotation_scale_2d(e, &children, &transforms)
+                .unwrap();
             let rigid_body = RigidBodyBuilder::new(rb2d.body_type)
                     .translation(position.into())
                     .rotation(rotation).build();
@@ -309,8 +310,9 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
         if !transforms.contains(e) {
             transforms.add_component_unchecked(e, Transform::default());
         }
-        let model = Transform::entity_final_model_2d(e, &children, &transforms).unwrap_or_default();
-        let (scale, rotation, position) = model.to_scale_angle_translation();
+        let (position, rotation, scale) =
+            Transform::entity_final_position_rotation_scale_2d(e, &children, &transforms)
+            .unwrap();
         let shape = col2d.scaled_shape(scale);
 
         if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
@@ -345,8 +347,7 @@ fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, tra
         children: &View<Child>, rb2d: &mut ViewMut<RigidBody2D>, col2d: &mut ViewMut<Collider2D>) {
     // TODO: find a way to use par_iter here (&mut physics2d_manager.rigid_body_set can not be passed to par_iter)
     for (transform, child, mut rb2d) in (transforms, children, rb2d).iter() {
-        let model = transform.final_model_2d(child, children, transforms);
-        let (_, rotation, position) = model.to_scale_angle_translation();
+        let (position, rotation, _) = transform.final_position_rotation_scale_2d(child, children, transforms);
         if rb2d.update_last_transform(position, rotation) {
             if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
                 rb2d.set_translation(position.into(), true);
@@ -356,8 +357,7 @@ fn physics2d_update_from_transform(physics2d_manager: &mut Physics2DManager, tra
     }
 
     for (transform, child, mut col2d) in (transforms, children, col2d).iter() {
-        let model = transform.final_model_2d(child, children, transforms);
-        let (scale, rotation, position) = model.to_scale_angle_translation();
+        let (position, rotation, scale) = transform.final_position_rotation_scale_2d(child, children, transforms);
         if col2d.update_last_transform(position, rotation, scale) {
             if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
                 collider.set_shape(col2d.scaled_shape(scale));
@@ -381,55 +381,44 @@ pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DMan
     physics2d_manager.update();
 
     // TODO: find a way to use par_iter here
+    // TODO: traverse from top level to bottom level
     for (e, (rb2d, child)) in (&rb2d, &children).iter().with_id() {
+        // get new final position and rotation from rigid_body
         let rigid_body = &physics2d_manager.rigid_body_set[rb2d.handle];
+        let final_position: Vec2 = (*rigid_body.translation()).into();
+        let final_rotation = rigid_body.rotation().angle();
 
-        // get transform
+        // get parent final position and rotation
+        let parent_final_transform =
+            Transform::entity_final_position_rotation_scale_2d(child.parent(), &children, &transforms);
+
+        // caculate new position and rotation according to final transform and parent final transform
+        let (position, rotation) =
+            if let Some((parent_final_position, parent_final_rotation, _)) = parent_final_transform {
+                (final_position - parent_final_position, final_rotation - parent_final_rotation)
+            } else {
+                (final_position, final_rotation)
+            };
+
+        // update transform to new position and rotation
         if !transforms.contains(e) {
             transforms.add_component_unchecked(e, Transform::default());
         }
-        let transform = transforms.get(e).unwrap();
-
-        // get old final model and decompose
-        let final_model = transform.final_model_2d(child, &children, &transforms);
-        let (scale, mut rotation, mut position) = final_model.to_scale_angle_translation();
-
-        // update position and rotation
-        position.x = rigid_body.translation().x;
-        position.y = rigid_body.translation().y;
-        rotation = rigid_body.rotation().angle();
-
-        // get new final model
-        let final_model = Affine2::from_scale_angle_translation(scale, rotation, position);
-
-        // get new model
-        let model = if let Some(parent_final_model) = Transform::entity_final_model_2d(child.parent(), &children, &transforms) {
-            // parent_final_model * model = final_model => model = parent_final_model.inverse() * final_model
-            parent_final_model.inverse() * final_model
-        } else {
-            final_model
-        };
-
-        // update transform according to new model
-        let (_scale, rotation, position) = model.to_scale_angle_translation();
         let transform = (&mut transforms).get(e).unwrap();
         transform.position.x = position.x;
         transform.position.y = position.y;
         let mut rot = transform.rotation.to_scaled_axis();
         rot.z = rotation;
         transform.rotation = Quat::from_scaled_axis(rot);
-        // do not update scale since it should not be changed
-    };
+    }
 
     // update last_transform using final model
     (&mut rb2d, &transforms, &children).par_iter().for_each(|(mut rb2d, transform, child)| {
-        let model = transform.final_model_2d(child, &children, &transforms);
-        let (_, rotation, position) = model.to_scale_angle_translation();
+        let (position, rotation, _) = transform.final_position_rotation_scale_2d(child, &children, &transforms);
         rb2d.update_last_transform(position, rotation);
     });
     (&mut col2d, &transforms, &children).par_iter().for_each(|(mut col2d, transform, child)| {
-        let model = transform.final_model_2d(child, &children, &transforms);
-        let (scale, rotation, position) = model.to_scale_angle_translation();
+        let (position, rotation, scale) = transform.final_position_rotation_scale_2d(child, &children, &transforms);
         col2d.update_last_transform(position, rotation, scale);
     });
 }
