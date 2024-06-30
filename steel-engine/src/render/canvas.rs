@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use glam::{Mat4, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
+use glam::{Affine3A, Mat4, Quat, UVec2, Vec3, Vec4};
 use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyImageToBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract, RenderPassBeginInfo, SubpassContents}, format::{ClearValue, Format}, image::{view::ImageView, ImageAccess, ImageDimensions, ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::{Vertex, VertexBufferDescription}, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass}, shader::ShaderModule, sync::GpuFuture};
 use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
@@ -360,12 +360,12 @@ fn draw_circles<V: IntoVertex>(cicles: &Vec<(Vec3, Quat, f32, Vec4, EntityId)>, 
         let push_constants = circle::vs::PushConstants {
             projection_view: projection_view.to_cols_array_2d(), center: center.to_array(), radius };
 
-        let model = Mat4::from_rotation_translation(*rotation, *center);
+        let model = Affine3A::from_rotation_translation(*rotation, *center);
         let vertex_buffer = vertex_buffer([
-            (model * Vec4::new(-radius, -radius, 0.0, 1.0)).xyz(),
-            (model * Vec4::new(-radius, radius, 0.0, 1.0)).xyz(),
-            (model * Vec4::new(radius, radius, 0.0, 1.0)).xyz(),
-            (model * Vec4::new(radius, -radius, 0.0, 1.0)).xyz(),
+            model.transform_point3(Vec3::new(-radius, -radius, 0.0)),
+            model.transform_point3(Vec3::new(-radius, radius, 0.0)),
+            model.transform_point3(Vec3::new(radius, radius, 0.0)),
+            model.transform_point3(Vec3::new(radius, -radius, 0.0)),
         ].map(|v| V::new(v, *color, *eid)).to_vec(), &memory_allocator);
         let index_buffer = index_buffer(vec![0u16, 1, 2, 2, 3, 0], &memory_allocator);
 

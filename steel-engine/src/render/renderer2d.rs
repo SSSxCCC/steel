@@ -1,6 +1,6 @@
 use parry2d::shape::{ShapeType, SharedShape};
 use shipyard::{Component, IntoIter, IntoWithId, UniqueViewMut, View};
-use glam::{Vec4, Vec4Swizzles};
+use glam::{Affine3A, Vec3, Vec4};
 use steel_common::data::{Data, Limit, Value};
 use crate::{edit::Edit, hierarchy::Child, render::canvas::Canvas, shape::ShapeWrapper, transform::Transform};
 
@@ -46,10 +46,10 @@ pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transforms: Vie
             ShapeType::Cuboid => {
                 let shape = renderer2d.shape.as_cuboid().unwrap();
                 let (half_width, half_height) = (shape.half_extents.x, shape.half_extents.y);
-                canvas.rectangle((model * Vec4::new(-half_width, -half_height, 0.0, 1.0)).xyz(),
-                    (model * Vec4::new(-half_width, half_height, 0.0, 1.0)).xyz(),
-                    (model * Vec4::new(half_width, half_height, 0.0, 1.0)).xyz(),
-                    (model * Vec4::new(half_width, -half_height, 0.0, 1.0)).xyz(),
+                canvas.rectangle(model.transform_point3(Vec3::new(-half_width, -half_height, 0.0)),
+                    model.transform_point3(Vec3::new(-half_width, half_height, 0.0)),
+                    model.transform_point3(Vec3::new(half_width, half_height, 0.0)),
+                    model.transform_point3(Vec3::new(half_width, -half_height, 0.0)),
                     renderer2d.color, eid);
             },
             _ => (),
