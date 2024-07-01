@@ -119,7 +119,13 @@ impl Project {
 
     fn _compile(&mut self, gui_game: &mut Option<Gui>, context: &VulkanoContext) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
-            let scene = if let Some(compiled) = &mut state.compiled { compiled.scene.take() } else { None };
+            // save scene data before unloading library
+            let mut data = WorldData::new();
+            let mut scene = None;
+            if let Some(compiled) = &mut state.compiled {
+                compiled.engine.command(Command::Save(&mut data));
+                scene = compiled.scene.take();
+            }
 
             *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
             state.compiled = None; // prevent steel.dll from being loaded twice at same time
@@ -141,10 +147,11 @@ impl Project {
 
             let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
             let mut engine = create_engine_fn();
-            engine.init(InitInfo { platform: Platform::new_editor(state.path.clone()), context, scene: scene.clone() });
+            engine.init(InitInfo { platform: Platform::new_editor(state.path.clone()), context, scene: None });
 
-            let mut data = WorldData::new();
-            engine.command(Command::Save(&mut data));
+            // restore game world from scene data
+            engine.command(Command::Reload(&data));
+            engine.command(Command::SetCurrentScene(scene.clone()));
 
             state.compiled = Some(ProjectCompiledState { engine, library, data, running: false, scene });
             Ok(())
