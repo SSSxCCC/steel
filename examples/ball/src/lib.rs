@@ -54,7 +54,7 @@ struct Player {
 
 fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>, rb2d: View<RigidBody2D>,
         mut physics2d_manager: UniqueViewMut<Physics2DManager>, input: UniqueView<Input>, egui_ctx: UniqueView<EguiContext>) {
-    for (player, mut transform, rb2d) in (&player, &mut transform, &rb2d).iter() {
+    for (player, transform, rb2d) in (&player, &mut transform, &rb2d).iter() {
         if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
             let mut linvel = Vec2::ZERO;
             if input.key_held(VirtualKeyCode::Left) {
@@ -89,7 +89,7 @@ struct Ball {
 }
 
 fn push_ball_system(mut ball: ViewMut<Ball>, rb2d: View<RigidBody2D>, mut physics2d_manager: UniqueViewMut<Physics2DManager>) {
-    for (mut ball, rb2d) in (&mut ball, &rb2d).iter() {
+    for (ball, rb2d) in (&mut ball, &rb2d).iter() {
         if !ball.started {
             if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
                 rb2d.set_linvel(ball.start_velocity.into(), true);

@@ -11,4 +11,4 @@ steel-project = { path = "../steel-project" }
 
 [lib]
 name = "steel"
-crate_type = [ "cdylib" ]
+crate-type = [ "cdylib" ]

@@ -44,7 +44,7 @@ desktop = []
 
 [lib]
 name = "main"
-crate_type = [ "cdylib" ]
+crate-type = [ "cdylib" ]
 
 [[bin]]
 name = "steel-editor"

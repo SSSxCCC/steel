@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use parry2d::shape::{ShapeType, SharedShape};
 use shipyard::{Component, IntoIter, IntoWithId, UniqueViewMut, View};
 use glam::{Affine3A, Vec3, Vec4};
@@ -34,9 +35,11 @@ impl Edit for Renderer2D {
 
 /// Add drawing data to the Canvas unique according to the Renderer2D components.
 pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transforms: View<Transform>, children: View<Child>, mut canvas: UniqueViewMut<Canvas>) {
-    for (eid, (transform, child, renderer2d)) in (&transforms, &children, &renderer2d).iter().with_id() {
-        let scale = transform.final_scale(child, &children, &transforms);
-        let model_without_scale = transform.final_model_without_scale(child, &children, &transforms);
+    let mut model_cache = Some(HashMap::new());
+    let mut scale_cache = Some(HashMap::new());
+    for (eid, (renderer2d, _, _)) in (&renderer2d, &transforms, &children).iter().with_id() {
+        let scale = Transform::entity_final_scale(eid, &children, &transforms, &mut scale_cache).unwrap();
+        let model_without_scale = Transform::entity_final_model_without_scale(eid, &children, &transforms, &mut model_cache).unwrap();
         match renderer2d.shape.shape_type() {
             ShapeType::Ball => {
                 let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());

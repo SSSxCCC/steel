@@ -14,6 +14,16 @@
               }
             }
           },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
+              }
+            }
+          },
           "Transform": {
             "values": {
               "position": {
@@ -104,6 +114,16 @@
             "values": {
               "name": {
                 "String": "Board"
+              }
+            }
+          },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
               }
             }
           },
@@ -203,6 +223,16 @@
               }
             }
           },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
+              }
+            }
+          },
           "Transform": {
             "values": {
               "position": {
@@ -282,6 +312,16 @@
             "values": {
               "name": {
                 "String": "Right Wall"
+              }
+            }
+          },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
               }
             }
           },
@@ -367,6 +407,16 @@
               }
             }
           },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
+              }
+            }
+          },
           "Transform": {
             "values": {
               "position": {
@@ -449,6 +499,16 @@
               }
             }
           },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
+              }
+            }
+          },
           "Transform": {
             "values": {
               "position": {
@@ -501,6 +561,16 @@
             "values": {
               "name": {
                 "String": "Border"
+              }
+            }
+          },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 1
+                }
               }
             }
           },
@@ -616,6 +686,42 @@
             0.0,
             0.0,
             0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 0,
+              "gen": 0
+            },
+            {
+              "index": 1,
+              "gen": 0
+            },
+            {
+              "index": 2,
+              "gen": 0
+            },
+            {
+              "index": 3,
+              "gen": 0
+            },
+            {
+              "index": 4,
+              "gen": 0
+            },
+            {
+              "index": 5,
+              "gen": 0
+            },
+            {
+              "index": 6,
+              "gen": 0
+            }
           ]
         }
       }
