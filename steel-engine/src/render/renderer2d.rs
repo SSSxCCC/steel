@@ -35,17 +35,19 @@ impl Edit for Renderer2D {
 /// Add drawing data to the Canvas unique according to the Renderer2D components.
 pub fn renderer2d_to_canvas_system(renderer2d: View<Renderer2D>, transforms: View<Transform>, children: View<Child>, mut canvas: UniqueViewMut<Canvas>) {
     for (eid, (transform, child, renderer2d)) in (&transforms, &children, &renderer2d).iter().with_id() {
-        let (position, rotation, scale) = transform.final_position_rotation_scale(child, &children, &transforms);
+        let scale = transform.final_scale(child, &children, &transforms);
+        let model_without_scale = transform.final_model_without_scale(child, &children, &transforms);
         match renderer2d.shape.shape_type() {
             ShapeType::Ball => {
                 let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| x.partial_cmp(y).unwrap());
                 let radius = renderer2d.shape.as_ball().unwrap().radius * scale;
+                let (_, rotation, position) = model_without_scale.to_scale_rotation_translation();
                 canvas.circle(position, rotation, radius, renderer2d.color, eid);
             },
             ShapeType::Cuboid => {
                 let shape = renderer2d.shape.as_cuboid().unwrap();
                 let (half_width, half_height) = (shape.half_extents.x, shape.half_extents.y);
-                let model = Affine3A::from_scale_rotation_translation(scale, rotation, position);
+                let model = model_without_scale * Affine3A::from_scale(scale);
                 canvas.rectangle(model.transform_point3(Vec3::new(-half_width, -half_height, 0.0)),
                     model.transform_point3(Vec3::new(-half_width, half_height, 0.0)),
                     model.transform_point3(Vec3::new(half_width, half_height, 0.0)),
