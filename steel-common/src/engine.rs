@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 use glam::{UVec2, Vec3};
-use vulkano::{sync::GpuFuture, image::ImageViewAbstract};
+use vulkano::{sync::GpuFuture, image::view::ImageView};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use shipyard::EntityId;
 use winit::event::WindowEvent;
@@ -159,7 +159,7 @@ pub struct DrawInfo<'a> {
     pub context: &'a VulkanoContext,
     pub renderer: &'a VulkanoWindowRenderer,
     /// The image we will draw.
-    pub image: Arc<dyn ImageViewAbstract>,
+    pub image: Arc<ImageView>,
     /// The window size, this is the pixel size of the image we will draw.
     pub window_size: UVec2,
     /// If editor_info is some, we are drawing for the editor window.

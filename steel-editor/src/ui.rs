@@ -4,7 +4,7 @@ use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
 use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, EditorCamera, Engine, WindowIndex}, ext::VulkanoWindowRendererExt};
-use vulkano::image::{ImageViewAbstract, StorageImage, ImageUsage};
+use vulkano::{image::{view::ImageView, Image, ImageCreateInfo, ImageUsage}, memory::allocator::AllocationCreateInfo};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
@@ -41,7 +41,7 @@ impl Editor {
             //self.demo_windows.ui(&ctx);
 
             self.open_project_dialog(&ctx, gui, gui_game, context, project, local_data);
-            self.menu_bars(&ctx, gui, gui_game, dock_state, context, renderer, project, world_data);
+            self.menu_bars(&ctx, gui, gui_game, dock_state, context, project, world_data);
 
             if project.is_compiled() {
                 self.update_editor_window(&ctx, project, world_data, input, editor_camera);
@@ -145,7 +145,7 @@ impl Editor {
     }
 
     fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>,
-            context: &VulkanoContext, renderer: &VulkanoWindowRenderer, project: &mut Project, world_data: &mut Option<WorldData>) {
+            context: &VulkanoContext, project: &mut Project, world_data: &mut Option<WorldData>) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Project", |ui| {
@@ -267,13 +267,12 @@ impl Editor {
 
                 ui.menu_button("Ui", |ui| {
                     ui.label(format!("Current Scale: {}", ctx.pixels_per_point()));
-                    egui::gui_zoom::zoom_menu_buttons(ui, Some(renderer.window().scale_factor() as f32));
+                    egui::gui_zoom::zoom_menu_buttons(ui);
                     if ui.button(if self.use_dock { "Disable Dock" } else { "Enable Dock" }).clicked() {
                         self.use_dock = !self.use_dock;
                         ui.close_menu();
                     }
                 });
-                egui::gui_zoom::zoom_with_keyboard_shortcuts(ctx, Some(renderer.window().scale_factor() as f32));
 
                 self.fps_counter.update();
                 ui.label(format!("fps: {:.2}", self.fps_counter.fps));
@@ -905,7 +904,7 @@ impl FpsCounter {
 pub struct ImageWindow {
     title: String,
     image_index: usize,
-    images: Option<Vec<Arc<dyn ImageViewAbstract + Send + Sync>>>,
+    images: Option<Vec<Arc<ImageView>>>,
     texture_ids: Option<Vec<egui::TextureId>>,
     pixel: UVec2,
     size: Vec2,
@@ -933,18 +932,25 @@ impl ImageWindow {
         if self.images.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
             self.pixel = pixel;
             self.close(Some(gui));
-            self.images = Some((0..renderer.image_count()).map(|_| StorageImage::general_purpose_image_view(
-                context.memory_allocator(),
-                context.graphics_queue().clone(),
-                self.pixel.to_array(),
-                renderer.swapchain_format(),
-                ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-            ).unwrap() as Arc<dyn ImageViewAbstract + Send + Sync>).collect());
+            self.images = Some((0..renderer.image_count()).map(|_| {
+                let image = Image::new(
+                    context.memory_allocator().clone(),
+                    ImageCreateInfo {
+                        format: renderer.swapchain_format(),
+                        extent: [self.pixel.x, self.pixel.y, 1],
+                        usage: ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                        ..Default::default()
+                    },
+                    AllocationCreateInfo::default(),
+                ).unwrap();
+                ImageView::new_default(image).unwrap()
+            }).collect());
             self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
                 gui.register_user_image_view(image.clone(), Default::default())).collect());
             log::debug!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
         }
-        let r = ui.image(self.texture_ids.as_ref().unwrap()[self.image_index], available_size);
+        let texture_id = self.texture_ids.as_ref().unwrap()[self.image_index];
+        let r = ui.image(egui::ImageSource::Texture(egui::load::SizedTexture::new(texture_id, available_size)));
         (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
         self.layer = ui.ctx().memory(|mem| {
             match mem.focus() {
@@ -965,7 +971,7 @@ impl ImageWindow {
     }
 
     /// Get window image of current frame, return None if images are not created yet.
-    pub fn image(&self) -> Option<&Arc<dyn ImageViewAbstract + Send + Sync>> {
+    pub fn image(&self) -> Option<&Arc<ImageView>> {
         self.images.as_ref().and_then(|images| images.get(self.image_index))
     }
 

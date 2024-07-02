@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use glam::{Affine3A, Mat4, Quat, UVec2, Vec3, Vec4};
-use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyImageToBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract, RenderPassBeginInfo, SubpassContents}, format::{ClearValue, Format}, image::{view::ImageView, ImageAccess, ImageDimensions, ImageUsage, ImageViewAbstract, StorageImage}, memory::allocator::{AllocationCreateInfo, MemoryUsage, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::ColorBlendState, depth_stencil::DepthStencilState, input_assembly::{InputAssemblyState, PrimitiveTopology}, rasterization::{PolygonMode, RasterizationState}, vertex_input::{Vertex, VertexBufferDescription}, viewport::{Viewport, ViewportState}}, GraphicsPipeline, Pipeline}, render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass}, shader::ShaderModule, sync::GpuFuture};
+use vulkano::{buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyImageToBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents}, format::{ClearValue, Format}, image::{view::ImageView, Image, ImageCreateInfo, ImageUsage}, memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator}, pipeline::{graphics::{color_blend::{AttachmentBlend, ColorBlendAttachmentState, ColorBlendState}, depth_stencil::{DepthState, DepthStencilState}, input_assembly::{InputAssemblyState, PrimitiveTopology}, multisample::MultisampleState, rasterization::{PolygonMode, RasterizationState}, vertex_input::{Vertex, VertexBufferDescription, VertexDefinition}, viewport::{Viewport, ViewportState}, GraphicsPipelineCreateInfo}, layout::PipelineDescriptorSetLayoutCreateInfo, DynamicState, GraphicsPipeline, Pipeline, PipelineLayout, PipelineShaderStageCreateInfo}, render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass}, shader::{EntryPoint, ShaderModule}, sync::GpuFuture};
 use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut};
 use crate::camera::CameraInfo;
 use super::{FrameRenderInfo, RenderContext, RenderManager};
@@ -70,8 +70,8 @@ pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
 /// CanvasRenderContext stores many render objects that exist between frames.
 pub struct CanvasRenderContext {
     /// The image vectors whose index at WindowIndex::GAME and WindowIndex::SCENE are for game window and scene window.
-    pub depth_stencil_images: [Vec<Arc<ImageView<StorageImage>>>; 2],
-    pub eid_images: [Vec<Arc<ImageView<StorageImage>>>; 2],
+    pub depth_stencil_images: [Vec<Arc<ImageView>>; 2],
+    pub eid_images: [Vec<Arc<ImageView>>; 2],
     pub eid_image_futures: [Vec<Box<dyn GpuFuture + Send + Sync>>; 2],
     pub render_pass: Arc<RenderPass>,
     pub pipeline_point: Arc<GraphicsPipeline>,
@@ -88,11 +88,11 @@ pub struct CanvasRenderContext {
 impl CanvasRenderContext {
     pub fn new(context: &RenderContext, info: &FrameRenderInfo) -> Self {
         let render_pass = Self::create_render_pass(context, info.format);
-        let (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle) = Self::create_pipelines(context, render_pass.clone(), MyVertex::per_vertex(), ColorBlendState::default().blend_alpha(),
+        let (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle) = Self::create_pipelines(context, render_pass.clone(), &MyVertex::per_vertex(), Some(AttachmentBlend::alpha()),
             vs::load(context.device.clone()).unwrap(), fs::load(context.device.clone()).unwrap(),
             circle::vs::load(context.device.clone()).unwrap(), circle::fs::load(context.device.clone()).unwrap());
         let render_pass_eid = Self::create_render_pass(context, Format::R32G32_UINT);
-        let (pipeline_point_eid, pipeline_line_eid, pipeline_triangle_eid, pipeline_circle_eid) = Self::create_pipelines(context, render_pass_eid.clone(), MyVertexEid::per_vertex(), ColorBlendState::default(),
+        let (pipeline_point_eid, pipeline_line_eid, pipeline_triangle_eid, pipeline_circle_eid) = Self::create_pipelines(context, render_pass_eid.clone(), &MyVertexEid::per_vertex(), None,
             eid::vs::load(context.device.clone()).unwrap(), eid::fs::load(context.device.clone()).unwrap(),
             eid::circle::vs::load(context.device.clone()).unwrap(), eid::circle::fs::load(context.device.clone()).unwrap());
         CanvasRenderContext {
@@ -110,39 +110,49 @@ impl CanvasRenderContext {
     fn update_depth_stencil_images(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
         let depth_stencil_images = &mut self.depth_stencil_images[info.window_index];
         if depth_stencil_images.len() >= info.image_count { // TODO: use == instead of >= when we can get right image count
-            if let ImageDimensions::Dim2d { width, height, .. } = depth_stencil_images[0].image().dimensions() {
-                if info.window_size.x == width && info.window_size.y == height {
-                    return;
-                }
+            let [width, height, _] = depth_stencil_images[0].image().extent();
+            if info.window_size.x == width && info.window_size.y == height {
+                return;
             }
         }
         log::debug!("Create depth stencil images, image_count={}", info.image_count);
-        *depth_stencil_images = (0..info.image_count).map(|_| StorageImage::general_purpose_image_view(
-            context.memory_allocator.as_ref(),
-            context.graphics_queue.clone(),
-            info.window_size.to_array(),
-            Format::D32_SFLOAT,
-            ImageUsage::DEPTH_STENCIL_ATTACHMENT,
-        ).unwrap()).collect();
+        *depth_stencil_images = (0..info.image_count).map(|_| {
+            let image = Image::new(
+                context.memory_allocator.clone(),
+                ImageCreateInfo {
+                    format: Format::D32_SFLOAT,
+                    extent: [info.window_size.x, info.window_size.y, 1],
+                    usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+                    ..Default::default()
+                },
+                AllocationCreateInfo::default(),
+            ).unwrap();
+            ImageView::new_default(image).unwrap()
+        }).collect();
     }
 
     fn update_eid_images(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
         let eid_images = &mut self.eid_images[info.window_index];
         if eid_images.len() >= info.image_count { // TODO: use == instead of >= when we can get right image count
-            if let ImageDimensions::Dim2d { width, height, .. } = eid_images[0].image().dimensions() {
-                if info.window_size.x == width && info.window_size.y == height {
-                    return;
-                }
+            let [width, height, _] = eid_images[0].image().extent();
+            if info.window_size.x == width && info.window_size.y == height {
+                return;
             }
         }
         log::debug!("Create eid images, image_count={}", info.image_count);
-        *eid_images = (0..info.image_count).map(|_| StorageImage::general_purpose_image_view(
-            context.memory_allocator.as_ref(),
-            context.graphics_queue.clone(),
-            info.window_size.to_array(),
-            Format::R32G32_UINT,
-            ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_SRC,
-        ).unwrap()).collect();
+        *eid_images = (0..info.image_count).map(|_| {
+            let image = Image::new(
+                context.memory_allocator.clone(),
+                ImageCreateInfo {
+                    format: Format::R32G32_UINT,
+                    extent: [info.window_size.x, info.window_size.y, 1],
+                    usage: ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_SRC,
+                    ..Default::default()
+                },
+                AllocationCreateInfo::default(),
+            ).unwrap();
+            ImageView::new_default(image).unwrap()
+        }).collect();
         self.eid_image_futures[info.window_index] = (0..info.image_count)
             .map(|_| vulkano::sync::now(context.device.clone()).boxed_send_sync())
             .collect();
@@ -152,8 +162,8 @@ impl CanvasRenderContext {
         vulkano::single_pass_renderpass!(
             context.device.clone(),
             attachments: {
-                color: { load: Clear, store: Store, format: format, samples: 1 },
-                depth_stencil: { load: Clear, store: DontCare, format: Format::D32_SFLOAT, samples: 1 },
+                color: { format: format, samples: 1, load_op: Clear, store_op: Store },
+                depth_stencil: { format: Format::D32_SFLOAT, samples: 1, load_op: Clear, store_op: DontCare },
             },
             pass: {
                 color: [ color ],
@@ -162,56 +172,74 @@ impl CanvasRenderContext {
         ).unwrap()
     }
 
-    fn create_pipelines(context: &RenderContext, render_pass: Arc<RenderPass>, vertex_buffer_description: VertexBufferDescription, color_blend: ColorBlendState,
+    fn create_pipelines(context: &RenderContext, render_pass: Arc<RenderPass>, vertex_buffer_description: &VertexBufferDescription, blend: Option<AttachmentBlend>,
             vs: Arc<ShaderModule>, fs: Arc<ShaderModule>, vs_circle: Arc<ShaderModule>, fs_circle: Arc<ShaderModule>)
             -> (Arc<GraphicsPipeline>, Arc<GraphicsPipeline>, Arc<GraphicsPipeline>, Arc<GraphicsPipeline>) {
-        let base_pipeline_builder = GraphicsPipeline::start()
-            .viewport_state(ViewportState::viewport_dynamic_scissor_irrelevant())
-            .vertex_input_state(vertex_buffer_description)
-            .render_pass(Subpass::from(render_pass, 0).unwrap())
-            .depth_stencil_state(DepthStencilState::simple_depth_test())
-            .color_blend_state(color_blend); // TODO: implement order independent transparency
+        let vs = vs.entry_point("main").unwrap();
+        let fs = fs.entry_point("main").unwrap();
 
-        let pipeline_builder = base_pipeline_builder.clone()
-            .vertex_shader(vs.entry_point("main").unwrap(), ())
-            .fragment_shader(fs.entry_point("main").unwrap(), ());
+        let pipeline_point = Self::create_pipeline(context, render_pass.clone(),
+            vertex_buffer_description, blend, PrimitiveTopology::PointList, PolygonMode::Point,
+            vs.clone(), fs.clone());
 
-        let pipeline_point = pipeline_builder.clone()
-            .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::PointList))
-            .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Point))
-            .build(context.device.clone())
-            .unwrap();
+        let pipeline_line = Self::create_pipeline(context, render_pass.clone(),
+            vertex_buffer_description, blend, PrimitiveTopology::LineList, PolygonMode::Line,
+            vs.clone(), fs.clone());
 
-        let pipeline_line = pipeline_builder.clone()
-            .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::LineList))
-            .rasterization_state(RasterizationState::new().polygon_mode(PolygonMode::Line))
-            .build(context.device.clone())
-            .unwrap();
+        let pipeline_triangle = Self::create_pipeline(context, render_pass.clone(),
+            vertex_buffer_description, blend, PrimitiveTopology::TriangleList, PolygonMode::Fill,
+            vs.clone(), fs.clone());
 
-        let pipeline_triangle = pipeline_builder.clone()
-            .build(context.device.clone())
-            .unwrap();
-
-        let pipeline_circle = base_pipeline_builder.clone()
-            .vertex_shader(vs_circle.entry_point("main").unwrap(), ())
-            .fragment_shader(fs_circle.entry_point("main").unwrap(), ())
-            .build(context.device.clone())
-            .unwrap();
+        let pipeline_circle = Self::create_pipeline(context, render_pass.clone(),
+            vertex_buffer_description, blend, PrimitiveTopology::TriangleList, PolygonMode::Fill,
+            vs_circle.entry_point("main").unwrap(), fs_circle.entry_point("main").unwrap());
 
         (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle)
+    }
+
+    fn create_pipeline(context: &RenderContext, render_pass: Arc<RenderPass>, vertex_buffer_description: &VertexBufferDescription,
+            blend: Option<AttachmentBlend>, topology: PrimitiveTopology, polygon_mode: PolygonMode,
+            vs: EntryPoint, fs: EntryPoint) -> Arc<GraphicsPipeline> {
+        let vertex_input_state = vertex_buffer_description.definition(&vs.info().input_interface).unwrap();
+        let stages = [
+            PipelineShaderStageCreateInfo::new(vs),
+            PipelineShaderStageCreateInfo::new(fs),
+        ];
+        let layout = PipelineLayout::new(
+            context.device.clone(),
+            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
+                .into_pipeline_layout_create_info(context.device.clone()).unwrap(),
+        ).unwrap();
+        let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+        GraphicsPipeline::new(context.device.clone(), None, GraphicsPipelineCreateInfo {
+            stages: stages.into_iter().collect(),
+            vertex_input_state: Some(vertex_input_state),
+            input_assembly_state: Some(InputAssemblyState { topology, ..Default::default() }),
+            rasterization_state: Some(RasterizationState { polygon_mode, ..Default::default() }),
+            multisample_state: Some(MultisampleState::default()),
+            depth_stencil_state: Some(DepthStencilState { depth: Some(DepthState::simple()), ..Default::default() }),
+            color_blend_state: Some(ColorBlendState::with_attachment_states(
+                subpass.num_color_attachments(),
+                ColorBlendAttachmentState { blend, ..Default::default() })),
+            viewport_state: Some(ViewportState::default()),
+            dynamic_state: [DynamicState::Viewport].into_iter().collect(),
+            subpass: Some(subpass.into()),
+            ..GraphicsPipelineCreateInfo::layout(layout)
+        }).unwrap()
     }
 }
 
 /// Send all canvas drawing data to the gpu to draw.
-pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueView<CameraInfo>, canvas: UniqueView<Canvas>, mut render_manager: UniqueViewMut<RenderManager>) -> PrimaryAutoCommandBuffer {
+pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueView<CameraInfo>,
+        canvas: UniqueView<Canvas>, mut render_manager: UniqueViewMut<RenderManager>) -> Arc<PrimaryAutoCommandBuffer> {
     render_manager.update(&info);
     let context = &render_manager.context;
     let canvas_context = render_manager.canvas_context.as_ref().unwrap();
 
     let viewport = Viewport {
-        origin: [0.0, 0.0],
-        dimensions: info.window_size.as_vec2().to_array(),
-        depth_range: 0.0..1.0,
+        offset: [0.0, 0.0],
+        extent: info.window_size.as_vec2().to_array(),
+        depth_range: 0.0..=1.0,
     };
     let projection_view = camera.projection_view(&info.window_size);
 
@@ -233,9 +261,10 @@ pub fn canvas_render_system(info: UniqueView<FrameRenderInfo>, camera: UniqueVie
     return command_buffer;
 }
 
-fn draw_image<V: IntoVertex>(context: &RenderContext, canvas_context: &CanvasRenderContext, render_pass: Arc<RenderPass>, image: Arc<dyn ImageViewAbstract>,
+fn draw_image<V: IntoVertex>(context: &RenderContext, canvas_context: &CanvasRenderContext, render_pass: Arc<RenderPass>, image: Arc<ImageView>,
         window_index: usize, image_index: usize, viewport: Viewport, clear_value: ClearValue, projection_view: Mat4, canvas: &Canvas,
-        pipeline_point: Arc<GraphicsPipeline>, pipeline_line: Arc<GraphicsPipeline>, pipeline_triangle: Arc<GraphicsPipeline>, pipeline_circle: Arc<GraphicsPipeline>) -> PrimaryAutoCommandBuffer {
+        pipeline_point: Arc<GraphicsPipeline>, pipeline_line: Arc<GraphicsPipeline>, pipeline_triangle: Arc<GraphicsPipeline>, pipeline_circle: Arc<GraphicsPipeline>)
+        -> Arc<PrimaryAutoCommandBuffer> {
     let depth_stencil_image = canvas_context.depth_stencil_images[window_index][image_index].clone();
     let framebuffer = Framebuffer::new( // TODO: pre-create framebuffers when we can get swapchain image views from VulkanoWindowRenderer
         render_pass,
@@ -251,11 +280,17 @@ fn draw_image<V: IntoVertex>(context: &RenderContext, canvas_context: &CanvasRen
         CommandBufferUsage::OneTimeSubmit,
     ).unwrap();
     command_buffer_builder
-        .set_viewport(0, [viewport])
-        .begin_render_pass(RenderPassBeginInfo {
-            clear_values: vec![Some(clear_value), Some(1.0.into())],
-            ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
-        }, SubpassContents::Inline).unwrap();
+        .set_viewport(0, [viewport].into_iter().collect()).unwrap()
+        .begin_render_pass(
+            RenderPassBeginInfo {
+                clear_values: vec![Some(clear_value), Some(1.0.into())],
+                ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
+            },
+            SubpassBeginInfo {
+                contents: SubpassContents::Inline,
+                ..Default::default()
+            },
+        ).unwrap();
 
     let push_constants = vs::PushConstants { projection_view: projection_view.to_cols_array_2d() };
 
@@ -265,7 +300,7 @@ fn draw_image<V: IntoVertex>(context: &RenderContext, canvas_context: &CanvasRen
     draw_rectangles::<V>(&canvas.rectangles, pipeline_triangle, context.memory_allocator.clone(), &mut command_buffer_builder, push_constants);
     draw_circles::<V>(&canvas.cicles, pipeline_circle, context.memory_allocator.clone(), &mut command_buffer_builder, &projection_view);
 
-    command_buffer_builder.end_render_pass().unwrap();
+    command_buffer_builder.end_render_pass(Default::default()).unwrap();
     command_buffer_builder.build().unwrap()
 }
 
@@ -315,11 +350,10 @@ fn draw_vertices<V: BufferContents>(vertices: Vec<V>, pipeline: Arc<GraphicsPipe
     let vertex_buffer = vertex_buffer(vertices, &memory_allocator);
 
     command_buffer_builder
-        .bind_pipeline_graphics(pipeline.clone())
-        .push_constants(pipeline.layout().clone(), 0, push_constants)
-        .bind_vertex_buffers(0, vertex_buffer.clone())
-        .draw(vertex_buffer.len() as u32, 1, 0, 0)
-        .unwrap();
+        .bind_pipeline_graphics(pipeline.clone()).unwrap()
+        .push_constants(pipeline.layout().clone(), 0, push_constants).unwrap()
+        .bind_vertex_buffers(0, vertex_buffer.clone()).unwrap()
+        .draw(vertex_buffer.len() as u32, 1, 0, 0).unwrap();
 }
 
 fn draw_rectangles<V: IntoVertex>(rectangles: &Vec<[(Vec3, Vec4, EntityId); 4]>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
@@ -344,17 +378,16 @@ fn draw_rectangles<V: IntoVertex>(rectangles: &Vec<[(Vec3, Vec4, EntityId); 4]>,
     let index_buffer = index_buffer(indices, &memory_allocator);
 
     command_buffer_builder
-        .bind_pipeline_graphics(pipeline.clone())
-        .push_constants(pipeline.layout().clone(), 0, push_constants)
-        .bind_vertex_buffers(0, vertex_buffer.clone())
-        .bind_index_buffer(index_buffer.clone())
-        .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
-        .unwrap();
+        .bind_pipeline_graphics(pipeline.clone()).unwrap()
+        .push_constants(pipeline.layout().clone(), 0, push_constants).unwrap()
+        .bind_vertex_buffers(0, vertex_buffer.clone()).unwrap()
+        .bind_index_buffer(index_buffer.clone()).unwrap()
+        .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0).unwrap();
 }
 
 fn draw_circles<V: IntoVertex>(cicles: &Vec<(Vec3, Quat, f32, Vec4, EntityId)>, pipeline: Arc<GraphicsPipeline>, memory_allocator: Arc<StandardMemoryAllocator>,
         command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, projection_view: &Mat4) {
-    command_buffer_builder.bind_pipeline_graphics(pipeline.clone());
+    command_buffer_builder.bind_pipeline_graphics(pipeline.clone()).unwrap();
     for (center, rotation, radius, color, eid) in cicles {
         let radius = *radius;
         let push_constants = circle::vs::PushConstants {
@@ -370,28 +403,27 @@ fn draw_circles<V: IntoVertex>(cicles: &Vec<(Vec3, Quat, f32, Vec4, EntityId)>, 
         let index_buffer = index_buffer(vec![0u16, 1, 2, 2, 3, 0], &memory_allocator);
 
         command_buffer_builder
-            .push_constants(pipeline.layout().clone(), 0, push_constants)
-            .bind_vertex_buffers(0, vertex_buffer)
-            .bind_index_buffer(index_buffer.clone())
-            .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
-            .unwrap();
+            .push_constants(pipeline.layout().clone(), 0, push_constants).unwrap()
+            .bind_vertex_buffers(0, vertex_buffer).unwrap()
+            .bind_index_buffer(index_buffer.clone()).unwrap()
+            .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0).unwrap();
     }
 }
 
 fn vertex_buffer<T: BufferContents>(vertices: Vec<T>, memory_allocator: &Arc<StandardMemoryAllocator>) -> Subbuffer<[T]> {
     Buffer::from_iter(
-        memory_allocator.as_ref(),
+        memory_allocator.clone(),
         BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
-        AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
+        AllocationCreateInfo { memory_type_filter: MemoryTypeFilter::PREFER_DEVICE | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE, ..Default::default() },
         vertices.into_iter()
     ).unwrap()
 }
 
 fn index_buffer(indices: Vec<u16>, memory_allocator: &Arc<StandardMemoryAllocator>) -> Subbuffer<[u16]> {
     Buffer::from_iter(
-        memory_allocator.as_ref(),
+        memory_allocator.clone(),
         BufferCreateInfo { usage: BufferUsage::INDEX_BUFFER, ..Default::default() },
-        AllocationCreateInfo { usage: MemoryUsage::Upload, ..Default::default() },
+        AllocationCreateInfo { memory_type_filter: MemoryTypeFilter::PREFER_DEVICE | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE, ..Default::default() },
         indices.into_iter()
     ).unwrap()
 }
@@ -653,15 +685,12 @@ pub fn get_entity_at_screen_system(mut render_manager: UniqueViewMut<RenderManag
         let image_index = render_manager.image_index[param.window_index];
         if canvas_contex.eid_images[param.window_index].len() > image_index {
             let eid_image = &canvas_contex.eid_images[param.window_index][image_index];
-            let (with, height) = match eid_image.image().dimensions() {
-                ImageDimensions::Dim2d { width, height, .. } => (width, height),
-                _ => panic!("the dimensions of eid_image should be ImageDimensions::Dim2d"),
-            };
+            let [width, height, _] = eid_image.image().extent();
             let buffer = Buffer::from_iter(
-                render_manager.context.memory_allocator.as_ref(),
+                render_manager.context.memory_allocator.clone(),
                 BufferCreateInfo { usage: BufferUsage::TRANSFER_DST, ..Default::default() },
-                AllocationCreateInfo { usage: MemoryUsage::Download, ..Default::default() },
-                (0..with * height * 2).map(|_| 0u32)).unwrap();
+                AllocationCreateInfo { memory_type_filter: MemoryTypeFilter::PREFER_HOST | MemoryTypeFilter::HOST_RANDOM_ACCESS, ..Default::default() },
+                (0..width * height * 2).map(|_| 0u32)).unwrap();
             let mut builder = AutoCommandBufferBuilder::primary(
                 &render_manager.context.command_buffer_allocator,
                 render_manager.context.graphics_queue.queue_family_index(),
@@ -672,7 +701,7 @@ pub fn get_entity_at_screen_system(mut render_manager: UniqueViewMut<RenderManag
                 .execute_after(future, render_manager.context.graphics_queue.clone()).unwrap()
                 .then_signal_fence_and_flush().unwrap();
             future.wait(None).unwrap();
-            let index = ((param.screen_position.x + param.screen_position.y * with) * 2) as usize;
+            let index = ((param.screen_position.x + param.screen_position.y * width) * 2) as usize;
             let buffer_read = buffer.read().unwrap();
             if index + 1 < buffer_read.len() {
                 let eid_array = [buffer_read[index], buffer_read[index + 1]];

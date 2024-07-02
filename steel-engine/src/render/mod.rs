@@ -5,7 +5,7 @@ use std::sync::Arc;
 use glam::{UVec2, Vec4};
 use shipyard::Unique;
 use steel_common::{data::{Data, Limit, Value}, engine::{DrawInfo, WindowIndex}, ext::VulkanoWindowRendererExt};
-use vulkano::{command_buffer::allocator::StandardCommandBufferAllocator, device::{Device, Queue}, format::Format, image::ImageViewAbstract, memory::allocator::StandardMemoryAllocator};
+use vulkano::{command_buffer::allocator::StandardCommandBufferAllocator, device::{Device, Queue}, format::Format, image::view::ImageView, memory::allocator::StandardMemoryAllocator};
 use vulkano_util::context::VulkanoContext;
 use crate::edit::Edit;
 use self::canvas::CanvasRenderContext;
@@ -23,7 +23,7 @@ pub struct FrameRenderInfo {
     /// The index of current image.
     pub image_index: usize,
     /// The image we will draw.
-    pub image: Arc<dyn ImageViewAbstract>,
+    pub image: Arc<ImageView>,
     /// The image format.
     pub format: Format,
     // We can not store before_future here because VulkanoWindowRenderer::acquire can not return Box<dyn GpuFuture + Send + Sync>.

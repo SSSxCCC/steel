@@ -141,7 +141,7 @@ fn _main(event_loop: EventLoop<()>) {
                     let mut raw_input = gui.egui_winit.take_egui_input(renderer.window());
                     let screen_size = editor.game_window().size();
                     raw_input.screen_rect = Some(egui::Rect::from_x_y_ranges(0.0..=(screen_size.x as f32), 0.0..=(screen_size.y as f32)));
-                    raw_input.pixels_per_point = Some(gui_editor.egui_ctx.pixels_per_point());
+                    gui.egui_ctx.options_mut(|options| options.zoom_factor = gui_editor.egui_ctx.zoom_factor());
                     gui.egui_ctx.begin_frame(raw_input);
 
                     events.iter_mut().for_each(|e| adjust_event_for_window(e, editor.game_window().position(), gui.egui_ctx.pixels_per_point()));
