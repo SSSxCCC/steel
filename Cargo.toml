@@ -4,8 +4,8 @@ members = [
     "steel-engine",
     "steel-common",
     "steel-editor",
-    "steel-client",
     "steel-dynlib",
+    "steel-client",
     "steel-server",
 ]
 exclude = [
