@@ -1,6 +1,6 @@
 # Editor Export
 
-The steps to export the steel-editor executable file:
+Steps to export the steel-editor executable file:
 
 1. Modify steel-engine version of CARGO_TOML in "steel-editor/src/project.rs" to the current supported version.
 
