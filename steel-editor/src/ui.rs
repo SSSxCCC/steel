@@ -125,12 +125,16 @@ impl Editor {
                 }
             });
             if ui.button("Open").clicked() {
-                log::info!("Open project, path={}", self.project_path.display());
-                self.scene_window.close(Some(gui));
-                self.game_window.close(Some(gui));
-                project.open(self.project_path.clone(), local_data);
-                project.compile(gui_game, context);
-                self.show_open_project_dialog = false;
+                if self.project_path.display().to_string().is_empty() {
+                    log::info!("Open project failed, path is empty");
+                } else {
+                    log::info!("Open project, path={}", self.project_path.display());
+                    self.scene_window.close(Some(gui));
+                    self.game_window.close(Some(gui));
+                    project.open(self.project_path.clone(), local_data);
+                    project.compile(gui_game, context);
+                    self.show_open_project_dialog = false;
+                }
             }
         });
         self.show_open_project_dialog &= show;

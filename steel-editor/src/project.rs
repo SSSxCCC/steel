@@ -61,12 +61,16 @@ impl Project {
 
         let cargo_toml_file = path.join("Cargo.toml");
         if !cargo_toml_file.exists() {
-            let mut steel_engine_dir = fs::canonicalize("steel-engine")?;
-            crate::utils::delte_windows_path_prefix(&mut steel_engine_dir);
-            let steel_engine_dir = steel_engine_dir.to_str()
-                .ok_or(ProjectError::new(format!("{} to_str() returns None", steel_engine_dir.display())))?
-                .replace("\\", "/");
-            fs::write(&cargo_toml_file, CARGO_TOML.replacen("../../steel-engine", steel_engine_dir.as_str(), 1))?;
+            if let Ok(mut steel_engine_dir) = fs::canonicalize("steel-engine") {
+                crate::utils::delte_windows_path_prefix(&mut steel_engine_dir);
+                let steel_engine_dir = steel_engine_dir.to_str()
+                    .ok_or(ProjectError::new(format!("{} to_str() returns None", steel_engine_dir.display())))?
+                    .replace("\\", "/");
+                fs::write(&cargo_toml_file, CARGO_TOML.replacen("../../steel-engine", steel_engine_dir.as_str(), 1))?;
+            } else {
+                // "steel-engine" folder not found, maybe steel-editor is running in exported executable, just write CARGO_TOML content.
+                fs::write(&cargo_toml_file, CARGO_TOML)?;
+            }
             log::info!("Created: {}", cargo_toml_file.display());
         }
 
@@ -158,6 +162,9 @@ impl Project {
     /// We avoid this problem by rename it so that compiler can generate a new pdb file.
     fn _handle_pdb_file(pdb_file_regex: Regex) -> Result<(), Box<dyn Error>> {
         let pdb_dir = PathBuf::from("target/debug/deps");
+        if !pdb_dir.exists() {
+            return Ok(()); // currently no pdb file exists
+        }
         let pdb_file_name = fs::read_dir(&pdb_dir)?
             .filter_map(|entry| entry.ok())
             .filter(|entry| entry.path().is_file())
@@ -165,7 +172,7 @@ impl Project {
             .filter(|file_name| pdb_file_regex.is_match(file_name))
             .collect::<Vec<_>>();
         if pdb_file_name.is_empty() {
-            return Ok(()); // Currently no pdb file exists
+            return Ok(()); // currently no pdb file exists
         } else if pdb_file_name.len() > 1 {
             log::warn!("Found more than one pdb file: {pdb_file_name:?}");
         }
