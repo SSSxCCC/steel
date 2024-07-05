@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::UVec2;
-use steel_common::{engine::{Command, DrawInfo, FrameInfo, FrameStage, InitInfo}, platform::Platform};
+use steel_common::{app::{Command, DrawInfo, InitInfo, UpdateInfo}, platform::Platform};
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 
@@ -102,12 +102,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 let gui = gui.as_mut().unwrap();
                 gui.begin_frame();
 
-                let mut frame_info = FrameInfo { stage: FrameStage::Maintain, ctx: &gui.egui_ctx };
-                engine.frame(&frame_info);
-                frame_info.stage = FrameStage::Update;
-                engine.frame(&frame_info);
-                frame_info.stage = FrameStage::Finish;
-                engine.frame(&frame_info);
+                engine.update(UpdateInfo { update: true, ctx: &gui.egui_ctx });
 
                 gpu_future = engine.draw(DrawInfo {
                     before_future: gpu_future,

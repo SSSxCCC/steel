@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut, World};
 use steel_common::{data::{Data, EntityData, Value, WorldData}, platform::Platform};
-use crate::data::{ComponentFns, UniqueFns};
+use crate::data::{ComponentRegistry, UniqueRegistry};
 
 /// The SceneManager unique. You can use SceneManager::current_scene to get the current scene
 /// and use SceneManager::switch_scene to change scene at the start of next frame.
@@ -29,7 +29,7 @@ impl SceneManager {
     }
 
     /// Load the scene which is set by SceneManager::switch_scene.
-    pub fn maintain_system(world: &mut World, component_fns: &ComponentFns, unique_fns: &UniqueFns) {
+    pub fn maintain_system(world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) {
         let world_data_and_scene = world.run(|mut scene_manager: UniqueViewMut<SceneManager>, platform: UniqueView<Platform>| {
             if let Some(to_scene) = scene_manager.to_scene.take() {
                 if let Some(world_data) = WorldData::load_from_file(&to_scene, &platform) {
@@ -39,13 +39,13 @@ impl SceneManager {
             None
         });
         if let Some((world_data, scene)) = world_data_and_scene {
-            Self::load(world, &world_data, component_fns, unique_fns);
+            Self::load(world, &world_data, component_registry, unique_registry);
             Self::set_current_scene(world, Some(scene));
         }
     }
 
     /// Clear world and load world from world_data, also be sure to call Self::set_current_scene if scene path has changed.
-    pub(crate) fn load(world: &mut World, world_data: &WorldData, component_fns: &ComponentFns, unique_fns: &UniqueFns) {
+    pub(crate) fn load(world: &mut World, world_data: &WorldData, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) {
         // clear all entities in ecs world.
         world.clear();
 
@@ -75,12 +75,12 @@ impl SceneManager {
         // create components and uniques in ecs world.
         for (new_id, entity_data) in &new_world_data.entities {
             for (component_name, component_data) in &entity_data.components {
-                if let Some(component_fn) = component_fns.get(component_name.as_str()) {
+                if let Some(component_fn) = component_registry.get(component_name.as_str()) {
                     (component_fn.create_with_data)(world, *new_id, component_data);
                 }
             }
         }
-        for unique_fn in unique_fns.values() {
+        for unique_fn in unique_registry.values() {
             (unique_fn.load_from_scene_data)(world, &new_world_data);
         }
     }

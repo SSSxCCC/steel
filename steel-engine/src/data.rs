@@ -2,7 +2,7 @@ pub use steel_common::data::*;
 
 use indexmap::IndexMap;
 use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
-use crate::{camera::Camera, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, render::{renderer2d::Renderer2D, RenderManager}, transform::Transform};
+use crate::edit::Edit;
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
@@ -15,26 +15,31 @@ pub struct ComponentFn {
 }
 
 /// A map of ComponentFn, key is component name.
-pub type ComponentFns = IndexMap<&'static str, ComponentFn>;
+pub struct ComponentRegistry(IndexMap<&'static str, ComponentFn>);
 
-impl ComponentFn {
-    /// Create a ComponentFns with all core components already registered.
-    pub fn with_core_components() -> ComponentFns {
-        let mut component_fns = ComponentFns::new();
-        Self::register::<EntityInfo>(&mut component_fns);
-        Self::register::<Parent>(&mut component_fns);
-        Self::register_track_deletion::<Child>(&mut component_fns);
-        Self::register::<Transform>(&mut component_fns);
-        Self::register::<Camera>(&mut component_fns);
-        Self::register_track_all::<RigidBody2D>(&mut component_fns);
-        Self::register_track_all::<Collider2D>(&mut component_fns);
-        Self::register::<Renderer2D>(&mut component_fns);
-        component_fns
+impl std::ops::Deref for ComponentRegistry {
+    type Target = IndexMap<&'static str, ComponentFn>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ComponentRegistry {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl ComponentRegistry {
+    /// Create a new ComponentRegistry.
+    pub fn new() -> Self {
+        ComponentRegistry(IndexMap::new())
     }
 
-    /// Insert a type of Component<Tracking = Untracked> to ComponentFns.
-    pub fn register<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
-        component_fns.insert(C::name(), ComponentFn {
+    /// Insert a type of Component<Tracking = Untracked> to ComponentRegistry.
+    pub fn register<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(&mut self) {
+        self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
             destroy: Self::destroy_fn::<C>,
@@ -43,9 +48,9 @@ impl ComponentFn {
         });
     }
 
-    /// Insert a type of Component<Tracking = Insertion> to ComponentFns.
-    pub fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
-        component_fns.insert(C::name(), ComponentFn {
+    /// Insert a type of Component<Tracking = Insertion> to ComponentRegistry.
+    pub fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(&mut self) {
+        self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
             destroy: Self::destroy_fn::<C>,
@@ -54,9 +59,9 @@ impl ComponentFn {
         });
     }
 
-    /// Insert a type of Component<Tracking = Modification> to ComponentFns.
-    pub fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
-        component_fns.insert(C::name(), ComponentFn {
+    /// Insert a type of Component<Tracking = Modification> to ComponentRegistry.
+    pub fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(&mut self) {
+        self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
             destroy: Self::destroy_fn::<C>,
@@ -65,9 +70,9 @@ impl ComponentFn {
         });
     }
 
-    /// Insert a type of Component<Tracking = Deletion> to ComponentFns.
-    pub fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
-        component_fns.insert(C::name(), ComponentFn {
+    /// Insert a type of Component<Tracking = Deletion> to ComponentRegistry.
+    pub fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(&mut self) {
+        self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
             destroy: Self::destroy_fn::<C>,
@@ -76,9 +81,9 @@ impl ComponentFn {
         });
     }
 
-    /// Insert a type of Component<Tracking = Removal> to ComponentFns.
-    pub fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
-        component_fns.insert(C::name(), ComponentFn {
+    /// Insert a type of Component<Tracking = Removal> to ComponentRegistry.
+    pub fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(&mut self) {
+        self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
             destroy: Self::destroy_fn::<C>,
@@ -87,9 +92,9 @@ impl ComponentFn {
         });
     }
 
-    /// Insert a type of Component<Tracking = All> to ComponentFns.
-    pub fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(component_fns: &mut ComponentFns) {
-        component_fns.insert(C::name(), ComponentFn {
+    /// Insert a type of Component<Tracking = All> to ComponentRegistry.
+    pub fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(&mut self) {
+        self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
             destroy: Self::destroy_fn::<C>,
@@ -187,21 +192,31 @@ pub struct UniqueFn {
 }
 
 /// A map of UniqueFn, key is unique name.
-pub type UniqueFns = IndexMap<&'static str, UniqueFn>;
+pub struct UniqueRegistry(IndexMap<&'static str, UniqueFn>);
 
-impl UniqueFn {
-    /// Create a UniqueFns with all core uniques already registered.
-    pub fn with_core_uniques() -> UniqueFns {
-        let mut unique_fns = UniqueFns::new();
-        Self::register::<Physics2DManager>(&mut unique_fns);
-        Self::register::<RenderManager>(&mut unique_fns);
-        Self::register::<Hierarchy>(&mut unique_fns);
-        unique_fns
+impl std::ops::Deref for UniqueRegistry {
+    type Target = IndexMap<&'static str, UniqueFn>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for UniqueRegistry {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl UniqueRegistry {
+    /// Create a new UniqueRegistry.
+    pub fn new() -> Self {
+        UniqueRegistry(IndexMap::new())
     }
 
-    /// Insert a type of Unique to UniqueFns.
-    pub fn register<U: Unique + Edit + Send + Sync>(unique_fns: &mut UniqueFns) {
-        unique_fns.insert(U::name(), UniqueFn {
+    /// Insert a type of Unique to UniqueRegistry.
+    pub fn register<U: Unique + Edit + Send + Sync>(&mut self) {
+        self.insert(U::name(), UniqueFn {
             save_to_data: Self::save_to_data_fn::<U>,
             load_from_data: Self::load_from_data_fn::<U>,
             load_from_scene_data: Self::load_from_scene_data_fn::<U>,

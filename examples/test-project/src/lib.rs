@@ -1,37 +1,15 @@
 use std::path::PathBuf;
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use shipyard::{Component, EntityId, UniqueView, UniqueViewMut};
-use steel::{data::{Data, Value}, edit::Edit, engine::{Engine, EngineImpl}, scene::SceneManager, ui::EguiContext};
+use steel::{app::{App, Schedule, SteelApp}, data::{Data, Value}, edit::Edit, physics2d::Physics2DPlugin, scene::SceneManager, ui::EguiContext};
 
 #[no_mangle]
-pub fn create() -> Box<dyn Engine> {
-    Box::new(EngineWrapper { inner: EngineImpl::new() })
-}
-
-struct EngineWrapper {
-    inner: EngineImpl,
-}
-
-impl Engine for EngineWrapper {
-    fn init(&mut self, info: steel::engine::InitInfo) {
-        self.inner.init(info);
-        self.inner.register_component::<TestComponent>();
-    }
-
-    fn frame(&mut self, info: &steel::engine::FrameInfo) {
-        self.inner.frame(info);
-        if matches!(info.stage, steel::engine::FrameStage::Maintain) {
-            self.inner.world.run(test_system);
-        }
-    }
-
-    fn draw(&mut self, info: steel::engine::DrawInfo) -> Box<dyn vulkano::sync::GpuFuture> {
-        self.inner.draw(info)
-    }
-
-    fn command(&mut self, cmd: steel::engine::Command) {
-        self.inner.command(cmd);
-    }
+pub fn create() -> Box<dyn App> {
+    SteelApp::new()
+        .add_plugin(Physics2DPlugin)
+        .register_component::<TestComponent>()
+        .add_system(Schedule::PostUpdate, test_system)
+        .boxed()
 }
 
 #[derive(Component, Edit, Default)]

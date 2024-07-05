@@ -1,6 +1,6 @@
-use steel::engine::{Engine, EngineImpl};
+use steel::app::{App, SteelApp};
 
 #[no_mangle]
-pub fn create() -> Box<dyn Engine> {
-    Box::new(EngineImpl::new())
+pub fn create() -> Box<dyn App> {
+    SteelApp::new().boxed()
 }

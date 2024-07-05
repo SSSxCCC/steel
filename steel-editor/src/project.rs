@@ -2,15 +2,15 @@ use std::{error::Error, fs, path::{Path, PathBuf}};
 use egui_winit_vulkano::Gui;
 use regex::Regex;
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, Engine, InitInfo}, platform::Platform};
+use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, app::{Command, App, InitInfo}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 use vulkano_util::context::VulkanoContext;
 use crate::utils::LocalData;
 
 struct ProjectCompiledState {
-    engine: Box<dyn Engine>,
-    #[allow(unused)] library: Library, // Library must be destroyed after Engine
+    app: Box<dyn App>,
+    #[allow(unused)] library: Library, // Library must be destroyed after App
 
     data: WorldData,
     running: bool,
@@ -127,7 +127,7 @@ impl Project {
             let mut data = WorldData::new();
             let mut scene = None;
             if let Some(compiled) = &mut state.compiled {
-                compiled.engine.command(Command::Save(&mut data));
+                compiled.app.command(Command::Save(&mut data));
                 scene = compiled.scene.take();
             }
 
@@ -149,15 +149,15 @@ impl Project {
             let setup_logger_fn: Symbol<fn(&'static dyn Log, LevelFilter) -> Result<(), SetLoggerError>> = unsafe { library.get(b"setup_logger")? };
             setup_logger_fn(log::logger(), log::max_level())?;
 
-            let create_engine_fn: Symbol<fn() -> Box<dyn Engine>> = unsafe { library.get(b"create")? };
-            let mut engine = create_engine_fn();
-            engine.init(InitInfo { platform: Platform::new_editor(state.path.clone()), context, scene: None });
+            let create_app_fn: Symbol<fn() -> Box<dyn App>> = unsafe { library.get(b"create")? };
+            let mut app = create_app_fn();
+            app.init(InitInfo { platform: Platform::new_editor(state.path.clone()), context, scene: None });
 
             // restore game world from scene data
-            engine.command(Command::Reload(&data));
-            engine.command(Command::SetCurrentScene(scene.clone()));
+            app.command(Command::Reload(&data));
+            app.command(Command::SetCurrentScene(scene.clone()));
 
-            state.compiled = Some(ProjectCompiledState { engine, library, data, running: false, scene });
+            state.compiled = Some(ProjectCompiledState { app, library, data, running: false, scene });
             Ok(())
         } else {
             Err(ProjectError::new("No open project").boxed())
@@ -308,8 +308,8 @@ impl Project {
         return self.compiled_ref().is_some();
     }
 
-    pub fn engine(&mut self) -> Option<&mut Box<dyn Engine>> {
-        Some(&mut self.compiled_mut()?.engine)
+    pub fn app(&mut self) -> Option<&mut Box<dyn App>> {
+        Some(&mut self.compiled_mut()?.app)
     }
 
     fn compiled_ref(&self) -> Option<&ProjectCompiledState> {
@@ -480,14 +480,14 @@ impl Project {
 
     pub fn save_to_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.command(Command::Save(&mut compiled.data));
+            compiled.app.command(Command::Save(&mut compiled.data));
         }
     }
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.command(Command::Reload(&compiled.data));
-            compiled.engine.command(Command::SetCurrentScene(compiled.scene.clone()));
+            compiled.app.command(Command::Reload(&compiled.data));
+            compiled.app.command(Command::SetCurrentScene(compiled.scene.clone()));
         }
     }
 
@@ -530,8 +530,8 @@ impl Project {
 
     pub fn new_scene(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.command(Command::ClearEntity);
-            compiled.engine.command(Command::SetCurrentScene(None));
+            compiled.app.command(Command::ClearEntity);
+            compiled.app.command(Command::SetCurrentScene(None));
             compiled.scene = None;
         }
     }
@@ -541,14 +541,14 @@ impl Project {
     pub fn save_scene(&mut self, scene: impl Into<PathBuf>) {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
-            compiled.engine.command(Command::Save(&mut compiled.data));
+            compiled.app.command(Command::Save(&mut compiled.data));
             let world_data = Self::_cut_world_data(&compiled.data);
             let asset_dir = asset_dir.expect("self.asset_dir() must be some when self.compiled_mut() is some");
             let scene = scene.into();
             let scene_abs = asset_dir.join(&scene);
             match Self::_save_to_file(&world_data, &scene_abs) {
                 Ok(_) => {
-                    compiled.engine.command(Command::SetCurrentScene(Some(scene.clone())));
+                    compiled.app.command(Command::SetCurrentScene(Some(scene.clone())));
                     compiled.scene = Some(scene);
                 },
                 Err(err) => log::warn!("Failed to save WorldData to {} because {err}", scene_abs.display()),
@@ -616,8 +616,8 @@ impl Project {
             match Self::_load_from_file(&scene_abs) {
                 Ok(data) => {
                     compiled.data = data;
-                    compiled.engine.command(Command::Reload(&compiled.data));
-                    compiled.engine.command(Command::SetCurrentScene(Some(scene.clone())));
+                    compiled.app.command(Command::Reload(&compiled.data));
+                    compiled.app.command(Command::SetCurrentScene(Some(scene.clone())));
                     compiled.scene = Some(scene);
                 }
                 Err(err) => log::warn!("Failed to load WorldData from {} because {err}", scene_abs.display()),
@@ -699,11 +699,11 @@ android_logger = "0.13.3"
 "#;
 
 const LIB_RS: &'static str =
-"use steel::engine::{Engine, EngineImpl};
+"use steel::app::{App, SteelApp};
 
 #[no_mangle]
-pub fn create() -> Box<dyn Engine> {
-    Box::new(EngineImpl::new())
+pub fn create() -> Box<dyn App> {
+    SteelApp::new().boxed()
 }
 ";
 

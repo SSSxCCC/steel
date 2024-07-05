@@ -5,7 +5,7 @@ mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
-use steel_common::{data::WorldData, engine::{Command, DrawInfo, EditorCamera, EditorInfo, FrameInfo, FrameStage}};
+use steel_common::{app::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}, data::WorldData};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
@@ -122,7 +122,7 @@ fn _main(event_loop: EventLoop<()>) {
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 let gui_editor = gui_editor.as_mut().unwrap();
-                let mut world_data = project.engine().map(|e| {
+                let mut world_data = project.app().map(|e| {
                     let mut world_data = WorldData::new();
                     e.command(Command::Save(&mut world_data));
                     world_data
@@ -130,7 +130,7 @@ fn _main(event_loop: EventLoop<()>) {
                 editor.ui(gui_editor, &mut gui, &mut dock_state, &context, renderer, &mut project, &mut local_data, &mut world_data, &input_editor, &mut editor_camera);
 
                 let is_running = project.is_running();
-                if let Some(engine) = project.engine() {
+                if let Some(app) = project.app() {
                     if gui.is_none() {
                         gui = Some(Gui::new(&event_loop, renderer.surface(),
                             renderer.graphics_queue(),
@@ -145,23 +145,16 @@ fn _main(event_loop: EventLoop<()>) {
                     gui.egui_ctx.begin_frame(raw_input);
 
                     events.iter_mut().for_each(|e| adjust_event_for_window(e, editor.game_window().position(), gui.egui_ctx.pixels_per_point()));
-                    engine.command(Command::UpdateInput(&events));
+                    app.command(Command::UpdateInput(&events));
 
                     if let Some(world_data) = world_data.as_mut() {
-                        engine.command(Command::Load(world_data));
+                        app.command(Command::Load(world_data));
                     }
 
-                    let mut frame_info = FrameInfo { stage: FrameStage::Maintain, ctx: &gui.egui_ctx };
-                    engine.frame(&frame_info);
-                    if is_running {
-                        frame_info.stage = FrameStage::Update;
-                        engine.frame(&frame_info);
-                    }
-                    frame_info.stage = FrameStage::Finish;
-                    engine.frame(&frame_info);
+                    app.update(UpdateInfo { update: is_running, ctx: &gui.egui_ctx });
 
                     if let Some(image) = editor.game_window().image() {
-                        let mut draw_future = engine.draw(DrawInfo {
+                        let mut draw_future = app.draw(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
                             image: image.clone(),
@@ -173,7 +166,7 @@ fn _main(event_loop: EventLoop<()>) {
                     }
 
                     if let Some(image) = editor.scene_window().image() {
-                        let draw_future = engine.draw(DrawInfo {
+                        let draw_future = app.draw(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context, renderer: &renderer,
                             image: image.clone(),

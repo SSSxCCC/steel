@@ -3,7 +3,7 @@ use glam::{Affine2, Quat, Vec2, Vec3, Vec4};
 use shipyard::{AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut};
 use rapier2d::prelude::*;
 use steel_common::data::{Data, Limit, Value};
-use crate::{edit::Edit, hierarchy::Child, render::canvas::Canvas, shape::ShapeWrapper, time::Time, transform::Transform};
+use crate::{app::{Plugin, Schedule, SteelApp}, edit::Edit, hierarchy::Child, render::canvas::Canvas, shape::ShapeWrapper, time::Time, transform::Transform};
 
 /// Maximum difference between two f32 values to be considered equal.
 pub const F32_MAX_DIFF: f32 = 0.0001;
@@ -480,4 +480,25 @@ pub fn physics2d_debug_render_system(mut physics2d_manager: UniqueViewMut<Physic
         &physics2d_manager.multibody_joint_set,
         &physics2d_manager.narrow_phase
     );
+}
+
+/// The physics2d plugin. This plugin contains:
+/// - [Physics2DManager]
+/// - [RigidBody2D]
+/// - [Collider2D]
+/// - [physics2d_maintain_system]
+/// - [physics2d_update_system]
+/// - [physics2d_debug_render_system]
+pub struct Physics2DPlugin;
+
+impl Plugin for Physics2DPlugin {
+    fn apply(self, app: SteelApp) -> SteelApp {
+        app.register_unique::<Physics2DManager>()
+            .register_component_track_all::<RigidBody2D>()
+            .register_component_track_all::<Collider2D>()
+            .add_unique(Physics2DManager::default())
+            .add_system(Schedule::PreUpdate, crate::physics2d::physics2d_maintain_system)
+            .add_system(Schedule::Update, crate::physics2d::physics2d_update_system)
+            .add_system(Schedule::DrawEditor, crate::physics2d::physics2d_debug_render_system)
+    }
 }

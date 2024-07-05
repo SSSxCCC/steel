@@ -3,7 +3,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, engine::{Command, EditorCamera, Engine, WindowIndex}, ext::VulkanoWindowRendererExt};
+use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, app::{Command, EditorCamera, App, WindowIndex}, ext::VulkanoWindowRendererExt};
 use vulkano::{image::{view::ImageView, Image, ImageCreateInfo, ImageUsage}, memory::allocator::AllocationCreateInfo};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::VirtualKeyCode;
@@ -57,8 +57,8 @@ impl Editor {
 
             if !self.use_dock {
                 if let Some(world_data) = world_data {
-                    if let Some(engine) = project.engine() {
-                        self.entity_component_windows(&ctx, world_data, engine);
+                    if let Some(app) = project.app() {
+                        self.entity_component_windows(&ctx, world_data, app);
                         self.unique_windows(&ctx, world_data);
                     }
                 }
@@ -76,14 +76,14 @@ impl Editor {
                                 self.game_window.ui(ui, gui, context, renderer);
                             },
                             "Entities" => if let Some(world_data) = world_data {
-                                if let Some(engine) = project.engine() {
-                                    self.entities_view(ui, world_data, engine);
+                                if let Some(app) = project.app() {
+                                    self.entities_view(ui, world_data, app);
                                 }
                             },
                             "Entity" => if let Some(world_data) = world_data {
-                                if let Some(engine) = project.engine() {
+                                if let Some(app) = project.app() {
                                     if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
-                                        self.entity_view(ui, entity_data, engine);
+                                        self.entity_view(ui, entity_data, app);
                                     }
                                 }
                             },
@@ -233,7 +233,7 @@ impl Editor {
                                 log::info!("After convert_to_scene_relative_path, file={file:?}");
                                 if let Some(file) = file {
                                     project.load_scene(file);
-                                    // We set world_data to None to prevent engine from loading outdated world_data later this frame.
+                                    // We set world_data to None to prevent app from loading outdated world_data later this frame.
                                     // But this will cause a splash screen problem due to the disappearance of the windows showing world_data for one frame.
                                     // TODO: find a way to avoid this splash screen problem.
                                     *world_data = None;
@@ -258,7 +258,7 @@ impl Editor {
                                 project.load_from_memory();
                             } else {
                                 project.save_to_memory();
-                                project.engine().unwrap().command(Command::ResetTime);
+                                project.app().unwrap().command(Command::ResetTime);
                                 if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {
                                     dock_state.set_active_tab(tab);
                                 }
@@ -288,8 +288,8 @@ impl Editor {
             input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
         if self.scene_focus() {
             self.update_editor_camera(input, editor_camera);
-            if let Some(engine) = project.engine() {
-                self.click_entity(ctx, engine, input);
+            if let Some(app) = project.app() {
+                self.click_entity(ctx, app, input);
                 if let Some(world_data) = world_data {
                     self.drag_entity(world_data, input, editor_camera);
                 }
@@ -331,14 +331,14 @@ impl Editor {
         }
     }
 
-    fn click_entity(&mut self, ctx: &egui::Context, engine: &mut Box<dyn Engine>, input: &WinitInputHelper) {
+    fn click_entity(&mut self, ctx: &egui::Context, app: &mut Box<dyn App>, input: &WinitInputHelper) {
         if input.mouse_pressed(0) {
             if let Some((x, y)) = input.mouse() {
                 let x = x - self.scene_window().position().x * ctx.pixels_per_point();
                 let y = y - self.scene_window().position().y * ctx.pixels_per_point();
                 let screen_position = UVec2::new(x as u32, y as u32);
                 let mut eid = EntityId::dead();
-                engine.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
+                app.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
                 if eid != EntityId::dead() {
                     self.selected_entity = eid;
                 }
@@ -362,19 +362,19 @@ impl Editor {
         }
     }
 
-    fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData, engine: &mut Box<dyn Engine>) {
+    fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData, app: &mut Box<dyn App>) {
         egui::Window::new("Entities").show(&ctx, |ui| {
-            self.entities_view(ui, world_data, engine);
+            self.entities_view(ui, world_data, app);
         });
 
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
             egui::Window::new("Components").show(&ctx, |ui| {
-                self.entity_view(ui, entity_data, engine);
+                self.entity_view(ui, entity_data, app);
             });
         }
     }
 
-    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>) {
+    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>) {
         let hierarchy = world_data.uniques.get("Hierarchy").expect("Hierarchy unique is missing!");
         let root_entities = match hierarchy.get("roots") {
             Some(Value::VecEntity(v)) => v,
@@ -383,10 +383,10 @@ impl Editor {
 
         if !root_entities.is_empty() {
             let (mut drag_entity, mut drop_parent, mut drop_before) = (EntityId::dead(), None, EntityId::dead());
-            self.entity_level(root_entities, EntityId::dead(), ui, world_data, engine, &mut drag_entity, &mut drop_parent, &mut drop_before);
+            self.entity_level(root_entities, EntityId::dead(), ui, world_data, app, &mut drag_entity, &mut drop_parent, &mut drop_before);
             if let Some(drop_parent) = drop_parent {
                 if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released()) {
-                    engine.command(Command::AttachEntity(drag_entity, drop_parent, drop_before));
+                    app.command(Command::AttachEntity(drag_entity, drop_parent, drop_before));
                 }
             }
         } else if !world_data.entities.is_empty() {
@@ -394,11 +394,11 @@ impl Editor {
         }
 
         if ui.button("+").clicked() {
-            engine.command(Command::CreateEntity);
+            app.command(Command::CreateEntity);
         }
     }
 
-    fn entity_level(&mut self, entities: &Vec<EntityId>, parent: EntityId, ui: &mut egui::Ui, world_data: &WorldData, engine: &mut Box<dyn Engine>,
+    fn entity_level(&mut self, entities: &Vec<EntityId>, parent: EntityId, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>,
             drag_entity: &mut EntityId, drop_parent: &mut Option<EntityId>, drop_before: &mut EntityId) {
         for (i, entity) in entities.iter().enumerate() {
             let entity = *entity;
@@ -437,7 +437,7 @@ impl Editor {
                 }
 
                 if ui.button("-").clicked() {
-                    engine.command(Command::DestroyEntity(entity));
+                    app.command(Command::DestroyEntity(entity));
                 }
             });
 
@@ -449,7 +449,7 @@ impl Editor {
                             Some(Value::VecEntity(v)) => v,
                             _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
                         };
-                        self.entity_level(children, entity, ui, world_data, engine, drag_entity, drop_parent, drop_before)
+                        self.entity_level(children, entity, ui, world_data, app, drag_entity, drop_parent, drop_before)
                     });
             } else {
                 ui.horizontal(|ui| {
@@ -539,13 +539,13 @@ impl Editor {
         format!("{:?}", id)
     }
 
-    fn entity_view(&mut self, ui: &mut egui::Ui, entity_data: &mut EntityData, engine: &mut Box<dyn Engine>) {
+    fn entity_view(&mut self, ui: &mut egui::Ui, entity_data: &mut EntityData, app: &mut Box<dyn App>) {
         for (component_name, component_data) in &mut entity_data.components {
             ui.horizontal(|ui| {
                 ui.label(component_name);
                 if component_name != "Child" && component_name != "Parent" { // TODO: use a more generic way to prevent some components from being destroyed by user
                     if ui.button("-").clicked() {
-                        engine.command(Command::DestroyComponent(self.selected_entity, component_name));
+                        app.command(Command::DestroyComponent(self.selected_entity, component_name));
                     }
                 }
             });
@@ -560,11 +560,11 @@ impl Editor {
         }
 
         let mut components = Vec::new();
-        engine.command(Command::GetComponents(&mut components));
+        app.command(Command::GetComponents(&mut components));
         ui.menu_button("+", |ui| {
             for component in components.into_iter().filter(|c| *c != "Child" && *c != "Parent") { // TODO: use a more generic way to prevent some components from being created by user
                 if ui.button(component).clicked() {
-                    engine.command(Command::CreateComponent(self.selected_entity, component));
+                    app.command(Command::CreateComponent(self.selected_entity, component));
                     ui.close_menu();
                 }
             }

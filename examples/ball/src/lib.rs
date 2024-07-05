@@ -1,50 +1,22 @@
 use glam::Vec2;
 use shipyard::{AddComponent, Component, EntityId, IntoIter, IntoWithId, UniqueView, UniqueViewMut, View, ViewMut};
-use steel::{data::{Data, Limit, Value}, edit::Edit, engine::{Command, DrawInfo, Engine, EngineImpl, FrameInfo, FrameStage, InitInfo}, input::Input, physics2d::{Collider2D, Physics2DManager, RigidBody2D}, platform::BuildTarget, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
-use vulkano::sync::GpuFuture;
+use steel::{app::{App, Schedule, SteelApp}, data::{Data, Limit, Value}, edit::Edit, input::Input, physics2d::{Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D}, platform::BuildTarget, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 use winit::event::VirtualKeyCode;
 
 #[no_mangle]
-pub fn create() -> Box<dyn Engine> {
-    Box::new(EngineWrapper { inner: EngineImpl::new() })
-}
-
-struct EngineWrapper {
-    inner: EngineImpl,
-}
-
-impl Engine for EngineWrapper {
-    fn init(&mut self, info: InitInfo) {
-        self.inner.init(info);
-        self.inner.register_component::<Player>();
-        self.inner.register_component::<Ball>();
-        self.inner.register_component::<Border>();
-        self.inner.register_component::<MainMenu>();
-    }
-
-    fn frame(&mut self, info: &FrameInfo) {
-        self.inner.frame(info);
-        match info.stage {
-            FrameStage::Maintain => {
-                self.inner.world.run(main_menu_system);
-            },
-            FrameStage::Update => {
-                self.inner.world.run(player_control_system);
-                self.inner.world.run(push_ball_system);
-                self.inner.world.run(border_check_system);
-                self.inner.world.run(lose_system);
-            },
-            FrameStage::Finish => (),
-        }
-    }
-
-    fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture> {
-        self.inner.draw(info)
-    }
-
-    fn command(&mut self, cmd: Command) {
-        self.inner.command(cmd);
-    }
+pub fn create() -> Box<dyn App> {
+    SteelApp::new()
+        .add_plugin(Physics2DPlugin)
+        .register_component::<Player>()
+        .register_component::<Ball>()
+        .register_component::<Border>()
+        .register_component::<MainMenu>()
+        .add_system(Schedule::PreUpdate, main_menu_system)
+        .add_system(Schedule::Update, player_control_system)
+        .add_system(Schedule::Update, push_ball_system)
+        .add_system(Schedule::Update, border_check_system)
+        .add_system(Schedule::Update, lose_system)
+        .boxed()
 }
 
 #[derive(Component, Edit, Default)]
