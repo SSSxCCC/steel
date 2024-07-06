@@ -6,7 +6,8 @@ Steel is an open source cross-platform rust game engine with the following featu
 * The game can be compiled into a Windows program or an Android application with one click;
 * Using modern rust language, while ensuring code stability and game performance;
 * Use widely used rust open source libraries, such as [rapier][rapier], [glam][glam], [egui][egui], [vulkano][vulkano], [shipyard][shipyard], etc., to speed up the speed of getting started;
-* Using vulkan, an advanced graphics API, can achieve any modern graphics effect.
+* Using vulkan, an advanced graphics API, can achieve any modern graphics effect;
+* It is modular, and complex game modules, such as the physics system, can be easily added to your game as plugins.
 
 ## Build and run Steel Editor
 
@@ -56,7 +57,8 @@ Steel是一个开源跨平台rust游戏引擎，主要有以下特性：
 * 制作的游戏可以一键编译成Windows程序或Android应用；
 * 使用现代rust语言，同时保证了代码稳定性与游戏运行性能；
 * 使用了被广泛使用的rust开源库，例如[rapier][rapier]，[glam][glam]，[egui][egui]，[vulkano][vulkano]，[shipyard][shipyard]等，加快上手速度；
-* 使用了vulkan这种先进的图形api，可以实现任何现代图形效果。
+* 使用了vulkan这种先进的图形api，可以实现任何现代图形效果；
+* 是模块化的，复杂的游戏模块，例如物理系统，可以作为插件轻松添加到你的游戏中。
 
 ## 编译并运行Steel引擎编辑器
 
