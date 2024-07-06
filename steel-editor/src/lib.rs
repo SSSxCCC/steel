@@ -1,10 +1,12 @@
 //! The editor for the [steel game engine](https://github.com/SSSxCCC/steel).
 
 mod ui;
+mod locale;
 mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
+use locale::Texts;
 use steel_common::{app::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}, data::WorldData};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
@@ -54,6 +56,7 @@ fn _main(event_loop: EventLoop<()>) {
     // egui
     let mut gui_editor = None; // for editor ui
     let mut gui: Option<Gui> = None; // for in-game ui
+    let mut texts = Texts::new(local_data.language);
     let mut editor = Editor::new(&local_data);
     let mut dock_state = create_dock_state();
 
@@ -71,6 +74,12 @@ fn _main(event_loop: EventLoop<()>) {
                 renderer.graphics_queue(),
                 renderer.swapchain_format(),
                 GuiConfig { is_overlay: false, ..Default::default() }));
+            // load fonts to support displaying chinese in egui
+            let mut fonts = egui::FontDefinitions::default();
+            fonts.font_data.insert("msyh".to_owned(), egui::FontData::from_static(include_bytes!("../fonts/msyh.ttc")));
+            fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().insert(0, "msyh".to_owned());
+            fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().push("msyh".to_owned());
+            gui_editor.as_ref().unwrap().egui_ctx.set_fonts(fonts);
         }
         Event::Suspended => {
             log::debug!("Event::Suspended");
@@ -126,7 +135,9 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &mut gui, &mut dock_state, &context, renderer, &mut project, &mut local_data, &mut world_data, &input_editor, &mut editor_camera);
+                editor.ui(gui_editor, &mut gui, &mut dock_state,
+                    &context, renderer, &mut project, &mut world_data,
+                    &mut local_data, &input_editor,&mut editor_camera, &mut texts);
 
                 let is_running = project.is_running();
                 if let Some(app) = project.app() {

@@ -8,7 +8,7 @@ use vulkano::{image::{view::ImageView, Image, ImageCreateInfo, ImageUsage}, memo
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
-use crate::{project::Project, utils::LocalData};
+use crate::{locale::{Language, Texts}, project::Project, utils::LocalData};
 
 pub struct Editor {
     scene_window: ImageWindow,
@@ -26,40 +26,47 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(local_data: &LocalData) -> Self {
-        Editor { scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
-            demo_windows: egui_demo_lib::DemoWindows::default(), use_dock: true, focused_tab: None, show_open_project_dialog: false,
-            project_path: local_data.last_open_project_path.clone(), fps_counter: FpsCounter::new(),
-            pressed_entity: EntityId::dead(), selected_entity: EntityId::dead(), selected_unique: String::new() }
+        Editor {
+            scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
+            demo_windows: egui_demo_lib::DemoWindows::default(),
+            use_dock: true, focused_tab: None, show_open_project_dialog: false,
+            project_path: local_data.last_open_project_path.clone(),
+            fps_counter: FpsCounter::new(),
+            pressed_entity: EntityId::dead(), selected_entity: EntityId::dead(), selected_unique: String::new(),
+        }
     }
 
-    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>, context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
-            project: &mut Project, local_data: &mut LocalData, world_data: &mut Option<WorldData>, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
+    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>,
+            context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
+            project: &mut Project, world_data: &mut Option<WorldData>,
+            local_data: &mut LocalData, input: &WinitInputHelper,
+            editor_camera: &mut EditorCamera, texts: &mut Texts) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
 
             // display egui demo windows
             //self.demo_windows.ui(&ctx);
 
-            self.open_project_dialog(&ctx, gui, gui_game, context, project, local_data);
-            self.menu_bars(&ctx, gui, gui_game, dock_state, context, project, world_data);
+            self.open_project_dialog(&ctx, gui, gui_game, context, project, local_data, texts);
+            self.menu_bars(&ctx, gui, gui_game, dock_state, context, project, world_data, local_data, texts);
 
             if project.is_compiled() {
                 self.update_editor_window(&ctx, project, world_data, input, editor_camera);
                 self.scene_window.layer = None;
                 self.game_window.layer = None;
                 if !self.use_dock {
-                    self.scene_window.show(&ctx, gui, context, renderer);
-                    self.game_window.show(&ctx, gui, context, renderer);
+                    self.scene_window.show(&ctx, gui, context, renderer, texts);
+                    self.game_window.show(&ctx, gui, context, renderer, texts);
                 }
             } else if project.is_open() {
-                Self::compile_error_dialog(&ctx);
+                self.compile_error_dialog(&ctx, texts);
             }
 
             if !self.use_dock {
                 if let Some(world_data) = world_data {
                     if let Some(app) = project.app() {
-                        self.entity_component_windows(&ctx, world_data, app);
-                        self.unique_windows(&ctx, world_data);
+                        self.entity_component_windows(&ctx, world_data, app, texts);
+                        self.unique_windows(&ctx, world_data, texts);
                     }
                 }
             }
@@ -67,7 +74,7 @@ impl Editor {
             if self.use_dock {
                 DockArea::new(dock_state)
                     .style(egui_dock::Style::from_egui(gui.egui_ctx.style().as_ref()))
-                    .show(&ctx, &mut MyTabViewer { add_contents: Box::new(|ui, tab| {
+                    .show(&ctx, &mut MyTabViewer { texts: &texts, add_contents: Box::new(|ui, tab| {
                         match tab.as_str() {
                             "Scene" => if project.is_compiled() {
                                 self.scene_window.ui(ui, gui, context, renderer);
@@ -105,15 +112,15 @@ impl Editor {
     }
 
     fn open_project_dialog(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>,
-            context: &VulkanoContext, project: &mut Project, local_data: &mut LocalData) {
+            context: &VulkanoContext, project: &mut Project, local_data: &mut LocalData, texts: &Texts) {
         let mut show = self.show_open_project_dialog;
-        egui::Window::new("Open Project").open(&mut show).show(&ctx, |ui| {
+        egui::Window::new(texts.get("Open Project")).open(&mut show).show(&ctx, |ui| {
             ui.horizontal(|ui| {
                 let mut path_str = self.project_path.display().to_string();
                 ui.text_edit_singleline(&mut path_str);
                 self.project_path = path_str.into();
 
-                if ui.button("Browse").clicked() {
+                if ui.button(texts.get("Browse")).clicked() {
                     log::info!("Open FileDialog");
                     let folder = rfd::FileDialog::new()
                         .set_directory(&self.project_path)
@@ -124,7 +131,7 @@ impl Editor {
                     }
                 }
             });
-            if ui.button("Open").clicked() {
+            if ui.button(texts.get("Open")).clicked() {
                 if self.project_path.display().to_string().is_empty() {
                     log::info!("Open project failed, path is empty");
                 } else {
@@ -140,33 +147,33 @@ impl Editor {
         self.show_open_project_dialog &= show;
     }
 
-    fn compile_error_dialog(ctx: &egui::Context) {
-        egui::Window::new("Compile error!").show(&ctx, |ui| {
-            ui.label("We have some compile issues, \
-                please solve them according to the terminal output, \
-                then click 'Project -> Compile' to try again.");
+    fn compile_error_dialog(&mut self, ctx: &egui::Context, texts: &Texts) {
+        egui::Window::new(texts.get("Compile error!")).show(&ctx, |ui| {
+            ui.label(texts.get("Compile error message"));
         });
     }
 
-    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>,
-            context: &VulkanoContext, project: &mut Project, world_data: &mut Option<WorldData>) {
+    fn menu_bars(&mut self, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>,
+            dock_state: &mut DockState<String>, context: &VulkanoContext,
+            project: &mut Project, world_data: &mut Option<WorldData>,
+            local_data: &mut LocalData, texts: &mut Texts) {
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("Project", |ui| {
-                    if ui.button("Open").clicked() {
+                ui.menu_button(texts.get("Project"), |ui| {
+                    if ui.button(texts.get("Open")).clicked() {
                         log::info!("Menu->Project->Open");
                         self.show_open_project_dialog = true;
                         ui.close_menu();
                     }
                     if project.is_open() {
-                        if ui.button("Close").clicked() {
+                        if ui.button(texts.get("Close")).clicked() {
                             log::info!("Menu->Project->Close");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
                             project.close(gui_game);
                             ui.close_menu();
                         }
-                        if ui.button("Compile").clicked() {
+                        if ui.button(texts.get("Compile")).clicked() {
                             log::info!("Menu->Project->Compile");
                             self.scene_window.close(Some(gui));
                             self.game_window.close(Some(gui));
@@ -175,7 +182,7 @@ impl Editor {
                         }
                     }
                     if project.is_compiled() && !project.is_running() {
-                        ui.menu_button("Export", |ui| {
+                        ui.menu_button(texts.get("Export"), |ui| {
                             if ui.button("Windows").clicked() {
                                 log::info!("Menu->Project->Export->Windows");
                                 project.export_windows();
@@ -193,9 +200,9 @@ impl Editor {
                 });
 
                 if project.is_compiled() && !project.is_running() {
-                    ui.menu_button("Scene", |ui| {
+                    ui.menu_button(texts.get("Scene"), |ui| {
                         if let Some(scene_path) = project.scene_relative_path() {
-                            if ui.button(format!("Save ({})", scene_path.display())).clicked() {
+                            if ui.button(format!("{} ({})", texts.get("Save"), scene_path.display())).clicked() {
                                 log::info!("Menu->Scene->Save");
                                 project.save_scene(scene_path);
                                 ui.close_menu();
@@ -206,7 +213,7 @@ impl Editor {
                         } else {
                             project.asset_dir().expect("project.asset_dir() must be some when project.is_compiled()")
                         };
-                        if ui.button("Save As").clicked() {
+                        if ui.button(texts.get("Save As")).clicked() {
                             log::info!("Menu->Scene->Save As");
                             let file = rfd::FileDialog::new()
                                 .set_directory(&starting_dir)
@@ -222,7 +229,7 @@ impl Editor {
                             }
                             ui.close_menu();
                         }
-                        if ui.button("Load").clicked() {
+                        if ui.button(texts.get("Load")).clicked() {
                             log::info!("Menu->Scene->Load");
                             let file = rfd::FileDialog::new()
                                 .set_directory(starting_dir)
@@ -241,7 +248,7 @@ impl Editor {
                             }
                             ui.close_menu();
                         }
-                        if ui.button("New").clicked() {
+                        if ui.button(texts.get("New")).clicked() {
                             log::info!("Menu->Scene->New");
                             project.new_scene();
                             ui.close_menu();
@@ -250,9 +257,9 @@ impl Editor {
                 }
 
                 if project.is_compiled() {
-                    ui.menu_button("Run", |ui| {
+                    ui.menu_button(texts.get("Run"), |ui| {
                         let text = if project.is_running() { "Stop" } else { "Start" };
-                        if ui.button(text).clicked() {
+                        if ui.button(texts.get(text)).clicked() {
                             log::info!("Menu->Run->{text}");
                             if project.is_running() {
                                 project.load_from_memory();
@@ -269,17 +276,37 @@ impl Editor {
                     });
                 }
 
-                ui.menu_button("Ui", |ui| {
-                    ui.label(format!("Current Scale: {}", ctx.pixels_per_point()));
+                ui.menu_button(texts.get("Ui"), |ui| {
+                    ui.label(format!("{}{}", texts.get("Current Scale: "), ctx.pixels_per_point()));
                     egui::gui_zoom::zoom_menu_buttons(ui);
-                    if ui.button(if self.use_dock { "Disable Dock" } else { "Enable Dock" }).clicked() {
+                    if ui.button(texts.get(if self.use_dock { "Disable Dock" } else { "Enable Dock" })).clicked() {
                         self.use_dock = !self.use_dock;
                         ui.close_menu();
                     }
+                    ui.menu_button(texts.get("Language"), |ui| {
+                        if ui.button(texts.get("en-US")).clicked() {
+                            texts.language = Language::Eng;
+                            local_data.language = Some(texts.language);
+                            local_data.save();
+                            ui.close_menu();
+                        }
+                        if ui.button(texts.get("zh-CN")).clicked() {
+                            texts.language = Language::Chs;
+                            local_data.language = Some(texts.language);
+                            local_data.save();
+                            ui.close_menu();
+                        }
+                        if ui.button(texts.get("Follow System")).clicked() {
+                            texts.language = crate::locale::system_language();
+                            local_data.language = None;
+                            local_data.save();
+                            ui.close_menu();
+                        }
+                    });
                 });
 
                 self.fps_counter.update();
-                ui.label(format!("fps: {:.2}", self.fps_counter.fps));
+                ui.label(format!("{}{:.2}", texts.get("fps: "), self.fps_counter.fps));
             });
         });
     }
@@ -362,13 +389,14 @@ impl Editor {
         }
     }
 
-    fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData, app: &mut Box<dyn App>) {
-        egui::Window::new("Entities").show(&ctx, |ui| {
+    fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData,
+            app: &mut Box<dyn App>, texts: &Texts) {
+        egui::Window::new(texts.get("Entities")).show(&ctx, |ui| {
             self.entities_view(ui, world_data, app);
         });
 
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
-            egui::Window::new("Components").show(&ctx, |ui| {
+            egui::Window::new(texts.get("Components")).show(&ctx, |ui| {
                 self.entity_view(ui, entity_data, app);
             });
         }
@@ -827,8 +855,8 @@ impl Editor {
         ui.add(drag_value);
     }
 
-    fn unique_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData) {
-        egui::Window::new("Uniques").show(&ctx, |ui| {
+    fn unique_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData, texts: &Texts) {
+        egui::Window::new(texts.get("Uniques")).show(&ctx, |ui| {
             self.uniques_view(ui, world_data);
         });
 
@@ -921,8 +949,8 @@ impl ImageWindow {
         ImageWindow { title: title.into(), image_index: 0, images: None, texture_ids: None, pixel: UVec2::ZERO, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
     }
 
-    fn show(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
-        egui::Window::new(&self.title)
+    fn show(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer, texts: &Texts) {
+        egui::Window::new(texts.get(self.title.as_str()))
             .movable(ctx.input(|input| input.pointer.hover_pos())
                 .is_some_and(|hover_pos| hover_pos.y < self.position.y ))
             .show(&ctx, |ui| self.ui(ui, gui, context, renderer));
@@ -1007,6 +1035,7 @@ pub fn create_dock_state() -> DockState<String> {
 }
 
 struct MyTabViewer<'a> {
+    texts: &'a Texts,
     add_contents: Box<dyn FnMut(&mut egui::Ui, &mut <MyTabViewer as TabViewer>::Tab) + 'a>,
 }
 
@@ -1014,7 +1043,7 @@ impl TabViewer for MyTabViewer<'_> {
     type Tab = String;
 
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        tab.as_str().into()
+        self.texts.get(tab.as_str()).into()
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {

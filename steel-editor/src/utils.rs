@@ -1,5 +1,6 @@
 use std::{error::Error, fs::File, io::{BufReader, BufWriter}, path::PathBuf};
 use serde::{Deserialize, Serialize};
+use crate::locale::Language;
 
 /// Delete windows path prefix:
 /// ```
@@ -19,6 +20,7 @@ pub fn delte_windows_path_prefix(path: &mut PathBuf) {
 #[derive(Serialize, Deserialize)]
 pub struct LocalData {
     pub last_open_project_path: PathBuf,
+    pub language: Option<Language>,
 }
 
 impl LocalData {
@@ -33,7 +35,7 @@ impl LocalData {
                 let mut last_open_project_path = std::fs::canonicalize("examples/test-project").unwrap_or_default();
                 delte_windows_path_prefix(&mut last_open_project_path);
 
-                LocalData { last_open_project_path }
+                LocalData { last_open_project_path, language: None }
             }
         }
     }

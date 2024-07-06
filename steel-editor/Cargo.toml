@@ -10,6 +10,7 @@ steel-common = { version = "0.1.0", path = "../steel-common" }
 libloading = "0.8"
 rfd = "0.14.0"
 regex = "1.10.3"
+sys-locale = "0.3.1"
 
 vulkano = "0.34.1"
 vulkano-shaders = "0.34.0"
