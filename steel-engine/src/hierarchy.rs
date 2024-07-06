@@ -93,14 +93,12 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
         // all entities must have a Child component
         let entities_without_child_component = entities.iter().filter(|eid| !children.contains(*eid)).collect::<Vec<_>>();
         for eid in entities_without_child_component {
-            log::trace!("hierarchy_maintain_system: Add Child component for {eid:?}");
             hierarchy.roots.push(eid);
             entities.add_component(eid, &mut children, Child { parent: EntityId::dead() });
         }
 
         // remove deleted entities with Child component from children list of Parent component
         for (eid, child) in children.deleted() {
-            log::trace!("hierarchy_maintain_system: Deleted child eid: {eid:?}");
             if child.parent == EntityId::dead() {
                 if let Some(i) = hierarchy.roots.iter().position(|c| *c == eid) {
                     hierarchy.roots.remove(i);

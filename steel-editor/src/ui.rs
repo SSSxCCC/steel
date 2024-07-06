@@ -951,7 +951,7 @@ impl ImageWindow {
             }).collect());
             self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
                 gui.register_user_image_view(image.clone(), Default::default())).collect());
-            log::debug!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
+            log::trace!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
         }
         let texture_id = self.texture_ids.as_ref().unwrap()[self.image_index];
         let r = ui.image(egui::ImageSource::Texture(egui::load::SizedTexture::new(texture_id, available_size)));

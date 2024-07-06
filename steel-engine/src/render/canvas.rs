@@ -115,7 +115,7 @@ impl CanvasRenderContext {
                 return;
             }
         }
-        log::debug!("Create depth stencil images, image_count={}", info.image_count);
+        log::trace!("Create depth stencil images, image_count={}", info.image_count);
         *depth_stencil_images = (0..info.image_count).map(|_| {
             let image = Image::new(
                 context.memory_allocator.clone(),
@@ -139,7 +139,7 @@ impl CanvasRenderContext {
                 return;
             }
         }
-        log::debug!("Create eid images, image_count={}", info.image_count);
+        log::trace!("Create eid images, image_count={}", info.image_count);
         *eid_images = (0..info.image_count).map(|_| {
             let image = Image::new(
                 context.memory_allocator.clone(),

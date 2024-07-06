@@ -23,7 +23,7 @@ fn android_main(app: AndroidApp) {
 #[cfg(not(target_os = "android"))]
 #[allow(dead_code)]
 fn main() {
-    env_logger::builder().filter_level(log::LevelFilter::Debug).parse_default_env().init();
+    env_logger::builder().filter_level(log::LevelFilter::Trace).parse_default_env().init();
     let event_loop = EventLoopBuilder::new().build();
     let platform = Platform::new_client();
     _main(event_loop, platform);
@@ -89,7 +89,6 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             }
         }
         Event::RedrawRequested(_) => {
-            log::trace!("Event::RedrawRequested");
             engine.command(Command::UpdateInput(&events));
             events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
@@ -118,7 +117,6 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             }
         }
         Event::MainEventsCleared => {
-            log::trace!("Event::MainEventsCleared");
             if let Some(renderer) = windows.get_primary_renderer() { renderer.window().request_redraw() }
         }
         _ => (),
