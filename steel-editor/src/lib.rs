@@ -6,14 +6,13 @@ mod project;
 mod utils;
 
 use glam::{Vec2, Vec3};
-use locale::Texts;
 use steel_common::{app::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo}, data::WorldData};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use vulkano::sync::GpuFuture;
 use vulkano_util::{context::{VulkanoConfig, VulkanoContext}, window::{VulkanoWindows, WindowDescriptor}};
 use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopBuilder}};
 use winit_input_helper::WinitInputHelper;
-use crate::{project::Project, ui::{create_dock_state, Editor}, utils::LocalData};
+use crate::{project::Project, ui::Editor, utils::LocalData};
 
 // Currently we can not use cargo in android, so that running steel-editor in android is useless
 // TODO: remove android code in steel-editor, or find a way to make steel-editor work in android
@@ -56,9 +55,7 @@ fn _main(event_loop: EventLoop<()>) {
     // egui
     let mut gui_editor = None; // for editor ui
     let mut gui: Option<Gui> = None; // for in-game ui
-    let mut texts = Texts::new(local_data.language);
     let mut editor = Editor::new(&local_data);
-    let mut dock_state = create_dock_state();
 
     // project
     let mut project = Project::new();
@@ -135,9 +132,9 @@ fn _main(event_loop: EventLoop<()>) {
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });
-                editor.ui(gui_editor, &mut gui, &mut dock_state,
-                    &context, renderer, &mut project, &mut world_data,
-                    &mut local_data, &input_editor,&mut editor_camera, &mut texts);
+                editor.ui(gui_editor, &mut gui, &context, renderer,
+                    &mut project, &mut world_data, &mut local_data,
+                    &input_editor, &mut editor_camera);
 
                 let is_running = project.is_running();
                 if let Some(app) = project.app() {

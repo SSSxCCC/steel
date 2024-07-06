@@ -11,6 +11,55 @@ use winit_input_helper::WinitInputHelper;
 use crate::{locale::{Language, Texts}, project::Project, utils::LocalData};
 
 pub struct Editor {
+    editor_window: EditorWindow,
+    dock_state: DockState<String>,
+    texts: Texts,
+}
+
+impl Editor {
+    pub fn new(local_data: &LocalData) -> Self {
+        Editor {
+            editor_window: EditorWindow::new(local_data),
+            dock_state: Self::create_dock_state(),
+            texts: Texts::new(local_data.language),
+        }
+    }
+
+    fn create_dock_state() -> DockState<String> {
+        let tabs = ["Scene", "Game"].map(str::to_string).into_iter().collect();
+        let mut dock_state = DockState::new(tabs);
+        let surface = dock_state.main_surface_mut();
+        let [_old_node, entities_node] = surface.split_right(NodeIndex::root(), 0.7, vec!["Entities".to_string()]);
+        let [_old_node, _entity_node] = surface.split_right(entities_node, 0.4, vec!["Entity".to_string()]);
+        let [_old_node, uniques_node] = surface.split_below(entities_node, 0.6, vec!["Uniques".to_string()]);
+        let [_old_node, _unique_node] = surface.split_right(uniques_node, 0.4, vec!["Unique".to_string()]);
+        dock_state
+    }
+
+    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>,
+            context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
+            project: &mut Project, world_data: &mut Option<WorldData>,
+            local_data: &mut LocalData, input: &WinitInputHelper,
+            editor_camera: &mut EditorCamera) {
+        self.editor_window.ui(gui, gui_game, &mut self.dock_state, context, renderer,
+            project, world_data, local_data, input, editor_camera, &mut self.texts);
+    }
+
+    pub fn suspend(&mut self) {
+        self.editor_window.scene_window.close(None);
+        self.editor_window.game_window.close(None);
+    }
+
+    pub fn scene_window(&self) -> &ImageWindow {
+        &self.editor_window.scene_window
+    }
+
+    pub fn game_window(&self) -> &ImageWindow {
+        &self.editor_window.game_window
+    }
+}
+
+struct EditorWindow {
     scene_window: ImageWindow,
     game_window: ImageWindow,
     #[allow(unused)] demo_windows: egui_demo_lib::DemoWindows,
@@ -24,9 +73,9 @@ pub struct Editor {
     selected_unique: String,
 }
 
-impl Editor {
-    pub fn new(local_data: &LocalData) -> Self {
-        Editor {
+impl EditorWindow {
+    fn new(local_data: &LocalData) -> Self {
+        EditorWindow {
             scene_window: ImageWindow::new("Scene"), game_window: ImageWindow::new("Game"),
             demo_windows: egui_demo_lib::DemoWindows::default(),
             use_dock: true, focused_tab: None, show_open_project_dialog: false,
@@ -36,7 +85,7 @@ impl Editor {
         }
     }
 
-    pub fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>,
+    fn ui(&mut self, gui: &mut Gui, gui_game: &mut Option<Gui>, dock_state: &mut DockState<String>,
             context: &VulkanoContext, renderer: &VulkanoWindowRenderer,
             project: &mut Project, world_data: &mut Option<WorldData>,
             local_data: &mut LocalData, input: &WinitInputHelper,
@@ -351,7 +400,7 @@ impl Editor {
         }
 
         if input.mouse_held(1) {
-            let screen_to_world = editor_camera.height / self.scene_window().pixel().y as f32;
+            let screen_to_world = editor_camera.height / self.scene_window.pixel().y as f32;
             let mouse_diff = input.mouse_diff();
             editor_camera.position.x -= mouse_diff.0 * screen_to_world;
             editor_camera.position.y += mouse_diff.1 * screen_to_world;
@@ -361,8 +410,8 @@ impl Editor {
     fn click_entity(&mut self, ctx: &egui::Context, app: &mut Box<dyn App>, input: &WinitInputHelper) {
         if input.mouse_pressed(0) {
             if let Some((x, y)) = input.mouse() {
-                let x = x - self.scene_window().position().x * ctx.pixels_per_point();
-                let y = y - self.scene_window().position().y * ctx.pixels_per_point();
+                let x = x - self.scene_window.position().x * ctx.pixels_per_point();
+                let y = y - self.scene_window.position().y * ctx.pixels_per_point();
                 let screen_position = UVec2::new(x as u32, y as u32);
                 let mut eid = EntityId::dead();
                 app.command(Command::GetEntityAtScreen(WindowIndex::SCENE, screen_position, &mut eid));
@@ -379,7 +428,7 @@ impl Editor {
             if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
                 if let Some(data) = entity_data.components.get_mut("Transform") {
                     if let Some(Value::Vec3(position)) = data.values.get_mut("position") {
-                        let screen_to_world = editor_camera.height / self.scene_window().pixel().y as f32;
+                        let screen_to_world = editor_camera.height / self.scene_window.pixel().y as f32;
                         let mouse_diff = input.mouse_diff();
                         position.x += mouse_diff.0 * screen_to_world;
                         position.y -= mouse_diff.1 * screen_to_world;
@@ -878,16 +927,7 @@ impl Editor {
         });
     }
 
-    pub fn suspend(&mut self) {
-        self.scene_window.close(None);
-        self.game_window.close(None);
-    }
-
-    pub fn scene_window(&self) -> &ImageWindow {
-        &self.scene_window
-    }
-
-    pub fn scene_focus(&self) -> bool {
+    fn scene_focus(&self) -> bool {
         if self.use_dock {
             self.focused_tab.as_ref().is_some_and(|tab| tab == "Scene")
         } else {
@@ -895,12 +935,8 @@ impl Editor {
         }
     }
 
-    pub fn game_window(&self) -> &ImageWindow {
-        &self.game_window
-    }
-
     #[allow(unused)]
-    pub fn game_focus(&self) -> bool {
+    fn game_focus(&self) -> bool {
         if self.use_dock {
             self.focused_tab.as_ref().is_some_and(|tab| tab == "Game")
         } else {
@@ -1021,17 +1057,6 @@ impl ImageWindow {
     pub fn position(&self) -> Vec2 {
         self.position
     }
-}
-
-pub fn create_dock_state() -> DockState<String> {
-    let tabs = ["Scene", "Game"].map(str::to_string).into_iter().collect();
-    let mut dock_state = DockState::new(tabs);
-    let surface = dock_state.main_surface_mut();
-    let [_old_node, entities_node] = surface.split_right(NodeIndex::root(), 0.7, vec!["Entities".to_string()]);
-    let [_old_node, _entity_node] = surface.split_right(entities_node, 0.4, vec!["Entity".to_string()]);
-    let [_old_node, uniques_node] = surface.split_below(entities_node, 0.6, vec!["Uniques".to_string()]);
-    let [_old_node, _unique_node] = surface.split_right(uniques_node, 0.4, vec!["Unique".to_string()]);
-    dock_state
 }
 
 struct MyTabViewer<'a> {
