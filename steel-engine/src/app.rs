@@ -116,6 +116,7 @@ impl SteelApp {
             .add_system(Schedule::PostUpdate, crate::render::renderer2d::renderer2d_to_canvas_system)
     }
 
+    /// Box self.
     pub fn boxed(self) -> Box<SteelApp> {
         Box::new(self)
     }
@@ -163,11 +164,20 @@ impl SteelApp {
         self
     }
 
-    pub fn add_unique<U: Send + Sync + Unique>(self, unique: U) -> Self {
+    /// Add a unique into ecs world.
+    pub fn add_unique<U: Unique + Send + Sync>(self, unique: U) -> Self {
         self.world.add_unique(unique);
         self
     }
 
+    /// Add a unique into ecs world, also register this unique type so that this unique can be edited in steel-editor.
+    pub fn add_and_register_unique<U: Unique + Edit + Send + Sync>(mut self, unique: U) -> Self {
+        self.world.add_unique(unique);
+        self.unique_registry.register::<U>();
+        self
+    }
+
+    /// Add a system into ecs world that runs on schedule.
     pub fn add_system<B>(mut self, schedule: Schedule, system: impl IntoWorkloadSystem<B, ()> + Copy) -> Self {
         match schedule {
             Schedule::PreInit => {
@@ -197,6 +207,7 @@ impl SteelApp {
         self
     }
 
+    /// Add a plugin, see [Plugin] for more information.
     pub fn add_plugin(self, plugin: impl Plugin) -> Self {
         plugin.apply(self)
     }
@@ -345,6 +356,21 @@ pub enum Schedule {
 }
 
 /// Plugin is a collection of components, uniques, and systems. You can use [SteelApp::add_plugin] to add them to SteelApp.
+/// # Example
+/// ```
+/// pub struct Physics2DPlugin;
+///
+/// impl Plugin for Physics2DPlugin {
+///     fn apply(self, app: SteelApp) -> SteelApp {
+///         app.add_and_register_unique(Physics2DManager::default())
+///             .register_component_track_all::<RigidBody2D>()
+///             .register_component_track_all::<Collider2D>()
+///             .add_system(Schedule::PreUpdate, crate::physics2d::physics2d_maintain_system)
+///             .add_system(Schedule::Update, crate::physics2d::physics2d_update_system)
+///             .add_system(Schedule::DrawEditor, crate::physics2d::physics2d_debug_render_system)
+///     }
+/// }
+/// ```
 pub trait Plugin {
     fn apply(self, app: SteelApp) -> SteelApp;
 }

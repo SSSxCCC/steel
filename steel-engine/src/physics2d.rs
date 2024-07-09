@@ -493,10 +493,9 @@ pub struct Physics2DPlugin;
 
 impl Plugin for Physics2DPlugin {
     fn apply(self, app: SteelApp) -> SteelApp {
-        app.register_unique::<Physics2DManager>()
+        app.add_and_register_unique(Physics2DManager::default())
             .register_component_track_all::<RigidBody2D>()
             .register_component_track_all::<Collider2D>()
-            .add_unique(Physics2DManager::default())
             .add_system(Schedule::PreUpdate, crate::physics2d::physics2d_maintain_system)
             .add_system(Schedule::Update, crate::physics2d::physics2d_update_system)
             .add_system(Schedule::DrawEditor, crate::physics2d::physics2d_debug_render_system)
