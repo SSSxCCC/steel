@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut, World};
-use steel_common::{data::{Data, EntityData, Value, WorldData}, platform::Platform};
+use steel_common::{data::{Data, EntityData, Value, WorldData, ENTITY_DEAD_GEN}, platform::Platform};
 use crate::data::{ComponentRegistry, UniqueRegistry};
 
 /// The SceneManager unique. You can use SceneManager::current_scene to get the current scene
@@ -89,7 +89,7 @@ impl SceneManager {
         let get_id_fn = |e: &EntityId| {
             if let Some(new_id) = old_id_to_new_id.get(e) {
                 *new_id
-            } else if e.gen() == 1 || // generation of EntityId::dead() was changed to 1 when saving scene to file.
+            } else if e.gen() == ENTITY_DEAD_GEN || // generation of EntityId::dead() was changed to ENTITY_DEAD_GEN when saving scene to file.
                     *e == EntityId::dead() { // EntityId::dead() is still EntityId::dead() when saving scene to memory.
                 EntityId::dead()
             } else {

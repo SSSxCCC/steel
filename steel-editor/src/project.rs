@@ -2,7 +2,7 @@ use std::{error::Error, fs, path::{Path, PathBuf}};
 use egui_winit_vulkano::Gui;
 use regex::Regex;
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, app::{Command, App, InitInfo}, platform::Platform};
+use steel_common::{app::{App, Command, InitInfo}, data::{Data, EntityData, Limit, Value, WorldData, ENTITY_DEAD_GEN}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 use vulkano_util::context::VulkanoContext;
@@ -598,10 +598,8 @@ impl Project {
         data_cut
     }
 
-    /// There is a crash when deserialize EntityId::dead(): "assertion failed: gen <= Self::max_gen()".
-    /// So we just change generation of EntityId::dead() to 1, and change generation of other EntityId to 0.
     fn _erase_generation(eid: &EntityId) -> EntityId {
-        let gen = if *eid == EntityId::dead() { 1 } else { 0 };
+        let gen = if *eid == EntityId::dead() { ENTITY_DEAD_GEN } else { 0 };
         EntityId::new_from_index_and_gen(eid.index(), gen)
     }
 

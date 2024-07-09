@@ -5,6 +5,11 @@ use serde::{Serialize, Deserialize};
 use shipyard::EntityId;
 use crate::platform::Platform;
 
+/// There is a crash when deserialize EntityId::dead(): "assertion failed: gen <= Self::max_gen()",
+/// see https://github.com/leudz/shipyard/issues/200. So we just change generation of
+/// EntityId::dead() to ENTITY_DEAD_GEN before serializing.
+pub const ENTITY_DEAD_GEN: u16 = 1;
+
 /// Limit Value in a range or in several enum, mainly used in Edit::get_data.
 #[derive(Debug)]
 pub enum Limit {
