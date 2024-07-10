@@ -37,8 +37,14 @@ impl ComponentRegistry {
         ComponentRegistry(IndexMap::new())
     }
 
+    /// Insert a type of Component with any tracking type to ComponentRegistry.
+    /// Trait bounds <C: ComponentRegistryExt> equals to <C: Component + Edit + Default + Send + Sync>.
+    pub fn register<C: ComponentRegistryExt>(&mut self) {
+        C::register(self);
+    }
+
     /// Insert a type of Component<Tracking = Untracked> to ComponentRegistry.
-    pub fn register<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(&mut self) {
+    fn register_untracked<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(&mut self) {
         self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -49,7 +55,7 @@ impl ComponentRegistry {
     }
 
     /// Insert a type of Component<Tracking = Insertion> to ComponentRegistry.
-    pub fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(&mut self) {
+    fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(&mut self) {
         self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -60,7 +66,7 @@ impl ComponentRegistry {
     }
 
     /// Insert a type of Component<Tracking = Modification> to ComponentRegistry.
-    pub fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(&mut self) {
+    fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(&mut self) {
         self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -71,7 +77,7 @@ impl ComponentRegistry {
     }
 
     /// Insert a type of Component<Tracking = Deletion> to ComponentRegistry.
-    pub fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(&mut self) {
+    fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(&mut self) {
         self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -82,7 +88,7 @@ impl ComponentRegistry {
     }
 
     /// Insert a type of Component<Tracking = Removal> to ComponentRegistry.
-    pub fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(&mut self) {
+    fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(&mut self) {
         self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -93,7 +99,7 @@ impl ComponentRegistry {
     }
 
     /// Insert a type of Component<Tracking = All> to ComponentRegistry.
-    pub fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(&mut self) {
+    fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(&mut self) {
         self.insert(C::name(), ComponentFn {
             create: Self::create_fn::<C>,
             create_with_data: Self::create_with_data_fn::<C>,
@@ -180,6 +186,63 @@ impl ComponentRegistry {
                 c.set_data(component_data);
             }
         }
+    }
+}
+
+/// Helper trait for registering components with different tracking types.
+/// This trait bounds equals to "Component + Edit + Default + Send + Sync".
+pub trait ComponentRegistryExt {
+    /// Register a Component type into component_registry.
+    fn register(component_registry: &mut ComponentRegistry);
+}
+
+impl<C> ComponentRegistryExt for C
+    where C: Component,
+          (C, <C as Component>::Tracking): ComponentRegistryExtInner,
+{
+    fn register(component_registry: &mut ComponentRegistry) {
+        <(C, <C as Component>::Tracking)>::register(component_registry);
+    }
+}
+
+/// Helper trait for registering components with different tracking types.
+trait ComponentRegistryExtInner {
+    fn register(component_registry: &mut ComponentRegistry);
+}
+
+impl<C> ComponentRegistryExtInner for (C, Untracked) where C: Component<Tracking = Untracked> + Edit + Default + Send + Sync {
+    fn register(component_registry: &mut ComponentRegistry) {
+        component_registry.register_untracked::<C>();
+    }
+}
+
+impl<C> ComponentRegistryExtInner for (C, Insertion) where C: Component<Tracking = Insertion> + Edit + Default + Send + Sync {
+    fn register(component_registry: &mut ComponentRegistry) {
+        component_registry.register_track_insertion::<C>();
+    }
+}
+
+impl<C> ComponentRegistryExtInner for (C, Modification) where C: Component<Tracking = Modification> + Edit + Default + Send + Sync {
+    fn register(component_registry: &mut ComponentRegistry) {
+        component_registry.register_track_modification::<C>();
+    }
+}
+
+impl<C> ComponentRegistryExtInner for (C, Deletion) where C: Component<Tracking = Deletion> + Edit + Default + Send + Sync {
+    fn register(component_registry: &mut ComponentRegistry) {
+        component_registry.register_track_deletion::<C>();
+    }
+}
+
+impl<C> ComponentRegistryExtInner for (C, Removal) where C: Component<Tracking = Removal> + Edit + Default + Send + Sync {
+    fn register(component_registry: &mut ComponentRegistry) {
+        component_registry.register_track_removal::<C>();
+    }
+}
+
+impl<C> ComponentRegistryExtInner for (C, All) where C: Component<Tracking = All> + Edit + Default + Send + Sync {
+    fn register(component_registry: &mut ComponentRegistry) {
+        component_registry.register_track_all::<C>();
     }
 }
 

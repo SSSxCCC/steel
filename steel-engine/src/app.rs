@@ -1,8 +1,8 @@
 pub use steel_common::app::*;
 
-use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, IntoWorkloadSystem, Unique, UniqueViewMut, Workload, World};
+use shipyard::{IntoWorkloadSystem, Unique, UniqueViewMut, Workload, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::{Camera, CameraInfo}, data::{ComponentRegistry, UniqueRegistry}, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, input::Input, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
+use crate::{camera::{Camera, CameraInfo}, data::{ComponentRegistry, ComponentRegistryExt, UniqueRegistry}, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, input::Input, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 
 /// SteelApp contains data and logic of a steel application.
 /// # Examples
@@ -96,19 +96,18 @@ impl SteelApp {
             post_update_workload_editor: Some(Workload::new("post_update_editor")),
             draw_editor_workload: Some(Workload::new("draw_editor")),
         }
-            .register_unique::<RenderManager>()
-            .register_unique::<Hierarchy>()
             .register_component::<EntityInfo>()
             .register_component::<Parent>()
-            .register_component_track_deletion::<Child>()
+            .register_component::<Child>()
             .register_component::<Transform>()
             .register_component::<Camera>()
             .register_component::<Renderer2D>()
+            .register_unique::<RenderManager>()
+            .add_and_register_unique(Hierarchy::default())
             .add_unique(CameraInfo::new())
             .add_unique(Canvas::new())
             .add_unique(Input::new())
             .add_unique(Time::new())
-            .add_unique(Hierarchy::default())
             .add_system(Schedule::PreUpdate, crate::hierarchy::hierarchy_maintain_system)
             .add_system(Schedule::PreUpdate, crate::time::time_maintain_system)
             .add_system(Schedule::PreUpdate, crate::render::canvas::canvas_clear_system)
@@ -121,40 +120,10 @@ impl SteelApp {
         Box::new(self)
     }
 
-    /// Register a component type with <Tracking = Untracked> so that this component can be edited in steel-editor.
-    /// Currently we must write different generic functions for different tracking type, see ComponentFn::load_from_data_untracked_fn.
-    pub fn register_component<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(mut self) -> Self {
+    /// Register a component type so that this component can be edited in steel-editor.
+    /// Trait bounds <C: ComponentRegistryExt> equals to <C: Component + Edit + Default + Send + Sync>.
+    pub fn register_component<C: ComponentRegistryExt>(mut self) -> Self {
         self.component_registry.register::<C>();
-        self
-    }
-
-    /// Register a component type with <Tracking = Insertion> so that this component can be edited in steel-editor.
-    pub fn register_component_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(mut self) -> Self {
-        self.component_registry.register_track_insertion::<C>();
-        self
-    }
-
-    /// Register a component type with <Tracking = Modification> so that this component can be edited in steel-editor.
-    pub fn register_component_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(mut self) -> Self {
-        self.component_registry.register_track_modification::<C>();
-        self
-    }
-
-    /// Register a component type with <Tracking = Deletion> so that this component can be edited in steel-editor.
-    pub fn register_component_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(mut self) -> Self {
-        self.component_registry.register_track_deletion::<C>();
-        self
-    }
-
-    /// Register a component type with <Tracking = Removal> so that this component can be edited in steel-editor.
-    pub fn register_component_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(mut self) -> Self {
-        self.component_registry.register_track_removal::<C>();
-        self
-    }
-
-    /// Register a component type with <Tracking = All> so that this component can be edited in steel-editor.
-    pub fn register_component_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(mut self) -> Self {
-        self.component_registry.register_track_all::<C>();
         self
     }
 
