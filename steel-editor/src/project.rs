@@ -2,7 +2,7 @@ use std::{error::Error, fs, path::{Path, PathBuf}};
 use egui_winit_vulkano::Gui;
 use regex::Regex;
 use shipyard::EntityId;
-use steel_common::{app::{App, Command, InitInfo}, data::{Data, EntityData, Limit, Value, WorldData, ENTITY_DEAD_GEN}, platform::Platform};
+use steel_common::{app::{App, Command, InitInfo}, data::{Data, EntityData, Limit, Value, WorldData}, platform::Platform};
 use libloading::{Library, Symbol};
 use log::{Log, LevelFilter, SetLoggerError};
 use vulkano_util::context::VulkanoContext;
@@ -599,8 +599,11 @@ impl Project {
     }
 
     fn _erase_generation(eid: &EntityId) -> EntityId {
-        let gen = if *eid == EntityId::dead() { ENTITY_DEAD_GEN } else { 0 };
-        EntityId::new_from_index_and_gen(eid.index(), gen)
+        if *eid == EntityId::dead() {
+            *eid
+        } else {
+            EntityId::new_from_index_and_gen(eid.index(), 0)
+        }
     }
 
     /// Load world_data from file, scene is the load file path,
@@ -677,7 +680,7 @@ egui = "0.24.1"
 log = "0.4"
 winit = { version = "0.28.6", features = [ "android-game-activity" ] }
 winit_input_helper = "0.14.1"
-shipyard = { version = "0.6.4", features = [ "serde1" ] }
+shipyard = { version = "0.6.5", features = [ "serde1" ] }
 rayon = "1.8.0"
 parry2d = "0.13.5"
 rapier2d = { version = "0.17.2", features = [ "debug-render" ] }
