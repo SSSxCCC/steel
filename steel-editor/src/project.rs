@@ -674,8 +674,6 @@ vulkano-shaders = "0.34.0"
 vulkano-util = "0.34.1"
 egui_winit_vulkano = "0.27.0"
 egui = "0.24.1"
-egui_demo_lib = "0.24.1"
-egui_dock = "0.9.1"
 log = "0.4"
 winit = { version = "0.28.6", features = [ "android-game-activity" ] }
 winit_input_helper = "0.14.1"
@@ -688,12 +686,6 @@ glam = { version = "0.24.2", features = [ "serde" ] }
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 indexmap = { version = "2.2.2", features = [ "serde" ] }
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
-env_logger = "0.10.0"
-
-[target.'cfg(target_os = "android")'.dependencies]
-android_logger = "0.13.3"
 "#;
 
 const LIB_RS: &'static str =
