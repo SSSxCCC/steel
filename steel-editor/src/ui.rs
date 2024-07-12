@@ -133,7 +133,7 @@ impl EditorWindow {
                             },
                             "Entities" => if let Some(world_data) = world_data {
                                 if let Some(app) = project.app() {
-                                    self.entities_view(ui, world_data, app);
+                                    self.entities_view(ui, world_data, app, texts);
                                 }
                             },
                             "Entity" => if let Some(world_data) = world_data {
@@ -247,6 +247,19 @@ impl EditorWindow {
                         });
                     }
                 });
+
+                if let Some(app) = project.app() {
+                    ui.menu_button(texts.get("Edit"), |ui| {
+                        ui.add_enabled_ui(self.selected_entity != EntityId::dead(), |ui| {
+                            if ui.button(texts.get("Delete")).clicked() {
+                                log::info!("Menu->Edit->Delete");
+                                app.command(Command::DestroyEntity(self.selected_entity));
+                                self.selected_entity = EntityId::dead();
+                                ui.close_menu();
+                            }
+                        });
+                    });
+                }
 
                 if project.is_compiled() && !project.is_running() {
                     ui.menu_button(texts.get("Scene"), |ui| {
@@ -441,7 +454,7 @@ impl EditorWindow {
     fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData,
             app: &mut Box<dyn App>, texts: &Texts) {
         egui::Window::new(texts.get("Entities")).show(&ctx, |ui| {
-            self.entities_view(ui, world_data, app);
+            self.entities_view(ui, world_data, app, texts);
         });
 
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
@@ -451,7 +464,7 @@ impl EditorWindow {
         }
     }
 
-    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>) {
+    fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>, texts: &Texts) {
         let hierarchy = world_data.uniques.get("Hierarchy").expect("Hierarchy unique is missing!");
         let root_entities = match hierarchy.get("roots") {
             Some(Value::VecEntity(v)) => v,
@@ -460,7 +473,7 @@ impl EditorWindow {
 
         if !root_entities.is_empty() {
             let (mut drag_entity, mut drop_parent, mut drop_before) = (EntityId::dead(), None, EntityId::dead());
-            self.entity_level(root_entities, EntityId::dead(), ui, world_data, app, &mut drag_entity, &mut drop_parent, &mut drop_before);
+            self.entity_level(root_entities, EntityId::dead(), ui, world_data, app, &mut drag_entity, &mut drop_parent, &mut drop_before, texts);
             if let Some(drop_parent) = drop_parent {
                 if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released()) {
                     app.command(Command::AttachEntity(drag_entity, drop_parent, drop_before));
@@ -476,12 +489,12 @@ impl EditorWindow {
     }
 
     fn entity_level(&mut self, entities: &Vec<EntityId>, parent: EntityId, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>,
-            drag_entity: &mut EntityId, drop_parent: &mut Option<EntityId>, drop_before: &mut EntityId) {
+            drag_entity: &mut EntityId, drop_parent: &mut Option<EntityId>, drop_before: &mut EntityId, texts: &Texts) {
         for (i, entity) in entities.iter().enumerate() {
             let entity = *entity;
             let entity_data = world_data.entities.get(&entity).expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
 
-            let mut entity_item = |ui: &mut egui::Ui| ui.horizontal(|ui| {
+            let mut entity_item = |ui: &mut egui::Ui| {
                 let drag_id = egui::Id::new(entity);
                 if ui.memory(|mem| mem.is_being_dragged(drag_id)) {
                     *drag_entity = entity;
@@ -493,9 +506,16 @@ impl EditorWindow {
 
                 let drop_result = Self::drop_target(ui, can_accept_what_is_being_dragged, can_insert_before, can_insert_after, |ui| {
                     Self::drag_source(ui, drag_id, |ui| {
-                        if ui.selectable_label(self.selected_entity == entity, Self::entity_label(&entity, entity_data)).clicked() {
+                        let r = ui.selectable_label(self.selected_entity == entity, Self::entity_label(&entity, entity_data));
+                        if r.clicked() {
                             self.selected_entity = entity;
                         }
+                        r.context_menu(|ui| {
+                            if ui.button(texts.get("Delete")).clicked() {
+                                app.command(Command::DestroyEntity(entity));
+                                self.selected_entity = EntityId::dead();
+                            }
+                        });
                     });
                 });
 
@@ -512,11 +532,7 @@ impl EditorWindow {
                         }
                     }
                 }
-
-                if ui.button("-").clicked() {
-                    app.command(Command::DestroyEntity(entity));
-                }
-            });
+            };
 
             if let Some(parent) = entity_data.components.get("Parent") {
                 egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new(entity), false)
@@ -526,7 +542,7 @@ impl EditorWindow {
                             Some(Value::VecEntity(v)) => v,
                             _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
                         };
-                        self.entity_level(children, entity, ui, world_data, app, drag_entity, drop_parent, drop_before)
+                        self.entity_level(children, entity, ui, world_data, app, drag_entity, drop_parent, drop_before, texts)
                     });
             } else {
                 ui.horizontal(|ui| {

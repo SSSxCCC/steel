@@ -63,6 +63,8 @@ impl Texts {
             .add("zh-CN", "zh-CN", "中文")
             .add("Follow System", "Follow System", "跟随系统")
             .add("Game", "Game", "游戏")
+            .add("Edit", "Edit", "编辑")
+            .add("Delete", "Delete", "删除")
     }
 
     fn add(mut self, key: &'static str, eng: &'static str, chs: &'static str) -> Self {
