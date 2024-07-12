@@ -122,18 +122,72 @@ impl EntityData {
     }
 }
 
+/// A collection of EntityData. This is a wrapper of IndexMap<EntityId, EntityData>.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EntitiesData(
+    #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
+    pub IndexMap<EntityId, EntityData>
+);
+
+impl EntitiesData {
+    /// Create a new EntitiesData.
+    pub fn new() -> Self {
+        EntitiesData(IndexMap::new())
+    }
+}
+
+impl std::ops::Deref for EntitiesData {
+    type Target = IndexMap<EntityId, EntityData>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for EntitiesData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl IntoIterator for EntitiesData {
+    type Item = <IndexMap<EntityId, EntityData> as IntoIterator>::Item;
+    type IntoIter = <IndexMap<EntityId, EntityData> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a EntitiesData {
+    type Item = <&'a IndexMap<EntityId, EntityData> as IntoIterator>::Item;
+    type IntoIter = <&'a IndexMap<EntityId, EntityData> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.0).into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut EntitiesData {
+    type Item = <&'a mut IndexMap<EntityId, EntityData> as IntoIterator>::Item;
+    type IntoIter = <&'a mut IndexMap<EntityId, EntityData> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&mut self.0).into_iter()
+    }
+}
+
 /// WorldData contains all EntityData and UniqueData in the world.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorldData {
-    #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
-    pub entities: IndexMap<EntityId, EntityData>,
+    pub entities: EntitiesData,
     pub uniques: IndexMap<String, Data>,
 }
 
 impl WorldData {
     /// Create an empty WorldData.
     pub fn new() -> Self {
-        WorldData { entities: IndexMap::new(), uniques: IndexMap::new() }
+        WorldData { entities: EntitiesData::new(), uniques: IndexMap::new() }
     }
 
     /// The WorldData becomes empty after clear.
