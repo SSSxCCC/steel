@@ -1,5 +1,6 @@
 pub use steel_common::data::*;
 
+use std::collections::HashMap;
 use indexmap::IndexMap;
 use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
 use crate::edit::Edit;
@@ -301,4 +302,69 @@ impl UniqueRegistry {
             world.run(|mut u: UniqueViewMut<U>| u.load_data(unique_data));
         }
     }
+}
+
+/// WorldData extension functions.
+pub trait WorldDataExt {
+    /// Add entities and uniques of this WorldData into ecs world.
+    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry);
+}
+
+impl WorldDataExt for WorldData {
+    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) {
+        // create new_world_data from world_data by changing old entity ids to new entity ids.
+        let mut new_world_data = WorldData::new();
+        let mut old_id_to_new_id = HashMap::new();
+        for old_id in self.entities.keys() {
+            old_id_to_new_id.insert(*old_id, world.add_entity(()));
+        }
+        for (old_id, entity_data) in &self.entities {
+            let new_id = *old_id_to_new_id.get(old_id).unwrap();
+            let mut new_entity_data = EntityData::new();
+            for (component_name, component_data) in &entity_data.components {
+                let new_component_data = update_eid_in_data(component_data, &old_id_to_new_id);
+                new_entity_data.components.insert(component_name.clone(), new_component_data);
+            }
+            new_world_data.entities.insert(new_id, new_entity_data);
+        }
+        for (unique_name, unique_data) in &self.uniques {
+            let new_unique_data = update_eid_in_data(unique_data, &old_id_to_new_id);
+            new_world_data.uniques.insert(unique_name.clone(), new_unique_data);
+        }
+
+        // create components and uniques in ecs world.
+        for (new_id, entity_data) in &new_world_data.entities {
+            for (component_name, component_data) in &entity_data.components {
+                if let Some(component_fn) = component_registry.get(component_name.as_str()) {
+                    (component_fn.create_with_data)(world, *new_id, component_data);
+                }
+            }
+        }
+        for unique_fn in unique_registry.values() {
+            (unique_fn.load_from_scene_data)(world, &new_world_data);
+        }
+    }
+}
+
+fn update_eid_in_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId>) -> Data {
+    let get_id_fn = |e: &EntityId| {
+        if let Some(new_id) = old_id_to_new_id.get(e) {
+            *new_id
+        } else if *e == EntityId::dead() {
+            EntityId::dead()
+        } else {
+            panic!("non-exist EntityId: {e:?}");
+        }
+    };
+
+    let mut new_data = Data::new();
+    for (name, value) in &data.values {
+        let new_value = match value {
+            Value::Entity(e) => Value::Entity(get_id_fn(e)),
+            Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| get_id_fn(e)).collect()),
+            _ => value.clone(),
+        };
+        new_data.add_value(name, new_value);
+    }
+    new_data
 }
