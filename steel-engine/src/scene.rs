@@ -46,12 +46,13 @@ impl SceneManager {
 
     /// Clear world and load world from world_data, also be sure to call Self::set_current_scene if scene path has changed.
     pub(crate) fn load(world: &mut World, world_data: &WorldData, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) {
-        // clear all entities in ecs world.
+        // clear all entities in ecs world
         world.clear();
 
-        // clear hierachy track data since the whole hierachy tree is going to be rebuilt.
+        // clear hierachy track data since the whole hierachy tree is going to be rebuilt
         world.run(crate::hierarchy::clear_track_data_system);
 
+        // add world_data into ecs world
         world_data.add_to_world(world, component_registry, unique_registry);
     }
 
