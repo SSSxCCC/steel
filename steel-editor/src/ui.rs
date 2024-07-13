@@ -263,7 +263,7 @@ impl EditorWindow {
                     });
                 }
 
-                if project.is_compiled() && !project.is_running() {
+                ui.add_enabled_ui(project.is_compiled() && !project.is_running(), |ui| {
                     ui.menu_button(texts.get("Scene"), |ui| {
                         if let Some(scene_path) = project.scene_relative_path() {
                             if ui.button(format!("{} ({})", texts.get("Save"), scene_path.display())).clicked() {
@@ -318,28 +318,44 @@ impl EditorWindow {
                             ui.close_menu();
                         }
                     });
-                }
+                });
 
                 if project.is_compiled() {
-                    ui.menu_button(texts.get("Run"), |ui| {
-                        let text = if project.is_running() { "Stop" } else { "Start" };
-                        if ui.button(texts.get(text)).clicked() {
-                            log::info!("Menu->Run->{text}");
-                            if project.is_running() {
-                                project.load_from_memory();
-                            } else {
-                                project.save_to_memory();
-                                project.app().unwrap().command(Command::ResetTime);
-                                if self.switch_to_game_window_on_start {
-                                    if let Some(tab) =
-                                            dock_state.find_tab(&"Game".to_string()) {
-                                        dock_state.set_active_tab(tab);
-                                    }
+                    // start running function
+                    let start_running_fn =
+                        |project: &mut Project, switch_to_game_window_on_start: bool, dock_state: &mut DockState<String>| {
+                            project.save_to_memory();
+                            project.app().unwrap().command(Command::ResetTime);
+                            if switch_to_game_window_on_start {
+                                if let Some(tab) =
+                                        dock_state.find_tab(&"Game".to_string()) {
+                                    dock_state.set_active_tab(tab);
                                 }
                             }
-                            project.set_running(!project.is_running());
-                            ui.close_menu();
+                            project.set_running(true);
+                        };
+
+                    if !project.is_running() && ui.input(|i| i.key_pressed(egui::Key::F5)) {
+                        log::info!("Start running by pressing F5");
+                        start_running_fn(project, self.switch_to_game_window_on_start, dock_state);
+                    }
+
+                    ui.menu_button(texts.get("Run"), |ui| {
+                        if project.is_running() {
+                            if ui.button(texts.get("Stop")).clicked() {
+                                log::info!("Menu->Run->Stop");
+                                project.load_from_memory();
+                                project.set_running(false);
+                                ui.close_menu();
+                            }
+                        } else {
+                            if ui.button(format!("{} (F5)", texts.get("Start"))).clicked() {
+                                log::info!("Menu->Run->Start");
+                                start_running_fn(project, self.switch_to_game_window_on_start, dock_state);
+                                ui.close_menu();
+                            }
                         }
+
                         ui.checkbox(&mut self.switch_to_game_window_on_start,
                             texts.get("Switch to Game Window on Start"));
                     });
