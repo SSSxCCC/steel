@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use steel_common::data::{Data, Value, Limit};
-use shipyard::{AllStoragesViewMut, Component, EntitiesViewMut, EntityId, Get, Remove, Unique, UniqueViewMut, ViewMut, World};
+use shipyard::{AddComponent, AllStoragesViewMut, Component, EntitiesViewMut, EntityId, Get, IntoIter, IntoWithId, Remove, Unique, UniqueViewMut, ViewMut, World};
 use crate::edit::Edit;
 
 /// A parent in the hierarchy tree.
@@ -34,7 +34,7 @@ impl Edit for Parent {
 ///
 /// Warning: Users should not add or remove this component, otherwise a panic will occur.
 #[derive(Component, Default)]
-#[track(Deletion)]
+#[track(All)]
 pub struct Child {
     parent: EntityId,
 }
@@ -84,12 +84,35 @@ impl Edit for Hierarchy {
 }
 
 /// The hierarchy maintain system. After running this system:
+/// * All children list of Parent components and Hierarchy unique must not miss any child.
 /// * All entities must have a Child component.
 /// * All entities in children list of Parent compnents must be alive.
 /// * Entities which are not in hierarchy are deleted.
 pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     let entities_to_delete = all_storages.run(|mut hierarchy: UniqueViewMut<Hierarchy>,
             mut parents: ViewMut<Parent>, mut children: ViewMut<Child>, entities: EntitiesViewMut| {
+        // add entities which have newly created Child component to children list of Parent component
+        let mut root_set = HashSet::new();
+        for (eid, child) in children.inserted().iter().with_id() {
+            if child.parent == EntityId::dead() {
+                if root_set.is_empty() {
+                    hierarchy.roots.iter().for_each(|e| { root_set.insert(*e); });
+                }
+                if !root_set.contains(&eid) {
+                    root_set.insert(eid);
+                    hierarchy.roots.push(eid);
+                }
+            } else {
+                if !parents.contains(child.parent) {
+                    parents.add_component_unchecked(child.parent, Parent::default());
+                }
+                let parent = (&mut parents).get(child.parent).unwrap();
+                if !parent.children.contains(&eid) { // TODO: check in O(1)
+                    parent.children.push(eid);
+                }
+            }
+        }
+
         // all entities must have a Child component
         let entities_without_child_component = entities.iter().filter(|eid| !children.contains(*eid)).collect::<Vec<_>>();
         for eid in entities_without_child_component {
@@ -121,7 +144,7 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
         dead
     });
 
-    // delete them
+    // delete them, this is used to delete all descendants of any deleted entity
     for eid in entities_to_delete {
         all_storages.delete_entity(eid);
     }
@@ -131,7 +154,8 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
 }
 
 pub(crate) fn clear_track_data_system(mut children: ViewMut<Child>) {
-    children.clear_all_deleted();
+    children.clear_all_removed_and_deleted();
+    children.clear_all_inserted_and_modified();
 }
 
 fn check_in_hierarchy(eid: EntityId, alive: &mut HashSet<EntityId>, dead: &mut HashSet<EntityId>,

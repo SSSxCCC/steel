@@ -6,7 +6,7 @@ use shipyard::EntityId;
 use crate::platform::Platform;
 
 /// Limit Value in a range or in several enum, mainly used in Edit::get_data.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Limit {
     /// Limit i32 value to a range.
     /// Int32Range can be used in IVec types to apply to all values.
@@ -60,7 +60,7 @@ pub enum Value {
 }
 
 /// Data contains all Value with Limit in a component or unique.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Data {
     // &'static str is too dangerous to be used in here because its memory is no longer exist when steel.dll is unloaded!
     pub values: IndexMap<String, Value>,
@@ -110,7 +110,7 @@ impl Data {
 }
 
 /// EntityData contains all component Data in a entity.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntityData {
     pub components: IndexMap<String, Data>,
 }
@@ -123,7 +123,7 @@ impl EntityData {
 }
 
 /// A collection of EntityData. This is a wrapper of IndexMap<EntityId, EntityData>.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntitiesData(
     #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
     pub IndexMap<EntityId, EntityData>
@@ -178,7 +178,7 @@ impl<'a> IntoIterator for &'a mut EntitiesData {
 }
 
 /// WorldData contains all EntityData and UniqueData in the world.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorldData {
     pub entities: EntitiesData,
     pub uniques: IndexMap<String, Data>,

@@ -1,8 +1,8 @@
 pub use steel_common::app::*;
 
-use shipyard::{IntoWorkloadSystem, Unique, UniqueViewMut, Workload, World};
+use shipyard::{EntitiesView, IntoWorkloadSystem, Unique, UniqueViewMut, Workload, World};
 use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::{Camera, CameraInfo}, data::{ComponentRegistry, ComponentRegistryExt, UniqueRegistry}, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, input::Input, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
+use crate::{camera::{Camera, CameraInfo}, data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry}, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, input::Input, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
 
 /// SteelApp contains data and logic of a steel application.
 /// # Examples
@@ -269,6 +269,12 @@ impl App for SteelApp {
             }
             Command::ClearEntity => {
                 self.world.clear();
+            }
+            Command::GetEntityCount(entity_count) => {
+                *entity_count = self.world.run(|entities: EntitiesView| entities.iter().count());
+            }
+            Command::AddEntities(entities_data) => {
+                entities_data.add_to_world(&mut self.world, &self.component_registry);
             }
             Command::GetComponents(components) => {
                 *components = self.component_registry.keys().map(|s| *s).collect(); // TODO: cache components

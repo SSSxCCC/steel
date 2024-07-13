@@ -4,7 +4,7 @@ use vulkano::{sync::GpuFuture, image::view::ImageView};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use shipyard::EntityId;
 use winit::event::WindowEvent;
-use crate::{data::WorldData, platform::Platform};
+use crate::{data::{EntitiesData, WorldData}, platform::Platform};
 
 /// The App trait defines many functions called by steel-editor or steel-client to control the running of steel application.
 /// You usually do not need to manually implement this trait, just use steel::app::SteelApp.
@@ -67,6 +67,8 @@ pub enum Command<'a> {
     CreateEntity,
     DestroyEntity(EntityId),
     ClearEntity,
+    GetEntityCount(&'a mut usize),
+    AddEntities(&'a EntitiesData),
 
     GetComponents(&'a mut Vec<&'static str>),
     CreateComponent(EntityId, &'static str),

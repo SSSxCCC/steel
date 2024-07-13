@@ -2,7 +2,7 @@ pub use steel_common::data::*;
 
 use std::collections::HashMap;
 use indexmap::IndexMap;
-use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
+use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, EntitiesView, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
 use crate::edit::Edit;
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
@@ -315,9 +315,9 @@ impl WorldDataExt for WorldData {
         // create new_world_data from self by changing old entity ids to new entity ids.
         let mut new_world_data = WorldData::new();
         let old_id_to_new_id = create_old_id_to_new_id_map(&self.entities, world);
-        fill_new_entities_data(&mut new_world_data.entities, &self.entities, &old_id_to_new_id);
+        fill_new_entities_data(&mut new_world_data.entities, &self.entities, &old_id_to_new_id, &world);
         for (unique_name, unique_data) in &self.uniques {
-            let new_unique_data = update_eid_in_data(unique_data, &old_id_to_new_id);
+            let new_unique_data = update_eid_in_data(unique_data, &old_id_to_new_id, &world);
             new_world_data.uniques.insert(unique_name.clone(), new_unique_data);
         }
 
@@ -342,7 +342,7 @@ impl EntitiesDataExt for EntitiesData {
         // create new_entities_data from self by changing old entity ids to new entity ids.
         let mut new_entities_data = EntitiesData::new();
         let old_id_to_new_id = create_old_id_to_new_id_map(self, world);
-        fill_new_entities_data(&mut new_entities_data, self, &old_id_to_new_id);
+        fill_new_entities_data(&mut new_entities_data, self, &old_id_to_new_id, &world);
 
         // create components in ecs world.
         create_components_in_world(&new_entities_data, world, component_registry);
@@ -359,12 +359,12 @@ fn create_old_id_to_new_id_map(entities_data: &EntitiesData, world: &mut World) 
 }
 
 /// Fill new_entities_data from old_entities_data by changing old entity ids to new entity ids.
-fn fill_new_entities_data(new_entities_data: &mut EntitiesData, old_entities_data: &EntitiesData, old_id_to_new_id: &HashMap<EntityId, EntityId>) {
+fn fill_new_entities_data(new_entities_data: &mut EntitiesData, old_entities_data: &EntitiesData, old_id_to_new_id: &HashMap<EntityId, EntityId>, world: &World) {
     for (old_id, entity_data) in old_entities_data {
         let new_id = *old_id_to_new_id.get(old_id).unwrap();
         let mut new_entity_data = EntityData::new();
         for (component_name, component_data) in &entity_data.components {
-            let new_component_data = update_eid_in_data(component_data, &old_id_to_new_id);
+            let new_component_data = update_eid_in_data(component_data, &old_id_to_new_id, world);
             new_entity_data.components.insert(component_name.clone(), new_component_data);
         }
         new_entities_data.insert(new_id, new_entity_data);
@@ -372,12 +372,14 @@ fn fill_new_entities_data(new_entities_data: &mut EntitiesData, old_entities_dat
 }
 
 /// Update entity ids in data according to old_id_to_new_id.
-fn update_eid_in_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId>) -> Data {
+fn update_eid_in_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId>, world: &World) -> Data {
     let get_id_fn = |e: &EntityId| {
         if let Some(new_id) = old_id_to_new_id.get(e) {
             *new_id
         } else if *e == EntityId::dead() {
             EntityId::dead()
+        } else if world.run(|entities: EntitiesView| entities.is_alive(*e)) {
+            *e
         } else {
             panic!("non-exist EntityId: {e:?}");
         }

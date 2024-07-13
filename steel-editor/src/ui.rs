@@ -3,7 +3,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{data::{Data, EntityData, Limit, Value, WorldData}, app::{Command, EditorCamera, App, WindowIndex}, ext::VulkanoWindowRendererExt};
+use steel_common::{app::{App, Command, EditorCamera, WindowIndex}, data::{Data, EntitiesData, EntityData, Limit, Value, WorldData}, ext::VulkanoWindowRendererExt};
 use vulkano::{image::{view::ImageView, Image, ImageCreateInfo, ImageUsage}, memory::allocator::AllocationCreateInfo};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::VirtualKeyCode;
@@ -253,10 +253,18 @@ impl EditorWindow {
                 if let Some(app) = project.app() {
                     ui.menu_button(texts.get("Edit"), |ui| {
                         ui.add_enabled_ui(self.selected_entity != EntityId::dead(), |ui| {
+                            if ui.button(texts.get("Duplicate")).clicked() {
+                                log::info!("Menu->Edit->Duplicate");
+                                if let Some(world_data) = world_data {
+                                    Self::duplicate_entity(self.selected_entity, world_data, app);
+                                } else {
+                                    log::warn!("Failed to duplicate entity, due to world_data is None!");
+                                }
+                                ui.close_menu();
+                            }
                             if ui.button(texts.get("Delete")).clicked() {
                                 log::info!("Menu->Edit->Delete");
-                                app.command(Command::DestroyEntity(self.selected_entity));
-                                self.selected_entity = EntityId::dead();
+                                self.delete_entity(self.selected_entity, app);
                                 ui.close_menu();
                             }
                         });
@@ -534,9 +542,15 @@ impl EditorWindow {
                             self.selected_entity = entity;
                         }
                         r.context_menu(|ui| {
+                            if ui.button(texts.get("Duplicate")).clicked() {
+                                log::info!("entity_context_menu->Duplicate");
+                                Self::duplicate_entity(entity, world_data, app);
+                                ui.close_menu();
+                            }
                             if ui.button(texts.get("Delete")).clicked() {
-                                app.command(Command::DestroyEntity(entity));
-                                self.selected_entity = EntityId::dead();
+                                log::info!("entity_context_menu->Delete");
+                                self.delete_entity(entity, app);
+                                ui.close_menu();
                             }
                         });
                     });
@@ -574,6 +588,34 @@ impl EditorWindow {
                 });
             }
         }
+    }
+
+    fn duplicate_entity(entity: EntityId, world_data: &WorldData, app: &mut Box<dyn App>) {
+        let mut entities_data = EntitiesData::new();
+        let mut entities_to_add = vec![entity];
+        while !entities_to_add.is_empty() {
+            let mut new_entities_to_add = Vec::new();
+            for entity in &entities_to_add {
+                let entity_data = world_data.entities.get(entity).expect(format!("entity_level::duplicate: non-existent entity: {entity:?}").as_str());
+                entities_data.insert(*entity, entity_data.clone()); // TODO: avoid clone here
+                if let Some(parent) = entity_data.components.get("Parent") {
+                    let children = match parent.get("children") {
+                        Some(Value::VecEntity(v)) => v,
+                        _ => panic!("entity_level::duplicate: no children value in Parent component: {parent:?}"),
+                    };
+                    for e in children {
+                        new_entities_to_add.push(*e);
+                    }
+                }
+            }
+            entities_to_add = new_entities_to_add;
+        }
+        app.command(Command::AddEntities(&entities_data));
+    }
+
+    fn delete_entity(&mut self, entity: EntityId, app: &mut Box<dyn App>) {
+        app.command(Command::DestroyEntity(entity));
+        self.selected_entity = EntityId::dead();
     }
 
     fn drag_source<R>(ui: &mut egui::Ui, id: egui::Id, body: impl FnOnce(&mut egui::Ui) -> R) {

@@ -65,6 +65,7 @@ impl Texts {
             .add("Follow System", "Follow System", "跟随系统")
             .add("Game", "Game", "游戏")
             .add("Edit", "Edit", "编辑")
+            .add("Duplicate", "Duplicate", "复制")
             .add("Delete", "Delete", "删除")
     }
 
