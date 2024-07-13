@@ -71,6 +71,7 @@ struct EditorWindow {
     pressed_entity: EntityId,
     selected_entity: EntityId,
     selected_unique: String,
+    switch_to_game_window_on_start: bool,
 }
 
 impl EditorWindow {
@@ -82,6 +83,7 @@ impl EditorWindow {
             project_path: local_data.last_open_project_path.clone(),
             fps_counter: FpsCounter::new(),
             pressed_entity: EntityId::dead(), selected_entity: EntityId::dead(), selected_unique: String::new(),
+            switch_to_game_window_on_start: false,
         }
     }
 
@@ -328,13 +330,18 @@ impl EditorWindow {
                             } else {
                                 project.save_to_memory();
                                 project.app().unwrap().command(Command::ResetTime);
-                                if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {
-                                    dock_state.set_active_tab(tab);
+                                if self.switch_to_game_window_on_start {
+                                    if let Some(tab) =
+                                            dock_state.find_tab(&"Game".to_string()) {
+                                        dock_state.set_active_tab(tab);
+                                    }
                                 }
                             }
                             project.set_running(!project.is_running());
                             ui.close_menu();
                         }
+                        ui.checkbox(&mut self.switch_to_game_window_on_start,
+                            texts.get("Switch to Game Window on Start"));
                     });
                 }
 

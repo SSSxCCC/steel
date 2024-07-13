@@ -48,6 +48,7 @@ impl Texts {
             .add("Run", "Run", "运行")
             .add("Start", "Start", "开始")
             .add("Stop", "Stop", "停止")
+            .add("Switch to Game Window on Start", "Switch to Game Window on Start", "开始时切换到游戏窗口")
             .add("Ui", "Ui", "界面")
             .add("Current Scale: ", "Current Scale: ", "当前缩放：")
             .add("Enable Dock", "Enable Dock", "启用Dock")
