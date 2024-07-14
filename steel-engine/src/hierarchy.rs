@@ -194,13 +194,16 @@ fn dettach(world: &mut World, eid: EntityId) {
         if let Some(child) = children.remove(eid) {
             // retrieve and update Parent component from ancestor
             if let Ok(parent) = (&mut parents).get(child.parent) {
-                parent.children.remove(parent.children.iter().position(|e| *e == eid).unwrap());
-                if parent.children.is_empty() {
-                    parents.remove(child.parent);
+                if let Some(i) = parent.children.iter().position(|e| *e == eid) {
+                    parent.children.remove(i);
+                    if parent.children.is_empty() {
+                        parents.remove(child.parent);
+                    }
                 }
             } else if child.parent == EntityId::dead() { // child is at the top level
-                let i = hierarchy.roots.iter().position(|e| *e == eid).unwrap();
-                hierarchy.roots.remove(i);
+                if let Some(i) = hierarchy.roots.iter().position(|e| *e == eid) {
+                    hierarchy.roots.remove(i);
+                }
             }
         }
     });
@@ -208,22 +211,45 @@ fn dettach(world: &mut World, eid: EntityId) {
 
 /// Attach a Child to a Parent previous to before entity. If before is EntityId::dead(), attach as the last child.
 /// This function must be called after hierarchy_maintain_system, or may panic.
-pub(crate) fn attach(world: &mut World, eid: EntityId, parent: EntityId, before: EntityId) {
+pub(crate) fn attach_before(world: &mut World, eid: EntityId, parent: EntityId, before: EntityId) {
     log::trace!("Attach {eid:?} to {parent:?} before {before:?}");
+    attach(world, eid, parent, before, true);
+}
 
+/// Attach a Child to a Parent next to after entity. If after is EntityId::dead(), attach as the first child.
+/// This function must be called after hierarchy_maintain_system, or may panic.
+pub(crate) fn attach_after(world: &mut World, eid: EntityId, parent: EntityId, after: EntityId) {
+    log::trace!("Attach {eid:?} to {parent:?} after {after:?}");
+    attach(world, eid, parent, after, false);
+}
+
+/// Attach a Child to a Parent adjacent to adjacent entity.
+/// ### If prev is true:
+/// attach previous to adjacent. If adjacent is EntityId::dead(), attach as the last child.
+/// ### If prev is false:
+/// attach next to adjacent. If adjacent is EntityId::dead(), attach as the first child.
+fn attach(world: &mut World, eid: EntityId, parent: EntityId, adjacent: EntityId, prev: bool) {
     // the entity we want to attach might already be attached to another parent
     dettach(world, eid);
 
     world.run(|mut hierarchy: UniqueViewMut<Hierarchy>, mut parents: ViewMut<Parent>, children: ViewMut<Child>, entities: EntitiesViewMut| {
         if let Ok(p) = (&mut parents).get(parent) { // the parent entity already has a Parent component
-            let i = if before == EntityId::dead() { p.children.len() } else { p.children.iter().position(|e| *e == before).unwrap() };
+            let i = get_insert_position(adjacent, prev, p.children.iter());
             p.children.insert(i, eid);
         } else if parent == EntityId::dead() { // attach to the top level
-            let i = if before == EntityId::dead() { hierarchy.roots.len() } else { hierarchy.roots.iter().position(|e| *e == before).unwrap() };
+            let i = get_insert_position(adjacent, prev, hierarchy.roots.iter());
             hierarchy.roots.insert(i, eid);
         } else { // in this case our parent entity is missing a Parent component
             entities.add_component(parent, parents, Parent { children: vec![eid] });
         }
         entities.add_component(eid, children, Child { parent });
     });
+}
+
+fn get_insert_position<'a>(adjacent: EntityId, prev: bool, mut iter: impl ExactSizeIterator<Item = &'a EntityId>) -> usize {
+    if prev {
+        if adjacent == EntityId::dead() { iter.len() } else { iter.position(|e| *e == adjacent).unwrap() }
+    } else {
+        if adjacent == EntityId::dead() { 0 } else { iter.position(|e| *e == adjacent).unwrap() + 1 }
+    }
 }

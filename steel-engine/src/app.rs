@@ -273,8 +273,8 @@ impl App for SteelApp {
             Command::GetEntityCount(entity_count) => {
                 *entity_count = self.world.run(|entities: EntitiesView| entities.iter().count());
             }
-            Command::AddEntities(entities_data) => {
-                entities_data.add_to_world(&mut self.world, &self.component_registry);
+            Command::AddEntities(entities_data, old_id_to_new_id) => {
+                *old_id_to_new_id = entities_data.add_to_world(&mut self.world, &self.component_registry);
             }
             Command::GetComponents(components) => {
                 *components = self.component_registry.keys().map(|s| *s).collect(); // TODO: cache components
@@ -300,8 +300,11 @@ impl App for SteelApp {
             Command::ResetTime => {
                 self.world.run(|mut time: UniqueViewMut<Time>| time.reset());
             }
-            Command::AttachEntity(eid, parent, before) => {
-                crate::hierarchy::attach(&mut self.world, eid, parent, before);
+            Command::AttachBefore(eid, parent, before) => {
+                crate::hierarchy::attach_before(&mut self.world, eid, parent, before);
+            }
+            Command::AttachAfter(eid, parent, after) => {
+                crate::hierarchy::attach_after(&mut self.world, eid, parent, after);
             }
         }
     }

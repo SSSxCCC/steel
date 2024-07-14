@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use glam::{UVec2, Vec3};
 use vulkano::{sync::GpuFuture, image::view::ImageView};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
@@ -68,7 +68,8 @@ pub enum Command<'a> {
     DestroyEntity(EntityId),
     ClearEntity,
     GetEntityCount(&'a mut usize),
-    AddEntities(&'a EntitiesData),
+    /// entities_data, old_id_to_new_id map
+    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
 
     GetComponents(&'a mut Vec<&'static str>),
     CreateComponent(EntityId, &'static str),
@@ -82,7 +83,9 @@ pub enum Command<'a> {
     ResetTime,
 
     // attached_entity, parent, before
-    AttachEntity(EntityId, EntityId, EntityId),
+    AttachBefore(EntityId, EntityId, EntityId),
+    // attached_entity, parent, after
+    AttachAfter(EntityId, EntityId, EntityId),
 }
 
 /// Helper struct to define window index constants: WindowIndex::GAME and WindowIndex::SCENE.

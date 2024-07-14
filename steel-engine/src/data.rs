@@ -306,12 +306,12 @@ impl UniqueRegistry {
 
 /// WorldData extension functions in steel core library.
 pub trait WorldDataExt {
-    /// Add entities and uniques of self into ecs world.
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry);
+    /// Add entities and uniques of self into ecs world. Return old_id_to_new_id map.
+    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) -> HashMap<EntityId, EntityId>;
 }
 
 impl WorldDataExt for WorldData {
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) {
+    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) -> HashMap<EntityId, EntityId> {
         // create new_world_data from self by changing old entity ids to new entity ids.
         let mut new_world_data = WorldData::new();
         let old_id_to_new_id = create_old_id_to_new_id_map(&self.entities, world);
@@ -328,17 +328,19 @@ impl WorldDataExt for WorldData {
         for unique_fn in unique_registry.values() {
             (unique_fn.load_from_scene_data)(world, &new_world_data);
         }
+
+        old_id_to_new_id
     }
 }
 
 /// EntitiesData extension functions in steel core library.
 pub trait EntitiesDataExt {
-    /// Add entities of self into ecs world.
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry);
+    /// Add entities of self into ecs world. Return old_id_to_new_id map.
+    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry) -> HashMap<EntityId, EntityId>;
 }
 
 impl EntitiesDataExt for EntitiesData {
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry) {
+    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry) -> HashMap<EntityId, EntityId> {
         // create new_entities_data from self by changing old entity ids to new entity ids.
         let mut new_entities_data = EntitiesData::new();
         let old_id_to_new_id = create_old_id_to_new_id_map(self, world);
@@ -346,6 +348,8 @@ impl EntitiesDataExt for EntitiesData {
 
         // create components in ecs world.
         create_components_in_world(&new_entities_data, world, component_registry);
+
+        old_id_to_new_id
     }
 }
 

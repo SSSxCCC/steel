@@ -1,4 +1,4 @@
-use std::{ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
+use std::{collections::HashMap, ops::RangeInclusive, path::PathBuf, sync::Arc, time::Instant};
 use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2, Vec3, Vec4};
@@ -507,7 +507,7 @@ impl EditorWindow {
             self.entity_level(root_entities, EntityId::dead(), ui, world_data, app, &mut drag_entity, &mut drop_parent, &mut drop_before, texts);
             if let Some(drop_parent) = drop_parent {
                 if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released()) {
-                    app.command(Command::AttachEntity(drag_entity, drop_parent, drop_before));
+                    app.command(Command::AttachBefore(drag_entity, drop_parent, drop_before));
                 }
             }
         } else if !world_data.entities.is_empty() {
@@ -601,7 +601,7 @@ impl EditorWindow {
                 if let Some(parent) = entity_data.components.get("Parent") {
                     let children = match parent.get("children") {
                         Some(Value::VecEntity(v)) => v,
-                        _ => panic!("entity_level::duplicate: no children value in Parent component: {parent:?}"),
+                        _ => panic!("duplicate_entity: no children value in Parent component: {parent:?}"),
                     };
                     for e in children {
                         new_entities_to_add.push(*e);
@@ -610,7 +610,20 @@ impl EditorWindow {
             }
             entities_to_add = new_entities_to_add;
         }
-        app.command(Command::AddEntities(&entities_data));
+        let mut old_id_to_new_id = HashMap::new();
+        app.command(Command::AddEntities(&entities_data, &mut old_id_to_new_id));
+        let new_id = *old_id_to_new_id.get(&entity).unwrap();
+
+        // attach duplicated entity next to the original entity
+        let entity_data = world_data.entities.get(&entity)
+            .expect(format!("duplicate_entity: non-existent entity: {entity:?}").as_str());
+        let child = entity_data.components.get("Child")
+            .expect(format!("duplicate_entity: missing Child component in entity: {entity:?} {entity_data:?}").as_str());
+        let parent = match child.get("parent") {
+            Some(Value::Entity(e)) => *e,
+            _ => panic!("duplicate_entity: no parent value in Child component: {child:?}"),
+        };
+        app.command(Command::AttachAfter(new_id, parent, entity));
     }
 
     fn delete_entity(&mut self, entity: EntityId, app: &mut Box<dyn App>) {
