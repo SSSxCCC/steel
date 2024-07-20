@@ -1,12 +1,12 @@
 [package]
 name = "steel-editor"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "The editor for the steel game engine."
 license = "MIT"
 
 [dependencies]
-steel-common = { version = "0.1.0", path = "../steel-common" }
+steel-common = { version = "0.2.0", path = "../steel-common" }
 libloading = "0.8"
 rfd = "0.14.0"
 regex = "1.10.3"

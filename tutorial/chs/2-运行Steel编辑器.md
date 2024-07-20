@@ -6,11 +6,11 @@
 1. 在Windows系统安装[Visual Studio 2022][Visual Studio 2022]的"使用C++的桌面开发"，保持默认勾选
 2. 为了[shaderc-rs][shaderc-rs]，安装[Rust][Rust]，[Git][Git]，[Python][Python]，[CMake][CMake]和[Ninja][Ninja]
 3. 安装[VSCode][VSCode]及其"C/C++"和"rust-analyzer"插件
-4. 下载Steel的源码，并切换到v0.1版本的分支，因为当前教程是基于这个版本写的：
+4. 下载Steel的源码，并切换到v0.2版本的分支，因为当前教程是基于这个版本写的：
 ```
 git clone https://github.com/SSSxCCC/steel
 cd steel
-git checkout v0.1
+git checkout v0.2
 ```
 5. 使用VSCode打开根目录“steel”，按F5即可编译运行
 

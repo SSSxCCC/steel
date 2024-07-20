@@ -1664,7 +1664,7 @@ dependencies = [
 
 [[package]]
 name = "steel-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "egui",
  "egui_winit_vulkano",
@@ -1687,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "steel-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "egui",
  "egui_winit_vulkano",
@@ -1712,7 +1712,7 @@ dependencies = [
 
 [[package]]
 name = "steel-proc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1721,7 +1721,7 @@ dependencies = [
 
 [[package]]
 name = "steel-project"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "egui",
  "egui_winit_vulkano",

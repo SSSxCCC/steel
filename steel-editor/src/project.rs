@@ -843,7 +843,7 @@ edition = "2021"
 name = "steel"
 
 [dependencies]
-steel-engine = { version = "0.1.0", path = "../../steel-engine" }
+steel-engine = { version = "0.2.0", path = "../../steel-engine" }
 
 vulkano = "0.34.1"
 vulkano-shaders = "0.34.0"

@@ -1,6 +1,6 @@
 [package]
 name = "steel-engine"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "The steel game engine core library."
 license = "MIT"
@@ -9,8 +9,8 @@ license = "MIT"
 name = "steel"
 
 [dependencies]
-steel-common = { version = "0.1.0", path = "../steel-common" }
-steel-proc = { version = "0.1.0", path = "steel-proc" }
+steel-common = { version = "0.2.0", path = "../steel-common" }
+steel-proc = { version = "0.2.0", path = "steel-proc" }
 
 vulkano = "0.34.1"
 vulkano-shaders = "0.34.0"
