@@ -1,10 +1,13 @@
-use std::sync::Arc;
+use crate::locale::Texts;
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2};
+use std::sync::Arc;
 use steel_common::ext::VulkanoWindowRendererExt;
-use vulkano::{image::{view::ImageView, Image, ImageCreateInfo, ImageUsage}, memory::allocator::AllocationCreateInfo};
+use vulkano::{
+    image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
+    memory::allocator::AllocationCreateInfo,
+};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
-use crate::locale::Texts;
 
 /// A egui window which displays a image
 pub struct ImageWindow {
@@ -20,17 +23,41 @@ pub struct ImageWindow {
 
 impl ImageWindow {
     pub fn new(title: impl Into<String>) -> Self {
-        ImageWindow { title: title.into(), image_index: 0, images: None, texture_ids: None, pixel: UVec2::ZERO, size: Vec2::ZERO, position: Vec2::ZERO, layer: None }
+        ImageWindow {
+            title: title.into(),
+            image_index: 0,
+            images: None,
+            texture_ids: None,
+            pixel: UVec2::ZERO,
+            size: Vec2::ZERO,
+            position: Vec2::ZERO,
+            layer: None,
+        }
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer, texts: &Texts) {
+    pub fn show(
+        &mut self,
+        ctx: &egui::Context,
+        gui: &mut Gui,
+        context: &VulkanoContext,
+        renderer: &VulkanoWindowRenderer,
+        texts: &Texts,
+    ) {
         egui::Window::new(texts.get(self.title.as_str()))
-            .movable(ctx.input(|input| input.pointer.hover_pos())
-                .is_some_and(|hover_pos| hover_pos.y < self.position.y ))
+            .movable(
+                ctx.input(|input| input.pointer.hover_pos())
+                    .is_some_and(|hover_pos| hover_pos.y < self.position.y),
+            )
             .show(&ctx, |ui| self.ui(ui, gui, context, renderer));
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, gui: &mut Gui, context: &VulkanoContext, renderer: &VulkanoWindowRenderer) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        gui: &mut Gui,
+        context: &VulkanoContext,
+        renderer: &VulkanoWindowRenderer,
+    ) {
         self.image_index = renderer.image_index() as usize;
         let available_size = ui.available_size();
         (self.size.x, self.size.y) = (available_size.x, available_size.y);
@@ -38,25 +65,44 @@ impl ImageWindow {
         if self.images.is_none() || self.pixel.x != pixel.x || self.pixel.y != pixel.y {
             self.pixel = pixel;
             self.close(Some(gui));
-            self.images = Some((0..renderer.image_count()).map(|_| {
-                let image = Image::new(
-                    context.memory_allocator().clone(),
-                    ImageCreateInfo {
-                        format: renderer.swapchain_format(),
-                        extent: [self.pixel.x, self.pixel.y, 1],
-                        usage: ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
-                        ..Default::default()
-                    },
-                    AllocationCreateInfo::default(),
-                ).unwrap();
-                ImageView::new_default(image).unwrap()
-            }).collect());
-            self.texture_ids = Some(self.images.as_ref().unwrap().iter().map(|image|
-                gui.register_user_image_view(image.clone(), Default::default())).collect());
-            log::trace!("ImageWindow({}): image created, pixel={}, size={}", self.title, self.pixel, self.size);
+            self.images = Some(
+                (0..renderer.image_count())
+                    .map(|_| {
+                        let image = Image::new(
+                            context.memory_allocator().clone(),
+                            ImageCreateInfo {
+                                format: renderer.swapchain_format(),
+                                extent: [self.pixel.x, self.pixel.y, 1],
+                                usage: ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                                ..Default::default()
+                            },
+                            AllocationCreateInfo::default(),
+                        )
+                        .unwrap();
+                        ImageView::new_default(image).unwrap()
+                    })
+                    .collect(),
+            );
+            self.texture_ids = Some(
+                self.images
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|image| gui.register_user_image_view(image.clone(), Default::default()))
+                    .collect(),
+            );
+            log::trace!(
+                "ImageWindow({}): image created, pixel={}, size={}",
+                self.title,
+                self.pixel,
+                self.size
+            );
         }
         let texture_id = self.texture_ids.as_ref().unwrap()[self.image_index];
-        let r = ui.image(egui::ImageSource::Texture(egui::load::SizedTexture::new(texture_id, available_size)));
+        let r = ui.image(egui::ImageSource::Texture(egui::load::SizedTexture::new(
+            texture_id,
+            available_size,
+        )));
         (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
         self.layer = ui.ctx().memory(|mem| {
             match mem.focus() {
@@ -78,7 +124,9 @@ impl ImageWindow {
 
     /// Get window image of current frame, return None if images are not created yet.
     pub fn image(&self) -> Option<&Arc<ImageView>> {
-        self.images.as_ref().and_then(|images| images.get(self.image_index))
+        self.images
+            .as_ref()
+            .and_then(|images| images.get(self.image_index))
     }
 
     /// Get the exact pixel of window images

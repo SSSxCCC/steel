@@ -1,6 +1,6 @@
-use std::{iter::zip, str::FromStr};
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::{iter::zip, str::FromStr};
 use syn;
 
 pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
@@ -11,9 +11,7 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
 
     let fields = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
-            syn::Fields::Named(fields) => {
-                (&fields.named).iter().collect::<Vec<_>>()
-            },
+            syn::Fields::Named(fields) => (&fields.named).iter().collect::<Vec<_>>(),
             syn::Fields::Unnamed(_) => todo!(),
             syn::Fields::Unit => Vec::new(),
         },
@@ -105,10 +103,12 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
         .map(|(value_type, field_ident)| quote! { #value_type (self.#field_ident.clone()) })
         .collect::<Vec<_>>();
     let insert_tokens = zip(&value_names, zip(insert_values, &value_limits))
-        .map(|(value_name, (insert_value, value_limit))| if let Some(limit) = value_limit {
-            quote! { .insert_with_limit(#value_name, #insert_value, #limit) }
-        } else {
-            quote! { .insert(#value_name, #insert_value) }
+        .map(|(value_name, (insert_value, value_limit))| {
+            if let Some(limit) = value_limit {
+                quote! { .insert_with_limit(#value_name, #insert_value, #limit) }
+            } else {
+                quote! { .insert(#value_name, #insert_value) }
+            }
         })
         .collect::<Vec<_>>();
     let get_data_fn = quote! {

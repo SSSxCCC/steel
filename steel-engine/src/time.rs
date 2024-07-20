@@ -1,5 +1,5 @@
-use std::time::Instant;
 use shipyard::{Unique, UniqueViewMut};
+use std::time::Instant;
 
 /// Time unique manages current running times of game,
 /// you can use Time::now() to get the time at the start of this frame since game start,
@@ -16,7 +16,12 @@ impl Time {
     /// Create a new Time.
     pub fn new() -> Time {
         let now_instant = Instant::now();
-        Time { now: 0.0, delta: 0.0, start_instant: now_instant, last_instant: now_instant }
+        Time {
+            now: 0.0,
+            delta: 0.0,
+            start_instant: now_instant,
+            last_instant: now_instant,
+        }
     }
 
     /// Get the number of seconds at the start of this frame since game start.

@@ -1,6 +1,20 @@
 use glam::Vec2;
-use shipyard::{AddComponent, Component, EntityId, IntoIter, IntoWithId, UniqueView, UniqueViewMut, View, ViewMut};
-use steel::{app::{App, Schedule, SteelApp}, data::{Data, Limit, Value}, edit::Edit, input::Input, physics2d::{Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D}, platform::BuildTarget, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
+use shipyard::{
+    AddComponent, Component, EntityId, IntoIter, IntoWithId, UniqueView, UniqueViewMut, View,
+    ViewMut,
+};
+use steel::{
+    app::{App, Schedule, SteelApp},
+    data::{Data, Limit, Value},
+    edit::Edit,
+    input::Input,
+    physics2d::{Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D},
+    platform::BuildTarget,
+    scene::SceneManager,
+    time::Time,
+    transform::Transform,
+    ui::EguiContext,
+};
 use winit::event::VirtualKeyCode;
 
 #[no_mangle]
@@ -24,8 +38,14 @@ struct Player {
     move_speed: f32,
 }
 
-fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>, rb2d: View<RigidBody2D>,
-        mut physics2d_manager: UniqueViewMut<Physics2DManager>, input: UniqueView<Input>, egui_ctx: UniqueView<EguiContext>) {
+fn player_control_system(
+    player: View<Player>,
+    mut transform: ViewMut<Transform>,
+    rb2d: View<RigidBody2D>,
+    mut physics2d_manager: UniqueViewMut<Physics2DManager>,
+    input: UniqueView<Input>,
+    egui_ctx: UniqueView<EguiContext>,
+) {
     for (player, transform, rb2d) in (&player, &mut transform, &rb2d).iter() {
         if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
             let mut linvel = Vec2::ZERO;
@@ -47,8 +67,12 @@ fn player_control_system(player: View<Player>, mut transform: ViewMut<Transform>
             }
             rb2d.set_linvel(linvel.into(), true);
 
-            if transform.position.x > 9.0 { transform.position.x = 9.0 }
-            if transform.position.x < -9.0 { transform.position.x = -9.0 }
+            if transform.position.x > 9.0 {
+                transform.position.x = 9.0
+            }
+            if transform.position.x < -9.0 {
+                transform.position.x = -9.0
+            }
         }
     }
 }
@@ -60,7 +84,11 @@ struct Ball {
     started: bool,
 }
 
-fn push_ball_system(mut ball: ViewMut<Ball>, rb2d: View<RigidBody2D>, mut physics2d_manager: UniqueViewMut<Physics2DManager>) {
+fn push_ball_system(
+    mut ball: ViewMut<Ball>,
+    rb2d: View<RigidBody2D>,
+    mut physics2d_manager: UniqueViewMut<Physics2DManager>,
+) {
     for (ball, rb2d) in (&mut ball, &rb2d).iter() {
         if !ball.started {
             if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
@@ -74,11 +102,19 @@ fn push_ball_system(mut ball: ViewMut<Ball>, rb2d: View<RigidBody2D>, mut physic
 #[derive(Edit, Component, Default)]
 struct Border;
 
-fn border_check_system(border: View<Border>, ball: View<Ball>, mut lose: ViewMut<Lose>, col2d: View<Collider2D>, physics2d_manager: UniqueView<Physics2DManager>) {
+fn border_check_system(
+    border: View<Border>,
+    ball: View<Ball>,
+    mut lose: ViewMut<Lose>,
+    col2d: View<Collider2D>,
+    physics2d_manager: UniqueView<Physics2DManager>,
+) {
     let mut border_entity = EntityId::dead();
     for (entity, (_border, border_col2d, _)) in (&border, &col2d, !&lose).iter().with_id() {
         for (_ball, ball_col2d) in (&ball, &col2d).iter() {
-            let intersection_pair = physics2d_manager.narrow_phase.intersection_pair(border_col2d.handle(), ball_col2d.handle());
+            let intersection_pair = physics2d_manager
+                .narrow_phase
+                .intersection_pair(border_col2d.handle(), ball_col2d.handle());
             if intersection_pair.is_none() {
                 border_entity = entity;
             }
@@ -100,12 +136,20 @@ impl Default for Lose {
     }
 }
 
-fn lose_system(mut lose: ViewMut<Lose>, time: UniqueView<Time>, egui_ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
+fn lose_system(
+    mut lose: ViewMut<Lose>,
+    time: UniqueView<Time>,
+    egui_ctx: UniqueView<EguiContext>,
+    mut scene_manager: UniqueViewMut<SceneManager>,
+) {
     for lose in (&mut lose).iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
-            ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
-                ui.label(egui::RichText::new("You lose!").size(100.0));
-            });
+            ui.with_layout(
+                egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| {
+                    ui.label(egui::RichText::new("You lose!").size(100.0));
+                },
+            );
         });
 
         lose.lose_time -= time.delta();
@@ -118,14 +162,24 @@ fn lose_system(mut lose: ViewMut<Lose>, time: UniqueView<Time>, egui_ctx: Unique
 #[derive(Edit, Component, Default)]
 struct MainMenu;
 
-fn main_menu_system(main_menu_component: View<MainMenu>, egui_ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
+fn main_menu_system(
+    main_menu_component: View<MainMenu>,
+    egui_ctx: UniqueView<EguiContext>,
+    mut scene_manager: UniqueViewMut<SceneManager>,
+) {
     for _ in main_menu_component.iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
             let available_size = ui.available_size();
             let button_center = egui::pos2(available_size.x / 2.0, available_size.y / 2.0);
             let button_size = egui::vec2(200.0, 100.0);
             let button_rect = egui::Rect::from_center_size(button_center, button_size);
-            if ui.put(button_rect, egui::Button::new(egui::RichText::new("Start Game").size(30.0))).clicked() {
+            if ui
+                .put(
+                    button_rect,
+                    egui::Button::new(egui::RichText::new("Start Game").size(30.0)),
+                )
+                .clicked()
+            {
                 scene_manager.switch_scene("game.scene".into());
             }
         });

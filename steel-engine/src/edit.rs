@@ -81,7 +81,10 @@ pub trait Edit {
     }
 
     /// Create Self from a Data struct. This function is usually called during scene loading.
-    fn from_data(data: &Data) -> Self where Self: Default {
+    fn from_data(data: &Data) -> Self
+    where
+        Self: Default,
+    {
         let mut e = Self::default();
         e.load_data(data);
         e

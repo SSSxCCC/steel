@@ -1,8 +1,24 @@
 pub use steel_common::app::*;
 
+use crate::{
+    camera::{Camera, CameraInfo},
+    data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry},
+    edit::Edit,
+    entityinfo::EntityInfo,
+    hierarchy::{Child, Hierarchy, Parent},
+    input::Input,
+    render::{
+        canvas::{Canvas, GetEntityAtScreenParam},
+        renderer2d::Renderer2D,
+        FrameRenderInfo, RenderManager,
+    },
+    scene::SceneManager,
+    time::Time,
+    transform::Transform,
+    ui::EguiContext,
+};
 use shipyard::{EntitiesView, IntoWorkloadSystem, Unique, UniqueViewMut, Workload, World};
-use vulkano::{sync::GpuFuture, command_buffer::PrimaryCommandBufferAbstract};
-use crate::{camera::{Camera, CameraInfo}, data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry}, edit::Edit, entityinfo::EntityInfo, hierarchy::{Child, Hierarchy, Parent}, input::Input, render::{canvas::{Canvas, GetEntityAtScreenParam}, renderer2d::Renderer2D, FrameRenderInfo, RenderManager}, scene::SceneManager, time::Time, transform::Transform, ui::EguiContext};
+use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 
 /// SteelApp contains data and logic of a steel application.
 /// # Examples
@@ -49,7 +65,7 @@ use crate::{camera::{Camera, CameraInfo}, data::{ComponentRegistry, ComponentReg
 ///
 /// #[derive(Unique)]
 /// struct MyUnique;
-/// 
+///
 /// #[derive(Component, Edit, Default)]
 /// struct MyComponent;
 ///
@@ -96,23 +112,32 @@ impl SteelApp {
             post_update_workload_editor: Some(Workload::new("post_update_editor")),
             draw_editor_workload: Some(Workload::new("draw_editor")),
         }
-            .register_component::<EntityInfo>()
-            .register_component::<Parent>()
-            .register_component::<Child>()
-            .register_component::<Transform>()
-            .register_component::<Camera>()
-            .register_component::<Renderer2D>()
-            .register_unique::<RenderManager>()
-            .add_and_register_unique(Hierarchy::default())
-            .add_unique(CameraInfo::new())
-            .add_unique(Canvas::new())
-            .add_unique(Input::new())
-            .add_unique(Time::new())
-            .add_system(Schedule::PreUpdate, crate::hierarchy::hierarchy_maintain_system)
-            .add_system(Schedule::PreUpdate, crate::time::time_maintain_system)
-            .add_system(Schedule::PreUpdate, crate::render::canvas::canvas_clear_system)
-            .add_system(Schedule::PreUpdate, crate::camera::camera_maintain_system)
-            .add_system(Schedule::PostUpdate, crate::render::renderer2d::renderer2d_to_canvas_system)
+        .register_component::<EntityInfo>()
+        .register_component::<Parent>()
+        .register_component::<Child>()
+        .register_component::<Transform>()
+        .register_component::<Camera>()
+        .register_component::<Renderer2D>()
+        .register_unique::<RenderManager>()
+        .add_and_register_unique(Hierarchy::default())
+        .add_unique(CameraInfo::new())
+        .add_unique(Canvas::new())
+        .add_unique(Input::new())
+        .add_unique(Time::new())
+        .add_system(
+            Schedule::PreUpdate,
+            crate::hierarchy::hierarchy_maintain_system,
+        )
+        .add_system(Schedule::PreUpdate, crate::time::time_maintain_system)
+        .add_system(
+            Schedule::PreUpdate,
+            crate::render::canvas::canvas_clear_system,
+        )
+        .add_system(Schedule::PreUpdate, crate::camera::camera_maintain_system)
+        .add_system(
+            Schedule::PostUpdate,
+            crate::render::renderer2d::renderer2d_to_canvas_system,
+        )
     }
 
     /// Box self.
@@ -147,30 +172,58 @@ impl SteelApp {
     }
 
     /// Add a system into ecs world that runs on schedule.
-    pub fn add_system<B>(mut self, schedule: Schedule, system: impl IntoWorkloadSystem<B, ()> + Copy) -> Self {
+    pub fn add_system<B>(
+        mut self,
+        schedule: Schedule,
+        system: impl IntoWorkloadSystem<B, ()> + Copy,
+    ) -> Self {
         match schedule {
             Schedule::PreInit => {
-                self.pre_init_workload = Some(self.pre_init_workload.take().unwrap().with_system(system));
+                self.pre_init_workload =
+                    Some(self.pre_init_workload.take().unwrap().with_system(system));
             }
             Schedule::Init => {
                 self.init_workload = Some(self.init_workload.take().unwrap().with_system(system));
             }
             Schedule::PostInit => {
-                self.post_init_workload = Some(self.post_init_workload.take().unwrap().with_system(system));
+                self.post_init_workload =
+                    Some(self.post_init_workload.take().unwrap().with_system(system));
             }
             Schedule::PreUpdate => {
-                self.pre_update_workload = Some(self.pre_update_workload.take().unwrap().with_system(system));
-                self.pre_update_workload_editor = Some(self.pre_update_workload_editor.take().unwrap().with_system(system));
+                self.pre_update_workload =
+                    Some(self.pre_update_workload.take().unwrap().with_system(system));
+                self.pre_update_workload_editor = Some(
+                    self.pre_update_workload_editor
+                        .take()
+                        .unwrap()
+                        .with_system(system),
+                );
             }
             Schedule::Update => {
-                self.update_workload = Some(self.update_workload.take().unwrap().with_system(system));
+                self.update_workload =
+                    Some(self.update_workload.take().unwrap().with_system(system));
             }
             Schedule::PostUpdate => {
-                self.post_update_workload = Some(self.post_update_workload.take().unwrap().with_system(system));
-                self.post_update_workload_editor = Some(self.post_update_workload_editor.take().unwrap().with_system(system));
+                self.post_update_workload = Some(
+                    self.post_update_workload
+                        .take()
+                        .unwrap()
+                        .with_system(system),
+                );
+                self.post_update_workload_editor = Some(
+                    self.post_update_workload_editor
+                        .take()
+                        .unwrap()
+                        .with_system(system),
+                );
             }
             Schedule::DrawEditor => {
-                self.draw_editor_workload = Some(self.draw_editor_workload.take().unwrap().with_system(system));
+                self.draw_editor_workload = Some(
+                    self.draw_editor_workload
+                        .take()
+                        .unwrap()
+                        .with_system(system),
+                );
             }
         }
         self
@@ -215,9 +268,17 @@ impl App for SteelApp {
     fn update(&mut self, info: UpdateInfo) {
         self.world.add_unique(EguiContext::new(info.ctx.clone()));
 
-        SceneManager::maintain_system(&mut self.world, &self.component_registry, &self.unique_registry);
+        SceneManager::maintain_system(
+            &mut self.world,
+            &self.component_registry,
+            &self.unique_registry,
+        );
 
-        let workload = if info.update { "update_all" } else { "update_editor" };
+        let workload = if info.update {
+            "update_all"
+        } else {
+            "update_editor"
+        };
         self.world.run_workload(workload).unwrap();
 
         self.world.remove_unique::<EguiContext>().unwrap();
@@ -225,13 +286,17 @@ impl App for SteelApp {
 
     fn draw(&mut self, mut info: DrawInfo) -> Box<dyn GpuFuture> {
         if let Some(editor) = &info.editor_info {
-            self.world.run(|mut camera: UniqueViewMut<CameraInfo>| camera.set(editor.camera));
+            self.world
+                .run(|mut camera: UniqueViewMut<CameraInfo>| camera.set(editor.camera));
             self.world.run_workload("draw_editor").unwrap();
         }
         self.world.add_unique(FrameRenderInfo::from(&mut info));
         let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<FrameRenderInfo>().unwrap();
-        command_buffer.execute_after(info.before_future, info.context.graphics_queue().clone()).unwrap().boxed()
+        command_buffer
+            .execute_after(info.before_future, info.context.graphics_queue().clone())
+            .unwrap()
+            .boxed()
     }
 
     fn command(&mut self, cmd: Command) {
@@ -254,15 +319,22 @@ impl App for SteelApp {
                 }
             }
             Command::Reload(world_data) => {
-                SceneManager::load(&mut self.world, world_data, &self.component_registry, &self.unique_registry);
+                SceneManager::load(
+                    &mut self.world,
+                    world_data,
+                    &self.component_registry,
+                    &self.unique_registry,
+                );
             }
             Command::SetCurrentScene(scene) => {
                 SceneManager::set_current_scene(&mut self.world, scene);
             }
             Command::CreateEntity => {
-                self.world.add_entity((EntityInfo::new("New Entity"),
+                self.world.add_entity((
+                    EntityInfo::new("New Entity"),
                     Transform::default(),
-                    Renderer2D::default()));
+                    Renderer2D::default(),
+                ));
             }
             Command::DestroyEntity(id) => {
                 self.world.delete_entity(id);
@@ -271,13 +343,17 @@ impl App for SteelApp {
                 self.world.clear();
             }
             Command::GetEntityCount(entity_count) => {
-                *entity_count = self.world.run(|entities: EntitiesView| entities.iter().count());
+                *entity_count = self
+                    .world
+                    .run(|entities: EntitiesView| entities.iter().count());
             }
             Command::AddEntities(entities_data, old_id_to_new_id) => {
-                *old_id_to_new_id = entities_data.add_to_world(&mut self.world, &self.component_registry);
+                *old_id_to_new_id =
+                    entities_data.add_to_world(&mut self.world, &self.component_registry);
             }
             Command::GetComponents(components) => {
-                *components = self.component_registry.keys().map(|s| *s).collect(); // TODO: cache components
+                *components = self.component_registry.keys().map(|s| *s).collect();
+                // TODO: cache components
             }
             Command::CreateComponent(id, component_name) => {
                 if let Some(component_fn) = self.component_registry.get(component_name) {
@@ -290,12 +366,20 @@ impl App for SteelApp {
                 }
             }
             Command::UpdateInput(events) => {
-                self.world.run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
+                self.world
+                    .run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
             }
             Command::GetEntityAtScreen(window_index, screen_position, out_eid) => {
-                self.world.add_unique(GetEntityAtScreenParam { window_index, screen_position });
-                *out_eid = self.world.run(crate::render::canvas::get_entity_at_screen_system);
-                self.world.remove_unique::<GetEntityAtScreenParam>().unwrap();
+                self.world.add_unique(GetEntityAtScreenParam {
+                    window_index,
+                    screen_position,
+                });
+                *out_eid = self
+                    .world
+                    .run(crate::render::canvas::get_entity_at_screen_system);
+                self.world
+                    .remove_unique::<GetEntityAtScreenParam>()
+                    .unwrap();
             }
             Command::ResetTime => {
                 self.world.run(|mut time: UniqueViewMut<Time>| time.reset());

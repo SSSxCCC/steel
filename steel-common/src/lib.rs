@@ -2,5 +2,5 @@
 
 pub mod app;
 pub mod data;
-pub mod platform;
 pub mod ext;
+pub mod platform;

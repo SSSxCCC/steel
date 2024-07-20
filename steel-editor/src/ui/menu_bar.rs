@@ -1,11 +1,16 @@
-use std::time::Instant;
+use super::{image_window::ImageWindow, EditorState};
+use crate::{
+    locale::{Language, Texts},
+    project::Project,
+    ui::data_window::DataWindow,
+    utils::LocalData,
+};
 use egui_dock::DockState;
 use egui_winit_vulkano::Gui;
 use shipyard::EntityId;
+use std::time::Instant;
 use steel_common::{app::Command, data::WorldData};
 use vulkano_util::context::VulkanoContext;
-use crate::{locale::{Language, Texts}, project::Project, ui::data_window::DataWindow, utils::LocalData};
-use super::{image_window::ImageWindow, EditorState};
 
 pub struct MenuBar {
     show_open_project_dialog: bool,
@@ -22,13 +27,34 @@ impl MenuBar {
         }
     }
 
-    pub fn ui(&mut self, editor_state: &mut EditorState, scene_window: &mut ImageWindow,
-            game_window: &mut ImageWindow, data_window: &mut DataWindow,
-            ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>,
-            dock_state: &mut DockState<String>, context: &VulkanoContext,
-            project: &mut Project, world_data: &mut Option<WorldData>,
-            local_data: &mut LocalData, texts: &mut Texts) {
-        self.open_project_dialog(editor_state, scene_window, game_window, ctx, gui, gui_game, context, project, local_data, texts);
+    pub fn ui(
+        &mut self,
+        editor_state: &mut EditorState,
+        scene_window: &mut ImageWindow,
+        game_window: &mut ImageWindow,
+        data_window: &mut DataWindow,
+        ctx: &egui::Context,
+        gui: &mut Gui,
+        gui_game: &mut Option<Gui>,
+        dock_state: &mut DockState<String>,
+        context: &VulkanoContext,
+        project: &mut Project,
+        world_data: &mut Option<WorldData>,
+        local_data: &mut LocalData,
+        texts: &mut Texts,
+    ) {
+        self.open_project_dialog(
+            editor_state,
+            scene_window,
+            game_window,
+            ctx,
+            gui,
+            gui_game,
+            context,
+            project,
+            local_data,
+            texts,
+        );
 
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -226,42 +252,54 @@ impl MenuBar {
         });
     }
 
-    fn open_project_dialog(&mut self, editor_state: &mut EditorState, scene_window: &mut ImageWindow,
-            game_window: &mut ImageWindow, ctx: &egui::Context, gui: &mut Gui, gui_game: &mut Option<Gui>,
-            context: &VulkanoContext, project: &mut Project, local_data: &mut LocalData, texts: &Texts) {
+    fn open_project_dialog(
+        &mut self,
+        editor_state: &mut EditorState,
+        scene_window: &mut ImageWindow,
+        game_window: &mut ImageWindow,
+        ctx: &egui::Context,
+        gui: &mut Gui,
+        gui_game: &mut Option<Gui>,
+        context: &VulkanoContext,
+        project: &mut Project,
+        local_data: &mut LocalData,
+        texts: &Texts,
+    ) {
         let mut show = self.show_open_project_dialog;
-        egui::Window::new(texts.get("Open Project")).open(&mut show).show(&ctx, |ui| {
-            ui.horizontal(|ui| {
-                let mut path_str = editor_state.project_path.display().to_string();
-                ui.text_edit_singleline(&mut path_str);
-                editor_state.project_path = path_str.into();
+        egui::Window::new(texts.get("Open Project"))
+            .open(&mut show)
+            .show(&ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let mut path_str = editor_state.project_path.display().to_string();
+                    ui.text_edit_singleline(&mut path_str);
+                    editor_state.project_path = path_str.into();
 
-                if ui.button(texts.get("Browse")).clicked() {
-                            log::info!("Open FileDialog");
-                    let folder = rfd::FileDialog::new()
-                        .set_directory(&editor_state.project_path)
-                        .pick_folder();
-                    log::info!("Close FileDialog, folder={folder:?}");
-                    if let Some(folder) = folder {
-                        editor_state.project_path = folder;
+                    if ui.button(texts.get("Browse")).clicked() {
+                        log::info!("Open FileDialog");
+                        let folder = rfd::FileDialog::new()
+                            .set_directory(&editor_state.project_path)
+                            .pick_folder();
+                        log::info!("Close FileDialog, folder={folder:?}");
+                        if let Some(folder) = folder {
+                            editor_state.project_path = folder;
+                        }
+                    }
+                });
+                if ui.button(texts.get("Open")).clicked() {
+                    if editor_state.project_path.display().to_string().is_empty() {
+                        log::info!("Open project failed, path is empty");
+                    } else {
+                        log::info!("Open project, path={}", editor_state.project_path.display());
+                        scene_window.close(Some(gui));
+                        game_window.close(Some(gui));
+                        project.open(editor_state.project_path.clone(), local_data);
+                        project.compile(gui_game, context);
+                        self.show_open_project_dialog = false;
                     }
                 }
             });
-            if ui.button(texts.get("Open")).clicked() {
-                if editor_state.project_path.display().to_string().is_empty() {
-                    log::info!("Open project failed, path is empty");
-                } else {
-                    log::info!("Open project, path={}", editor_state.project_path.display());
-                    scene_window.close(Some(gui));
-                    game_window.close(Some(gui));
-                    project.open(editor_state.project_path.clone(), local_data);
-                    project.compile(gui_game, context);
-                    self.show_open_project_dialog = false;
-                }
-            }
-        });
         self.show_open_project_dialog &= show;
-    }   
+    }
 }
 
 struct FpsCounter {
@@ -272,7 +310,11 @@ struct FpsCounter {
 
 impl FpsCounter {
     fn new() -> Self {
-        FpsCounter { start: Instant::now(), frame: 0, fps: 0.0 }
+        FpsCounter {
+            start: Instant::now(),
+            frame: 0,
+            fps: 0.0,
+        }
     }
 
     fn update(&mut self) {

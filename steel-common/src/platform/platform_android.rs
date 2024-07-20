@@ -1,7 +1,7 @@
-use std::{error::Error, path::Path, io::Read, ffi::CString};
-use winit::platform::android::activity::AndroidApp;
-use shipyard::Unique;
 use crate::platform::PlatformError;
+use shipyard::Unique;
+use std::{error::Error, ffi::CString, io::Read, path::Path};
+use winit::platform::android::activity::AndroidApp;
 
 /// Platform struct stores some platform specific data,
 /// and has methods that have different implementations in different platforms.

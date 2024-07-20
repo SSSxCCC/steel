@@ -1,9 +1,13 @@
 pub use steel_common::data::*;
 
-use std::collections::HashMap;
-use indexmap::IndexMap;
-use shipyard::{track::{All, Deletion, Insertion, Modification, Removal, Untracked}, Component, EntitiesView, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut, World};
 use crate::edit::Edit;
+use indexmap::IndexMap;
+use shipyard::{
+    track::{All, Deletion, Insertion, Modification, Removal, Untracked},
+    Component, EntitiesView, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut,
+    View, ViewMut, World,
+};
+use std::collections::HashMap;
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
@@ -45,76 +49,112 @@ impl ComponentRegistry {
     }
 
     /// Insert a type of Component<Tracking = Untracked> to ComponentRegistry.
-    fn register_untracked<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(&mut self) {
-        self.insert(C::name(), ComponentFn {
-            create: Self::create_fn::<C>,
-            create_with_data: Self::create_with_data_fn::<C>,
-            destroy: Self::destroy_fn::<C>,
-            save_to_data: Self::save_to_data_fn::<C>,
-            load_from_data: Self::load_from_data_untracked_fn::<C>,
-        });
+    fn register_untracked<C: Component<Tracking = Untracked> + Edit + Default + Send + Sync>(
+        &mut self,
+    ) {
+        self.insert(
+            C::name(),
+            ComponentFn {
+                create: Self::create_fn::<C>,
+                create_with_data: Self::create_with_data_fn::<C>,
+                destroy: Self::destroy_fn::<C>,
+                save_to_data: Self::save_to_data_fn::<C>,
+                load_from_data: Self::load_from_data_untracked_fn::<C>,
+            },
+        );
     }
 
     /// Insert a type of Component<Tracking = Insertion> to ComponentRegistry.
-    fn register_track_insertion<C: Component<Tracking = Insertion> + Edit + Default + Send + Sync>(&mut self) {
-        self.insert(C::name(), ComponentFn {
-            create: Self::create_fn::<C>,
-            create_with_data: Self::create_with_data_fn::<C>,
-            destroy: Self::destroy_fn::<C>,
-            save_to_data: Self::save_to_data_fn::<C>,
-            load_from_data: Self::load_from_data_track_insertion_fn::<C>,
-        });
+    fn register_track_insertion<
+        C: Component<Tracking = Insertion> + Edit + Default + Send + Sync,
+    >(
+        &mut self,
+    ) {
+        self.insert(
+            C::name(),
+            ComponentFn {
+                create: Self::create_fn::<C>,
+                create_with_data: Self::create_with_data_fn::<C>,
+                destroy: Self::destroy_fn::<C>,
+                save_to_data: Self::save_to_data_fn::<C>,
+                load_from_data: Self::load_from_data_track_insertion_fn::<C>,
+            },
+        );
     }
 
     /// Insert a type of Component<Tracking = Modification> to ComponentRegistry.
-    fn register_track_modification<C: Component<Tracking = Modification> + Edit + Default + Send + Sync>(&mut self) {
-        self.insert(C::name(), ComponentFn {
-            create: Self::create_fn::<C>,
-            create_with_data: Self::create_with_data_fn::<C>,
-            destroy: Self::destroy_fn::<C>,
-            save_to_data: Self::save_to_data_fn::<C>,
-            load_from_data: Self::load_from_data_track_modification_fn::<C>,
-        });
+    fn register_track_modification<
+        C: Component<Tracking = Modification> + Edit + Default + Send + Sync,
+    >(
+        &mut self,
+    ) {
+        self.insert(
+            C::name(),
+            ComponentFn {
+                create: Self::create_fn::<C>,
+                create_with_data: Self::create_with_data_fn::<C>,
+                destroy: Self::destroy_fn::<C>,
+                save_to_data: Self::save_to_data_fn::<C>,
+                load_from_data: Self::load_from_data_track_modification_fn::<C>,
+            },
+        );
     }
 
     /// Insert a type of Component<Tracking = Deletion> to ComponentRegistry.
-    fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(&mut self) {
-        self.insert(C::name(), ComponentFn {
-            create: Self::create_fn::<C>,
-            create_with_data: Self::create_with_data_fn::<C>,
-            destroy: Self::destroy_fn::<C>,
-            save_to_data: Self::save_to_data_fn::<C>,
-            load_from_data: Self::load_from_data_track_deletion_fn::<C>,
-        });
+    fn register_track_deletion<C: Component<Tracking = Deletion> + Edit + Default + Send + Sync>(
+        &mut self,
+    ) {
+        self.insert(
+            C::name(),
+            ComponentFn {
+                create: Self::create_fn::<C>,
+                create_with_data: Self::create_with_data_fn::<C>,
+                destroy: Self::destroy_fn::<C>,
+                save_to_data: Self::save_to_data_fn::<C>,
+                load_from_data: Self::load_from_data_track_deletion_fn::<C>,
+            },
+        );
     }
 
     /// Insert a type of Component<Tracking = Removal> to ComponentRegistry.
-    fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(&mut self) {
-        self.insert(C::name(), ComponentFn {
-            create: Self::create_fn::<C>,
-            create_with_data: Self::create_with_data_fn::<C>,
-            destroy: Self::destroy_fn::<C>,
-            save_to_data: Self::save_to_data_fn::<C>,
-            load_from_data: Self::load_from_data_track_removal_fn::<C>,
-        });
+    fn register_track_removal<C: Component<Tracking = Removal> + Edit + Default + Send + Sync>(
+        &mut self,
+    ) {
+        self.insert(
+            C::name(),
+            ComponentFn {
+                create: Self::create_fn::<C>,
+                create_with_data: Self::create_with_data_fn::<C>,
+                destroy: Self::destroy_fn::<C>,
+                save_to_data: Self::save_to_data_fn::<C>,
+                load_from_data: Self::load_from_data_track_removal_fn::<C>,
+            },
+        );
     }
 
     /// Insert a type of Component<Tracking = All> to ComponentRegistry.
     fn register_track_all<C: Component<Tracking = All> + Edit + Default + Send + Sync>(&mut self) {
-        self.insert(C::name(), ComponentFn {
-            create: Self::create_fn::<C>,
-            create_with_data: Self::create_with_data_fn::<C>,
-            destroy: Self::destroy_fn::<C>,
-            save_to_data: Self::save_to_data_fn::<C>,
-            load_from_data: Self::load_from_data_track_all_fn::<C>,
-        });
+        self.insert(
+            C::name(),
+            ComponentFn {
+                create: Self::create_fn::<C>,
+                create_with_data: Self::create_with_data_fn::<C>,
+                destroy: Self::destroy_fn::<C>,
+                save_to_data: Self::save_to_data_fn::<C>,
+                load_from_data: Self::load_from_data_track_all_fn::<C>,
+            },
+        );
     }
 
     fn create_fn<C: Component + Edit + Default + Send + Sync>(world: &mut World, entity: EntityId) {
         world.add_component(entity, (C::default(),))
     }
 
-    fn create_with_data_fn<C: Component + Edit + Default + Send + Sync>(world: &mut World, entity: EntityId, data: &Data) {
+    fn create_with_data_fn<C: Component + Edit + Default + Send + Sync>(
+        world: &mut World,
+        entity: EntityId,
+        data: &Data,
+    ) {
         world.add_component(entity, (C::from_data(data),))
     }
 
@@ -122,18 +162,29 @@ impl ComponentRegistry {
         world.delete_component::<C>(entity)
     }
 
-    fn save_to_data_fn<C: Component + Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
+    fn save_to_data_fn<C: Component + Edit + Send + Sync>(
+        world_data: &mut WorldData,
+        world: &World,
+    ) {
         world.run(|c: View<C>| {
             for (e, c) in c.iter().with_id() {
-                let entity_data = world_data.entities.entry(e).or_insert_with(|| EntityData::new());
-                entity_data.components.insert(C::name().into(), c.get_data());
+                let entity_data = world_data
+                    .entities
+                    .entry(e)
+                    .or_insert_with(|| EntityData::new());
+                entity_data
+                    .components
+                    .insert(C::name().into(), c.get_data());
             }
         });
     }
 
     /// Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157.
     /// TODO: find a way to write only one generic function to cover all tracking type.
-    fn load_from_data_untracked_fn<C: Component<Tracking = Untracked> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_untracked_fn<C: Component<Tracking = Untracked> + Edit + Send + Sync>(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         world.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c, world_data);
@@ -141,7 +192,12 @@ impl ComponentRegistry {
         })
     }
 
-    fn load_from_data_track_insertion_fn<C: Component<Tracking = Insertion> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_track_insertion_fn<
+        C: Component<Tracking = Insertion> + Edit + Send + Sync,
+    >(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         world.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c, world_data);
@@ -149,7 +205,12 @@ impl ComponentRegistry {
         })
     }
 
-    fn load_from_data_track_modification_fn<C: Component<Tracking = Modification> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_track_modification_fn<
+        C: Component<Tracking = Modification> + Edit + Send + Sync,
+    >(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         world.run(|mut c: ViewMut<C>| {
             for (id, mut c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c.as_mut(), world_data);
@@ -157,7 +218,10 @@ impl ComponentRegistry {
         })
     }
 
-    fn load_from_data_track_deletion_fn<C: Component<Tracking = Deletion> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_track_deletion_fn<C: Component<Tracking = Deletion> + Edit + Send + Sync>(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         world.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c, world_data);
@@ -165,7 +229,10 @@ impl ComponentRegistry {
         })
     }
 
-    fn load_from_data_track_removal_fn<C: Component<Tracking = Removal> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_track_removal_fn<C: Component<Tracking = Removal> + Edit + Send + Sync>(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         world.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c, world_data);
@@ -173,7 +240,10 @@ impl ComponentRegistry {
         })
     }
 
-    fn load_from_data_track_all_fn<C: Component<Tracking = All> + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_track_all_fn<C: Component<Tracking = All> + Edit + Send + Sync>(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         world.run(|mut c: ViewMut<C>| {
             for (id, mut c) in (&mut c).iter().with_id() {
                 Self::_load_from_data(id, c.as_mut(), world_data);
@@ -198,8 +268,9 @@ pub trait ComponentRegistryExt {
 }
 
 impl<C> ComponentRegistryExt for C
-    where C: Component,
-          (C, <C as Component>::Tracking): ComponentRegistryExtInner,
+where
+    C: Component,
+    (C, <C as Component>::Tracking): ComponentRegistryExtInner,
 {
     fn register(component_registry: &mut ComponentRegistry) {
         <(C, <C as Component>::Tracking)>::register(component_registry);
@@ -211,37 +282,55 @@ trait ComponentRegistryExtInner {
     fn register(component_registry: &mut ComponentRegistry);
 }
 
-impl<C> ComponentRegistryExtInner for (C, Untracked) where C: Component<Tracking = Untracked> + Edit + Default + Send + Sync {
+impl<C> ComponentRegistryExtInner for (C, Untracked)
+where
+    C: Component<Tracking = Untracked> + Edit + Default + Send + Sync,
+{
     fn register(component_registry: &mut ComponentRegistry) {
         component_registry.register_untracked::<C>();
     }
 }
 
-impl<C> ComponentRegistryExtInner for (C, Insertion) where C: Component<Tracking = Insertion> + Edit + Default + Send + Sync {
+impl<C> ComponentRegistryExtInner for (C, Insertion)
+where
+    C: Component<Tracking = Insertion> + Edit + Default + Send + Sync,
+{
     fn register(component_registry: &mut ComponentRegistry) {
         component_registry.register_track_insertion::<C>();
     }
 }
 
-impl<C> ComponentRegistryExtInner for (C, Modification) where C: Component<Tracking = Modification> + Edit + Default + Send + Sync {
+impl<C> ComponentRegistryExtInner for (C, Modification)
+where
+    C: Component<Tracking = Modification> + Edit + Default + Send + Sync,
+{
     fn register(component_registry: &mut ComponentRegistry) {
         component_registry.register_track_modification::<C>();
     }
 }
 
-impl<C> ComponentRegistryExtInner for (C, Deletion) where C: Component<Tracking = Deletion> + Edit + Default + Send + Sync {
+impl<C> ComponentRegistryExtInner for (C, Deletion)
+where
+    C: Component<Tracking = Deletion> + Edit + Default + Send + Sync,
+{
     fn register(component_registry: &mut ComponentRegistry) {
         component_registry.register_track_deletion::<C>();
     }
 }
 
-impl<C> ComponentRegistryExtInner for (C, Removal) where C: Component<Tracking = Removal> + Edit + Default + Send + Sync {
+impl<C> ComponentRegistryExtInner for (C, Removal)
+where
+    C: Component<Tracking = Removal> + Edit + Default + Send + Sync,
+{
     fn register(component_registry: &mut ComponentRegistry) {
         component_registry.register_track_removal::<C>();
     }
 }
 
-impl<C> ComponentRegistryExtInner for (C, All) where C: Component<Tracking = All> + Edit + Default + Send + Sync {
+impl<C> ComponentRegistryExtInner for (C, All)
+where
+    C: Component<Tracking = All> + Edit + Default + Send + Sync,
+{
     fn register(component_registry: &mut ComponentRegistry) {
         component_registry.register_track_all::<C>();
     }
@@ -280,24 +369,33 @@ impl UniqueRegistry {
 
     /// Insert a type of Unique to UniqueRegistry.
     pub fn register<U: Unique + Edit + Send + Sync>(&mut self) {
-        self.insert(U::name(), UniqueFn {
-            save_to_data: Self::save_to_data_fn::<U>,
-            load_from_data: Self::load_from_data_fn::<U>,
-            load_from_scene_data: Self::load_from_scene_data_fn::<U>,
-        });
+        self.insert(
+            U::name(),
+            UniqueFn {
+                save_to_data: Self::save_to_data_fn::<U>,
+                load_from_data: Self::load_from_data_fn::<U>,
+                load_from_scene_data: Self::load_from_scene_data_fn::<U>,
+            },
+        );
     }
 
     fn save_to_data_fn<U: Unique + Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
         world.run(|u: UniqueView<U>| world_data.uniques.insert(U::name().into(), u.get_data()));
     }
 
-    fn load_from_data_fn<U: Unique + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_data_fn<U: Unique + Edit + Send + Sync>(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         if let Some(unique_data) = world_data.uniques.get(U::name()) {
             world.run(|mut u: UniqueViewMut<U>| u.set_data(unique_data));
         }
     }
 
-    fn load_from_scene_data_fn<U: Unique + Edit + Send + Sync>(world: &mut World, world_data: &WorldData) {
+    fn load_from_scene_data_fn<U: Unique + Edit + Send + Sync>(
+        world: &mut World,
+        world_data: &WorldData,
+    ) {
         if let Some(unique_data) = world_data.uniques.get(U::name()) {
             world.run(|mut u: UniqueViewMut<U>| u.load_data(unique_data));
         }
@@ -307,18 +405,35 @@ impl UniqueRegistry {
 /// WorldData extension functions in steel core library.
 pub trait WorldDataExt {
     /// Add entities and uniques of self into ecs world. Return old_id_to_new_id map.
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) -> HashMap<EntityId, EntityId>;
+    fn add_to_world(
+        &self,
+        world: &mut World,
+        component_registry: &ComponentRegistry,
+        unique_registry: &UniqueRegistry,
+    ) -> HashMap<EntityId, EntityId>;
 }
 
 impl WorldDataExt for WorldData {
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry, unique_registry: &UniqueRegistry) -> HashMap<EntityId, EntityId> {
+    fn add_to_world(
+        &self,
+        world: &mut World,
+        component_registry: &ComponentRegistry,
+        unique_registry: &UniqueRegistry,
+    ) -> HashMap<EntityId, EntityId> {
         // create new_world_data from self by changing old entity ids to new entity ids.
         let mut new_world_data = WorldData::new();
         let old_id_to_new_id = create_old_id_to_new_id_map(&self.entities, world);
-        fill_new_entities_data(&mut new_world_data.entities, &self.entities, &old_id_to_new_id, &world);
+        fill_new_entities_data(
+            &mut new_world_data.entities,
+            &self.entities,
+            &old_id_to_new_id,
+            &world,
+        );
         for (unique_name, unique_data) in &self.uniques {
             let new_unique_data = update_eid_in_data(unique_data, &old_id_to_new_id, &world);
-            new_world_data.uniques.insert(unique_name.clone(), new_unique_data);
+            new_world_data
+                .uniques
+                .insert(unique_name.clone(), new_unique_data);
         }
 
         // create components in ecs world.
@@ -336,11 +451,19 @@ impl WorldDataExt for WorldData {
 /// EntitiesData extension functions in steel core library.
 pub trait EntitiesDataExt {
     /// Add entities of self into ecs world. Return old_id_to_new_id map.
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry) -> HashMap<EntityId, EntityId>;
+    fn add_to_world(
+        &self,
+        world: &mut World,
+        component_registry: &ComponentRegistry,
+    ) -> HashMap<EntityId, EntityId>;
 }
 
 impl EntitiesDataExt for EntitiesData {
-    fn add_to_world(&self, world: &mut World, component_registry: &ComponentRegistry) -> HashMap<EntityId, EntityId> {
+    fn add_to_world(
+        &self,
+        world: &mut World,
+        component_registry: &ComponentRegistry,
+    ) -> HashMap<EntityId, EntityId> {
         // create new_entities_data from self by changing old entity ids to new entity ids.
         let mut new_entities_data = EntitiesData::new();
         let old_id_to_new_id = create_old_id_to_new_id_map(self, world);
@@ -354,7 +477,10 @@ impl EntitiesDataExt for EntitiesData {
 }
 
 /// Create old_id_to_new_id map, the new ids are generated by adding new entities in ecs world.
-fn create_old_id_to_new_id_map(entities_data: &EntitiesData, world: &mut World) -> HashMap<EntityId, EntityId> {
+fn create_old_id_to_new_id_map(
+    entities_data: &EntitiesData,
+    world: &mut World,
+) -> HashMap<EntityId, EntityId> {
     let mut old_id_to_new_id = HashMap::new();
     for old_id in entities_data.keys() {
         old_id_to_new_id.insert(*old_id, world.add_entity(()));
@@ -363,20 +489,31 @@ fn create_old_id_to_new_id_map(entities_data: &EntitiesData, world: &mut World) 
 }
 
 /// Fill new_entities_data from old_entities_data by changing old entity ids to new entity ids.
-fn fill_new_entities_data(new_entities_data: &mut EntitiesData, old_entities_data: &EntitiesData, old_id_to_new_id: &HashMap<EntityId, EntityId>, world: &World) {
+fn fill_new_entities_data(
+    new_entities_data: &mut EntitiesData,
+    old_entities_data: &EntitiesData,
+    old_id_to_new_id: &HashMap<EntityId, EntityId>,
+    world: &World,
+) {
     for (old_id, entity_data) in old_entities_data {
         let new_id = *old_id_to_new_id.get(old_id).unwrap();
         let mut new_entity_data = EntityData::new();
         for (component_name, component_data) in &entity_data.components {
             let new_component_data = update_eid_in_data(component_data, &old_id_to_new_id, world);
-            new_entity_data.components.insert(component_name.clone(), new_component_data);
+            new_entity_data
+                .components
+                .insert(component_name.clone(), new_component_data);
         }
         new_entities_data.insert(new_id, new_entity_data);
     }
 }
 
 /// Update entity ids in data according to old_id_to_new_id.
-fn update_eid_in_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId>, world: &World) -> Data {
+fn update_eid_in_data(
+    data: &Data,
+    old_id_to_new_id: &HashMap<EntityId, EntityId>,
+    world: &World,
+) -> Data {
     let get_id_fn = |e: &EntityId| {
         if let Some(new_id) = old_id_to_new_id.get(e) {
             *new_id
@@ -402,7 +539,11 @@ fn update_eid_in_data(data: &Data, old_id_to_new_id: &HashMap<EntityId, EntityId
 }
 
 /// Create components in ecs world according to entities_data.
-fn create_components_in_world(entities_data: &EntitiesData, world: &mut World, component_registry: &ComponentRegistry) {
+fn create_components_in_world(
+    entities_data: &EntitiesData,
+    world: &mut World,
+    component_registry: &ComponentRegistry,
+) {
     for (eid, entity_data) in entities_data {
         for (component_name, component_data) in &entity_data.components {
             if let Some(component_fn) = component_registry.get(component_name.as_str()) {

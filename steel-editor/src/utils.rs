@@ -1,6 +1,11 @@
-use std::{error::Error, fs::File, io::{BufReader, BufWriter}, path::PathBuf};
-use serde::{Deserialize, Serialize};
 use crate::locale::Language;
+use serde::{Deserialize, Serialize};
+use std::{
+    error::Error,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
 /// Delete windows path prefix:
 /// ```
@@ -32,10 +37,14 @@ impl LocalData {
             Err(error) => {
                 log::warn!("Failed to load LocalData, error={error}");
 
-                let mut last_open_project_path = std::fs::canonicalize("examples/test-project").unwrap_or_default();
+                let mut last_open_project_path =
+                    std::fs::canonicalize("examples/test-project").unwrap_or_default();
                 delte_windows_path_prefix(&mut last_open_project_path);
 
-                LocalData { last_open_project_path, language: None }
+                LocalData {
+                    last_open_project_path,
+                    language: None,
+                }
             }
         }
     }

@@ -1,9 +1,9 @@
-use std::{collections::HashMap, error::Error, ops::RangeInclusive, path::Path};
+use crate::platform::Platform;
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use shipyard::EntityId;
-use crate::platform::Platform;
+use std::{collections::HashMap, error::Error, ops::RangeInclusive, path::Path};
 
 /// Limit Value in a range or in several enum, mainly used in Edit::get_data.
 #[derive(Debug, Clone)]
@@ -76,7 +76,10 @@ impl Data {
     ///     .insert("age", Value::Float32(18.0));
     /// ```
     pub fn new() -> Self {
-        Data { values: IndexMap::new(), limits: HashMap::new() }
+        Data {
+            values: IndexMap::new(),
+            limits: HashMap::new(),
+        }
     }
 
     /// Insert a value to this data, you can chain many insert calls by using this funtion.
@@ -86,7 +89,12 @@ impl Data {
     }
 
     /// Insert a value and its limit to this data, you can chain many insert calls by using this funtion.
-    pub fn insert_with_limit(mut self, name: impl Into<String>, value: Value, limit: Limit) -> Self {
+    pub fn insert_with_limit(
+        mut self,
+        name: impl Into<String>,
+        value: Value,
+        limit: Limit,
+    ) -> Self {
         self.add_value_with_limit(name, value, limit);
         self
     }
@@ -118,7 +126,9 @@ pub struct EntityData {
 impl EntityData {
     /// Create an empty EntityData.
     pub fn new() -> Self {
-        EntityData { components: IndexMap::new() }
+        EntityData {
+            components: IndexMap::new(),
+        }
     }
 }
 
@@ -126,7 +136,7 @@ impl EntityData {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntitiesData(
     #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
-    pub IndexMap<EntityId, EntityData>
+    pub  IndexMap<EntityId, EntityData>,
 );
 
 impl EntitiesData {
@@ -187,7 +197,10 @@ pub struct WorldData {
 impl WorldData {
     /// Create an empty WorldData.
     pub fn new() -> Self {
-        WorldData { entities: EntitiesData::new(), uniques: IndexMap::new() }
+        WorldData {
+            entities: EntitiesData::new(),
+            uniques: IndexMap::new(),
+        }
     }
 
     /// The WorldData becomes empty after clear.
@@ -201,13 +214,19 @@ impl WorldData {
         match Self::_load_from_file(file.as_ref(), &platform) {
             Ok(world_data) => Some(world_data),
             Err(error) => {
-                log::warn!("Failed to load world_data, file={}, error={error}", file.as_ref().display());
+                log::warn!(
+                    "Failed to load world_data, file={}, error={error}",
+                    file.as_ref().display()
+                );
                 None
             }
         }
     }
 
-    fn _load_from_file(file: impl AsRef<Path>, platform: &Platform) -> Result<WorldData, Box<dyn Error>> {
+    fn _load_from_file(
+        file: impl AsRef<Path>,
+        platform: &Platform,
+    ) -> Result<WorldData, Box<dyn Error>> {
         let s = platform.read_asset_to_string(file)?;
         Ok(serde_json::from_str::<WorldData>(&s)?)
     }

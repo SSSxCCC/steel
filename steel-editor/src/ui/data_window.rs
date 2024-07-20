@@ -1,8 +1,11 @@
-use std::{collections::HashMap, ops::RangeInclusive};
+use crate::locale::Texts;
 use glam::{Vec3, Vec4};
 use shipyard::EntityId;
-use steel_common::{app::{App, Command}, data::{Data, EntitiesData, EntityData, Limit, Value, WorldData}};
-use crate::locale::Texts;
+use std::{collections::HashMap, ops::RangeInclusive};
+use steel_common::{
+    app::{App, Command},
+    data::{Data, EntitiesData, EntityData, Limit, Value, WorldData},
+};
 
 pub struct DataWindow {
     selected_entity: EntityId,
@@ -17,8 +20,13 @@ impl DataWindow {
         }
     }
 
-    pub fn entity_component_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData,
-            app: &mut Box<dyn App>, texts: &Texts) {
+    pub fn entity_component_windows(
+        &mut self,
+        ctx: &egui::Context,
+        world_data: &mut WorldData,
+        app: &mut Box<dyn App>,
+        texts: &Texts,
+    ) {
         egui::Window::new(texts.get("Entities")).show(&ctx, |ui| {
             self.entities_view(ui, world_data, app, texts);
         });
@@ -30,18 +38,39 @@ impl DataWindow {
         }
     }
 
-    pub fn entities_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>, texts: &Texts) {
-        let hierarchy = world_data.uniques.get("Hierarchy").expect("Hierarchy unique is missing!");
+    pub fn entities_view(
+        &mut self,
+        ui: &mut egui::Ui,
+        world_data: &WorldData,
+        app: &mut Box<dyn App>,
+        texts: &Texts,
+    ) {
+        let hierarchy = world_data
+            .uniques
+            .get("Hierarchy")
+            .expect("Hierarchy unique is missing!");
         let root_entities = match hierarchy.get("roots") {
             Some(Value::VecEntity(v)) => v,
             _ => panic!("Hierarchy does not have roots!"),
         };
 
         if !root_entities.is_empty() {
-            let (mut drag_entity, mut drop_parent, mut drop_before) = (EntityId::dead(), None, EntityId::dead());
-            self.entity_level(root_entities, EntityId::dead(), ui, world_data, app, &mut drag_entity, &mut drop_parent, &mut drop_before, texts);
+            let (mut drag_entity, mut drop_parent, mut drop_before) =
+                (EntityId::dead(), None, EntityId::dead());
+            self.entity_level(
+                root_entities,
+                EntityId::dead(),
+                ui,
+                world_data,
+                app,
+                &mut drag_entity,
+                &mut drop_parent,
+                &mut drop_before,
+                texts,
+            );
             if let Some(drop_parent) = drop_parent {
-                if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released()) {
+                if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released())
+                {
                     app.command(Command::AttachBefore(drag_entity, drop_parent, drop_before));
                 }
             }
@@ -54,11 +83,24 @@ impl DataWindow {
         }
     }
 
-    fn entity_level(&mut self, entities: &Vec<EntityId>, parent: EntityId, ui: &mut egui::Ui, world_data: &WorldData, app: &mut Box<dyn App>,
-            drag_entity: &mut EntityId, drop_parent: &mut Option<EntityId>, drop_before: &mut EntityId, texts: &Texts) {
+    fn entity_level(
+        &mut self,
+        entities: &Vec<EntityId>,
+        parent: EntityId,
+        ui: &mut egui::Ui,
+        world_data: &WorldData,
+        app: &mut Box<dyn App>,
+        drag_entity: &mut EntityId,
+        drop_parent: &mut Option<EntityId>,
+        drop_before: &mut EntityId,
+        texts: &Texts,
+    ) {
         for (i, entity) in entities.iter().enumerate() {
             let entity = *entity;
-            let entity_data = world_data.entities.get(&entity).expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
+            let entity_data = world_data
+                .entities
+                .get(&entity)
+                .expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
 
             let mut entity_item = |ui: &mut egui::Ui| {
                 let drag_id = egui::Id::new(entity);
@@ -70,26 +112,35 @@ impl DataWindow {
                 let can_insert_before = true;
                 let can_insert_after = i == entities.len() - 1;
 
-                let drop_result = Self::drop_target(ui, can_accept_what_is_being_dragged, can_insert_before, can_insert_after, |ui| {
-                    Self::drag_source(ui, drag_id, |ui| {
-                        let r = ui.selectable_label(self.selected_entity == entity, Self::entity_label(&entity, entity_data));
-                        if r.clicked() {
-                            self.selected_entity = entity;
-                        }
-                        r.context_menu(|ui| {
-                            if ui.button(texts.get("Duplicate")).clicked() {
-                                log::info!("entity_context_menu->Duplicate");
-                                Self::duplicate_entity(entity, world_data, app);
-                                ui.close_menu();
+                let drop_result = Self::drop_target(
+                    ui,
+                    can_accept_what_is_being_dragged,
+                    can_insert_before,
+                    can_insert_after,
+                    |ui| {
+                        Self::drag_source(ui, drag_id, |ui| {
+                            let r = ui.selectable_label(
+                                self.selected_entity == entity,
+                                Self::entity_label(&entity, entity_data),
+                            );
+                            if r.clicked() {
+                                self.selected_entity = entity;
                             }
-                            if ui.button(texts.get("Delete")).clicked() {
-                                log::info!("entity_context_menu->Delete");
-                                self.delete_entity(entity, app);
-                                ui.close_menu();
-                            }
+                            r.context_menu(|ui| {
+                                if ui.button(texts.get("Duplicate")).clicked() {
+                                    log::info!("entity_context_menu->Duplicate");
+                                    Self::duplicate_entity(entity, world_data, app);
+                                    ui.close_menu();
+                                }
+                                if ui.button(texts.get("Delete")).clicked() {
+                                    log::info!("entity_context_menu->Delete");
+                                    self.delete_entity(entity, app);
+                                    ui.close_menu();
+                                }
+                            });
                         });
-                    });
-                });
+                    },
+                );
 
                 if let Some(drop_result) = drop_result {
                     match drop_result {
@@ -100,22 +151,42 @@ impl DataWindow {
                         DropResult::Into => *drop_parent = Some(entity),
                         DropResult::After => {
                             *drop_parent = Some(parent);
-                            *drop_before = if i + 1 < entities.len() { entities[i + 1] } else { EntityId::dead() };
+                            *drop_before = if i + 1 < entities.len() {
+                                entities[i + 1]
+                            } else {
+                                EntityId::dead()
+                            };
                         }
                     }
                 }
             };
 
             if let Some(parent) = entity_data.components.get("Parent") {
-                egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new(entity), false)
-                    .show_header(ui, |ui| entity_item(ui))
-                    .body(|ui| {
-                        let children = match parent.get("children") {
-                            Some(Value::VecEntity(v)) => v,
-                            _ => panic!("entity_level: no children value in Parent component: {parent:?}"),
-                        };
-                        self.entity_level(children, entity, ui, world_data, app, drag_entity, drop_parent, drop_before, texts)
-                    });
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    egui::Id::new(entity),
+                    false,
+                )
+                .show_header(ui, |ui| entity_item(ui))
+                .body(|ui| {
+                    let children = match parent.get("children") {
+                        Some(Value::VecEntity(v)) => v,
+                        _ => panic!(
+                            "entity_level: no children value in Parent component: {parent:?}"
+                        ),
+                    };
+                    self.entity_level(
+                        children,
+                        entity,
+                        ui,
+                        world_data,
+                        app,
+                        drag_entity,
+                        drop_parent,
+                        drop_before,
+                        texts,
+                    )
+                });
             } else {
                 ui.horizontal(|ui| {
                     ui.add_space(18.0); // align with header, TODO: get correct space value dynamically
@@ -131,12 +202,16 @@ impl DataWindow {
         while !entities_to_add.is_empty() {
             let mut new_entities_to_add = Vec::new();
             for entity in &entities_to_add {
-                let entity_data = world_data.entities.get(entity).expect(format!("entity_level::duplicate: non-existent entity: {entity:?}").as_str());
+                let entity_data = world_data.entities.get(entity).expect(
+                    format!("entity_level::duplicate: non-existent entity: {entity:?}").as_str(),
+                );
                 entities_data.insert(*entity, entity_data.clone()); // TODO: avoid clone here
                 if let Some(parent) = entity_data.components.get("Parent") {
                     let children = match parent.get("children") {
                         Some(Value::VecEntity(v)) => v,
-                        _ => panic!("duplicate_entity: no children value in Parent component: {parent:?}"),
+                        _ => panic!(
+                            "duplicate_entity: no children value in Parent component: {parent:?}"
+                        ),
                     };
                     for e in children {
                         new_entities_to_add.push(*e);
@@ -150,10 +225,16 @@ impl DataWindow {
         let new_id = *old_id_to_new_id.get(&entity).unwrap();
 
         // attach duplicated entity next to the original entity
-        let entity_data = world_data.entities.get(&entity)
+        let entity_data = world_data
+            .entities
+            .get(&entity)
             .expect(format!("duplicate_entity: non-existent entity: {entity:?}").as_str());
-        let child = entity_data.components.get("Child")
-            .expect(format!("duplicate_entity: missing Child component in entity: {entity:?} {entity_data:?}").as_str());
+        let child = entity_data.components.get("Child").expect(
+            format!(
+                "duplicate_entity: missing Child component in entity: {entity:?} {entity_data:?}"
+            )
+            .as_str(),
+        );
         let parent = match child.get("parent") {
             Some(Value::Entity(e)) => *e,
             _ => panic!("duplicate_entity: no parent value in Child component: {child:?}"),
@@ -203,8 +284,13 @@ impl DataWindow {
         }
     }
 
-    fn drop_target<R>(ui: &mut egui::Ui, can_accept_what_is_being_dragged: bool, can_insert_before: bool, can_insert_after: bool,
-            body: impl FnOnce(&mut egui::Ui) -> R) -> Option<DropResult> {
+    fn drop_target<R>(
+        ui: &mut egui::Ui,
+        can_accept_what_is_being_dragged: bool,
+        can_insert_before: bool,
+        can_insert_after: bool,
+        body: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> Option<DropResult> {
         let is_anything_being_dragged = ui.memory(|mem| mem.is_anything_being_dragged());
 
         let margin = egui::Vec2::splat(1.0);
@@ -213,20 +299,36 @@ impl DataWindow {
         let where_to_put_background = ui.painter().add(egui::Shape::Noop);
         let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
         body(&mut content_ui);
-        let outer_rect = egui::Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
+        let outer_rect =
+            egui::Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
         let (rect, response) = ui.allocate_at_least(outer_rect.size(), egui::Sense::hover());
 
         if is_anything_being_dragged && can_accept_what_is_being_dragged && response.hovered() {
             if let Some(hover_pos) = ui.input(|input| input.pointer.hover_pos()) {
                 let style = ui.visuals().widgets.active;
                 if can_insert_before && hover_pos.y - rect.top() < rect.height() / 4.0 {
-                    ui.painter().set(where_to_put_background, egui::epaint::Shape::line_segment([rect.left_top(), rect.right_top()], style.bg_stroke));
+                    ui.painter().set(
+                        where_to_put_background,
+                        egui::epaint::Shape::line_segment(
+                            [rect.left_top(), rect.right_top()],
+                            style.bg_stroke,
+                        ),
+                    );
                     return Some(DropResult::Before);
                 } else if can_insert_after && hover_pos.y - rect.top() > rect.height() * 3.0 / 4.0 {
-                    ui.painter().set(where_to_put_background, egui::epaint::Shape::line_segment([rect.left_bottom(), rect.right_bottom()], style.bg_stroke));
+                    ui.painter().set(
+                        where_to_put_background,
+                        egui::epaint::Shape::line_segment(
+                            [rect.left_bottom(), rect.right_bottom()],
+                            style.bg_stroke,
+                        ),
+                    );
                     return Some(DropResult::After);
                 } else {
-                    ui.painter().set(where_to_put_background, egui::epaint::Shape::rect_stroke(rect, style.rounding, style.bg_stroke));
+                    ui.painter().set(
+                        where_to_put_background,
+                        egui::epaint::Shape::rect_stroke(rect, style.rounding, style.bg_stroke),
+                    );
                     return Some(DropResult::Into);
                 }
             }
@@ -245,13 +347,22 @@ impl DataWindow {
         format!("{:?}", id)
     }
 
-    pub fn entity_view(&mut self, ui: &mut egui::Ui, entity_data: &mut EntityData, app: &mut Box<dyn App>) {
+    pub fn entity_view(
+        &mut self,
+        ui: &mut egui::Ui,
+        entity_data: &mut EntityData,
+        app: &mut Box<dyn App>,
+    ) {
         for (component_name, component_data) in &mut entity_data.components {
             ui.horizontal(|ui| {
                 ui.label(component_name);
-                if component_name != "Child" && component_name != "Parent" { // TODO: use a more generic way to prevent some components from being destroyed by user
+                if component_name != "Child" && component_name != "Parent" {
+                    // TODO: use a more generic way to prevent some components from being destroyed by user
                     if ui.button("-").clicked() {
-                        app.command(Command::DestroyComponent(self.selected_entity, component_name));
+                        app.command(Command::DestroyComponent(
+                            self.selected_entity,
+                            component_name,
+                        ));
                     }
                 }
             });
@@ -259,7 +370,11 @@ impl DataWindow {
             if component_name == "EntityInfo" {
                 ui.horizontal(|ui| {
                     ui.label("id");
-                    Self::color_label(ui, egui::Color32::BLACK, format!("{:?}", self.selected_entity));
+                    Self::color_label(
+                        ui,
+                        egui::Color32::BLACK,
+                        format!("{:?}", self.selected_entity),
+                    );
                 });
             }
             ui.separator();
@@ -268,7 +383,11 @@ impl DataWindow {
         let mut components = Vec::new();
         app.command(Command::GetComponents(&mut components));
         ui.menu_button("+", |ui| {
-            for component in components.into_iter().filter(|c| *c != "Child" && *c != "Parent") { // TODO: use a more generic way to prevent some components from being created by user
+            for component in components
+                .into_iter()
+                .filter(|c| *c != "Child" && *c != "Parent")
+            {
+                // TODO: use a more generic way to prevent some components from being created by user
                 if ui.button(component).clicked() {
                     app.command(Command::CreateComponent(self.selected_entity, component));
                     ui.close_menu();
@@ -315,15 +434,37 @@ impl DataWindow {
                         Value::Int32(v) => {
                             if let Some(Limit::Int32Enum(int_enum)) = data.limits.get(name) {
                                 if int_enum.len() > 0 {
-                                    let mut i = int_enum.iter().enumerate().find_map(|(i, (int, _))| {
-                                        if v == int { Some(i) } else { None }
-                                    }).unwrap_or(0);
+                                    let mut i = int_enum
+                                        .iter()
+                                        .enumerate()
+                                        .find_map(
+                                            |(i, (int, _))| {
+                                                if v == int {
+                                                    Some(i)
+                                                } else {
+                                                    None
+                                                }
+                                            },
+                                        )
+                                        .unwrap_or(0);
                                     // Use component_name/unique_name + value_name as id to make sure that every id is unique
-                                    egui::ComboBox::from_id_source(format!("{} {}", data_name, name))
-                                        .show_index(ui, &mut i, int_enum.len(), |i| &int_enum[i].1);
+                                    egui::ComboBox::from_id_source(format!(
+                                        "{} {}",
+                                        data_name, name
+                                    ))
+                                    .show_index(
+                                        ui,
+                                        &mut i,
+                                        int_enum.len(),
+                                        |i| &int_enum[i].1,
+                                    );
                                     *v = int_enum[i].0;
                                 } else {
-                                    Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
+                                    Self::color_label(
+                                        ui,
+                                        egui::Color32::RED,
+                                        "zero length int_enum!",
+                                    );
                                 }
                             } else {
                                 let range = match data.limits.get(name) {
@@ -354,10 +495,14 @@ impl DataWindow {
                             if let Some(Limit::Float32Rotation) = data.limits.get(name) {
                                 ui.drag_angle(v);
                             } else {
-                                Self::drag_float32(ui, v, match data.limits.get(name) {
-                                    Some(Limit::Float32Range(range)) => Some(range.clone()),
-                                    _ => None,
-                                });
+                                Self::drag_float32(
+                                    ui,
+                                    v,
+                                    match data.limits.get(name) {
+                                        Some(Limit::Float32Range(range)) => Some(range.clone()),
+                                        _ => None,
+                                    },
+                                );
                             }
                         }
                         Value::Vec2(v) => {
@@ -367,12 +512,22 @@ impl DataWindow {
                                     ui.drag_angle(&mut v.y);
                                 } else {
                                     let range = match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => vec![Some(range.clone()); 2],
+                                        Some(Limit::Float32Range(range)) => {
+                                            vec![Some(range.clone()); 2]
+                                        }
                                         Some(Limit::VecRange(range)) => range.clone(),
                                         _ => Vec::new(),
                                     };
-                                    Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                    Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.x,
+                                        range.get(0).and_then(|r| r.clone()),
+                                    );
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.y,
+                                        range.get(1).and_then(|r| r.clone()),
+                                    );
                                 }
                             });
                         }
@@ -388,13 +543,27 @@ impl DataWindow {
                                     ui.drag_angle(&mut v.z);
                                 } else {
                                     let range = match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => vec![Some(range.clone()); 3],
+                                        Some(Limit::Float32Range(range)) => {
+                                            vec![Some(range.clone()); 3]
+                                        }
                                         Some(Limit::VecRange(range)) => range.clone(),
                                         _ => Vec::new(),
                                     };
-                                    Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                    Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
-                                    Self::drag_float32(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.x,
+                                        range.get(0).and_then(|r| r.clone()),
+                                    );
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.y,
+                                        range.get(1).and_then(|r| r.clone()),
+                                    );
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.z,
+                                        range.get(2).and_then(|r| r.clone()),
+                                    );
                                 }
                             });
                         }
@@ -411,14 +580,32 @@ impl DataWindow {
                                     ui.drag_angle(&mut v.w);
                                 } else {
                                     let range = match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => vec![Some(range.clone()); 4],
+                                        Some(Limit::Float32Range(range)) => {
+                                            vec![Some(range.clone()); 4]
+                                        }
                                         Some(Limit::VecRange(range)) => range.clone(),
                                         _ => Vec::new(),
                                     };
-                                    Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                    Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
-                                    Self::drag_float32(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
-                                    Self::drag_float32(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.x,
+                                        range.get(0).and_then(|r| r.clone()),
+                                    );
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.y,
+                                        range.get(1).and_then(|r| r.clone()),
+                                    );
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.z,
+                                        range.get(2).and_then(|r| r.clone()),
+                                    );
+                                    Self::drag_float32(
+                                        ui,
+                                        &mut v.w,
+                                        range.get(3).and_then(|r| r.clone()),
+                                    );
                                 }
                             });
                         }
@@ -429,8 +616,16 @@ impl DataWindow {
                                     Some(Limit::IVecRange(range)) => range.clone(),
                                     _ => Vec::new(),
                                 };
-                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.x,
+                                    range.get(0).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.y,
+                                    range.get(1).and_then(|r| r.clone()),
+                                );
                             });
                         }
                         Value::IVec3(v) => {
@@ -440,9 +635,21 @@ impl DataWindow {
                                     Some(Limit::IVecRange(range)) => range.clone(),
                                     _ => Vec::new(),
                                 };
-                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.x,
+                                    range.get(0).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.y,
+                                    range.get(1).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.z,
+                                    range.get(2).and_then(|r| r.clone()),
+                                );
                             });
                         }
                         Value::IVec4(v) => {
@@ -452,10 +659,26 @@ impl DataWindow {
                                     Some(Limit::IVecRange(range)) => range.clone(),
                                     _ => Vec::new(),
                                 };
-                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.x,
+                                    range.get(0).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.y,
+                                    range.get(1).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.z,
+                                    range.get(2).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.w,
+                                    range.get(3).and_then(|r| r.clone()),
+                                );
                             });
                         }
                         Value::UVec2(v) => {
@@ -465,8 +688,16 @@ impl DataWindow {
                                     Some(Limit::UVecRange(range)) => range.clone(),
                                     _ => Vec::new(),
                                 };
-                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.x,
+                                    range.get(0).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.y,
+                                    range.get(1).and_then(|r| r.clone()),
+                                );
                             });
                         }
                         Value::UVec3(v) => {
@@ -476,9 +707,21 @@ impl DataWindow {
                                     Some(Limit::UVecRange(range)) => range.clone(),
                                     _ => Vec::new(),
                                 };
-                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.x,
+                                    range.get(0).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.y,
+                                    range.get(1).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.z,
+                                    range.get(2).and_then(|r| r.clone()),
+                                );
                             });
                         }
                         Value::UVec4(v) => {
@@ -488,16 +731,33 @@ impl DataWindow {
                                     Some(Limit::UVecRange(range)) => range.clone(),
                                     _ => Vec::new(),
                                 };
-                                Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
-                                Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.x,
+                                    range.get(0).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.y,
+                                    range.get(1).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.z,
+                                    range.get(2).and_then(|r| r.clone()),
+                                );
+                                Self::drag_value(
+                                    ui,
+                                    &mut v.w,
+                                    range.get(3).and_then(|r| r.clone()),
+                                );
                             });
                         }
                         Value::VecEntity(v) => {
                             ui.vertical(|ui| {
                                 for e in v {
-                                    Self::color_label(ui, egui::Color32::BLACK, format!("{e:?}")); // TODO: add/remove/change entity in editor
+                                    Self::color_label(ui, egui::Color32::BLACK, format!("{e:?}"));
+                                    // TODO: add/remove/change entity in editor
                                 }
                             });
                         }
@@ -516,16 +776,18 @@ impl DataWindow {
     }
 
     fn drag_float32(ui: &mut egui::Ui, v: &mut f32, range: Option<RangeInclusive<f32>>) {
-        let mut drag_value = egui::DragValue::new(v)
-            .max_decimals(100)
-            .speed(0.01);
+        let mut drag_value = egui::DragValue::new(v).max_decimals(100).speed(0.01);
         if let Some(range) = range {
             drag_value = drag_value.clamp_range(range);
         }
         ui.add(drag_value);
     }
 
-    fn drag_value<V: egui::emath::Numeric>(ui: &mut egui::Ui, v: &mut V, range: Option<RangeInclusive<V>>) {
+    fn drag_value<V: egui::emath::Numeric>(
+        ui: &mut egui::Ui,
+        v: &mut V,
+        range: Option<RangeInclusive<V>>,
+    ) {
         let mut drag_value = egui::DragValue::new(v);
         if let Some(range) = range {
             drag_value = drag_value.clamp_range(range);
@@ -533,7 +795,12 @@ impl DataWindow {
         ui.add(drag_value);
     }
 
-    pub fn unique_windows(&mut self, ctx: &egui::Context, world_data: &mut WorldData, texts: &Texts) {
+    pub fn unique_windows(
+        &mut self,
+        ctx: &egui::Context,
+        world_data: &mut WorldData,
+        texts: &Texts,
+    ) {
         egui::Window::new(texts.get("Uniques")).show(&ctx, |ui| {
             self.uniques_view(ui, world_data);
         });
@@ -548,7 +815,10 @@ impl DataWindow {
     pub fn uniques_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData) {
         egui::Grid::new("Uniques").show(ui, |ui| {
             for unique_name in world_data.uniques.keys() {
-                if ui.selectable_label(self.selected_unique == *unique_name, unique_name).clicked() {
+                if ui
+                    .selectable_label(self.selected_unique == *unique_name, unique_name)
+                    .clicked()
+                {
                     self.selected_unique = unique_name.clone();
                 }
                 ui.end_row();

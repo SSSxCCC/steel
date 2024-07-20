@@ -1,8 +1,12 @@
-#[cfg(not(target_os = "android"))] mod platform_desktop;
-#[cfg(not(target_os = "android"))] pub use platform_desktop::*;
+#[cfg(not(target_os = "android"))]
+mod platform_desktop;
+#[cfg(not(target_os = "android"))]
+pub use platform_desktop::*;
 
-#[cfg(target_os = "android")] mod platform_android;
-#[cfg(target_os = "android")] pub use platform_android::*;
+#[cfg(target_os = "android")]
+mod platform_android;
+#[cfg(target_os = "android")]
+pub use platform_android::*;
 
 /// The error happend when calling methods in Platform.
 /// The std::fmt::Display is implemented for PlatformError, you can print it to get the error message.
@@ -14,7 +18,9 @@ pub struct PlatformError {
 impl PlatformError {
     #[allow(unused)]
     fn new(message: impl Into<String>) -> PlatformError {
-        PlatformError { message: message.into() }
+        PlatformError {
+            message: message.into(),
+        }
     }
 
     #[allow(unused)]

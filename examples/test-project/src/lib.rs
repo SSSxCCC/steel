@@ -1,7 +1,14 @@
-use std::path::PathBuf;
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use shipyard::{Component, EntityId, UniqueView, UniqueViewMut};
-use steel::{app::{App, Schedule, SteelApp}, data::{Data, Value}, edit::Edit, physics2d::Physics2DPlugin, scene::SceneManager, ui::EguiContext};
+use std::path::PathBuf;
+use steel::{
+    app::{App, Schedule, SteelApp},
+    data::{Data, Value},
+    edit::Edit,
+    physics2d::Physics2DPlugin,
+    scene::SceneManager,
+    ui::EguiContext,
+};
 
 #[no_mangle]
 pub fn create() -> Box<dyn App> {

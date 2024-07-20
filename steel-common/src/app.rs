@@ -1,10 +1,13 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use crate::{
+    data::{EntitiesData, WorldData},
+    platform::Platform,
+};
 use glam::{UVec2, Vec3};
-use vulkano::{sync::GpuFuture, image::view::ImageView};
-use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use shipyard::EntityId;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use vulkano::{image::view::ImageView, sync::GpuFuture};
+use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::WindowEvent;
-use crate::{data::{EntitiesData, WorldData}, platform::Platform};
 
 /// The App trait defines many functions called by steel-editor or steel-client to control the running of steel application.
 /// You usually do not need to manually implement this trait, just use steel::app::SteelApp.
@@ -48,7 +51,7 @@ pub struct DrawInfo<'a> {
 /// The EditorInfo contains some drawing data specific to the editor scene window,
 /// and is contained in DrawInfo, which is passed to [App::draw] every frame.
 pub struct EditorInfo<'a> {
-    pub camera: &'a EditorCamera
+    pub camera: &'a EditorCamera,
 }
 
 /// Camera info for editor window.
