@@ -222,8 +222,8 @@ impl Project {
     /// 2. Modify "scene_path" of steel-client/src/lib.rs to scene_path, just pass None when not compile steel-client.
     fn _modify_files_while_compiling(project_path: impl AsRef<Path>, scene_path: Option<PathBuf>,
             compile_fn: fn() -> Result<(), Box<dyn Error>>) -> Result<(), Box<dyn Error>> {
-        let cargo_toml_paths = [PathBuf::from("steel-client/Cargo.toml"), PathBuf::from("steel-dynlib/Cargo.toml")];
-        let steel_client_src_path = PathBuf::from("steel-client/src/lib.rs");
+        let cargo_toml_paths = [PathBuf::from("steel-build/steel-client/Cargo.toml"), PathBuf::from("steel-build/steel-dynlib/Cargo.toml")];
+        let steel_client_src_path = PathBuf::from("steel-build/steel-client/src/lib.rs");
 
         let mut cargo_toml_original_contents = Vec::new();
         for path in &cargo_toml_paths {
@@ -381,13 +381,13 @@ impl Project {
                 .ok_or(ProjectError::new("No scene is opened, you must open a scene as init scene before export"))?;
 
             Self::_export_asset(self.asset_dir().expect("self.asset_dir() must be some if self.state is some"),
-                PathBuf::from("steel-client/android-project/app/src/main/assets"))?;
+                PathBuf::from("steel-build/android-project/app/src/main/assets"))?;
 
             // TODO: run following commands:
             // rustup target add aarch64-linux-android
             // cargo install cargo-ndk
 
-            let so_path = PathBuf::from("steel-client/android-project/app/src/main/jniLibs/arm64-v8a/libmain.so");
+            let so_path = PathBuf::from("steel-build/android-project/app/src/main/jniLibs/arm64-v8a/libmain.so");
             if so_path.exists() {
                 fs::remove_file(&so_path)?;
             }
@@ -396,15 +396,15 @@ impl Project {
                 return Err(ProjectError::new(format!("No output file: {}", so_path.display())).boxed());
             }
 
-            let apk_path = PathBuf::from("steel-client/android-project/app/build/outputs/apk/debug/app-debug.apk");
+            let apk_path = PathBuf::from("steel-build/android-project/app/build/outputs/apk/debug/app-debug.apk");
             if apk_path.exists() {
                 fs::remove_file(&apk_path)?;
             }
-            let mut android_project_dir = fs::canonicalize("steel-client/android-project").unwrap();
+            let mut android_project_dir = fs::canonicalize("steel-build/android-project").unwrap();
             // the windows path prefix "\\?\" makes bat fail to run in std::process::Command
             crate::utils::delte_windows_path_prefix(&mut android_project_dir);
             log::info!("{}$ ./gradlew.bat build", android_project_dir.display());
-            std::process::Command::new("steel-client/android-project/gradlew.bat")
+            std::process::Command::new("steel-build/android-project/gradlew.bat")
                 .arg("build")
                 .current_dir(&android_project_dir)
                 .spawn()?
@@ -415,7 +415,7 @@ impl Project {
 
             // TODO: not run installDebug if no android device connected
             log::info!("{}$ ./gradlew.bat installDebug", android_project_dir.display());
-            std::process::Command::new("steel-client/android-project/gradlew.bat")
+            std::process::Command::new("steel-build/android-project/gradlew.bat")
                 .arg("installDebug")
                 .current_dir(&android_project_dir)
                 .spawn()?
@@ -432,11 +432,11 @@ impl Project {
     }
 
     fn _build_steel_client_android() -> Result<(), Box<dyn Error>> {
-        log::info!("$ cargo ndk -t arm64-v8a -o steel-client/android-project/app/src/main/jniLibs/ build -p steel-client");
+        log::info!("$ cargo ndk -t arm64-v8a -o steel-build/android-project/app/src/main/jniLibs/ build -p steel-client");
         std::process::Command::new("cargo")
             .arg("ndk")
             .arg("-t").arg("arm64-v8a")
-            .arg("-o").arg("steel-client/android-project/app/src/main/jniLibs/")
+            .arg("-o").arg("steel-build/android-project/app/src/main/jniLibs/")
             .arg("build")
             .arg("-p").arg("steel-client")
             .spawn()?

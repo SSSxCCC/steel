@@ -10,10 +10,7 @@ cargo build -p steel-editor -F desktop
 ```
 
 3. Create steel-editor exported folder, copy following folders and files to the exported folder:
-* steel-client
-* steel-dynlib
-* steel-project
-* steel-server
+* steel-build
 * Cargo.toml
 * .gitignore
 * target/debug/steel-editor.exe
@@ -21,12 +18,12 @@ cargo build -p steel-editor -F desktop
 4. Leave only the copied folders in Cargo.toml workspace:
 ```
 members = [
-    "steel-client",
-    "steel-dynlib",
-    "steel-server",
+    "steel-build/steel-dynlib",
+    "steel-build/steel-client",
+    "steel-build/steel-server",
 ]
 exclude = [
-    "steel-project",
+    "steel-build/steel-project",
 ]
 ```
 
