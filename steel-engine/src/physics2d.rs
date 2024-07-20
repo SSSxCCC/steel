@@ -285,7 +285,7 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
     }
 
     let mut model_cache = Some(HashMap::new());
-    for (e, mut rb2d) in rb2d.inserted_or_modified_mut().iter().with_id() {
+    for (e, rb2d) in rb2d.inserted_or_modified_mut().iter().with_id() {
         if let Some(rigid_body) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
             rigid_body.set_body_type(rb2d.body_type, true);
         } else {
@@ -308,7 +308,7 @@ pub fn physics2d_maintain_system(mut physics2d_manager: UniqueViewMut<Physics2DM
     }
 
     let mut scale_cache = Some(HashMap::new());
-    for (e, mut col2d) in col2d.inserted_or_modified_mut().iter().with_id() {
+    for (e, col2d) in col2d.inserted_or_modified_mut().iter().with_id() {
         if !transforms.contains(e) {
             transforms.add_component_unchecked(e, Transform::default());
         }
@@ -427,7 +427,7 @@ pub fn physics2d_update_system(mut physics2d_manager: UniqueViewMut<Physics2DMan
         if !transforms.contains(e) {
             transforms.add_component_unchecked(e, Transform::default());
         }
-        let transform = (&mut transforms).get(e).unwrap();
+        let mut transform = (&mut transforms).get(e).unwrap();
         transform.position.x = position.x;
         transform.position.y = position.y;
         let mut rot = transform.rotation.to_scaled_axis();

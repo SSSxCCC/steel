@@ -106,7 +106,7 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
                 if !parents.contains(child.parent) {
                     parents.add_component_unchecked(child.parent, Parent::default());
                 }
-                let parent = (&mut parents).get(child.parent).unwrap();
+                let mut parent = (&mut parents).get(child.parent).unwrap();
                 if !parent.children.contains(&eid) { // TODO: check in O(1)
                     parent.children.push(eid);
                 }
@@ -126,7 +126,7 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
                 if let Some(i) = hierarchy.roots.iter().position(|c| *c == eid) {
                     hierarchy.roots.remove(i);
                 }
-            } else if let Ok(parent) = (&mut parents).get(child.parent) {
+            } else if let Ok(mut parent) = (&mut parents).get(child.parent) {
                 if let Some(i) = parent.children.iter().position(|c| *c == eid) {
                     parent.children.remove(i);
                     if parent.children.is_empty() {
@@ -193,7 +193,7 @@ fn dettach(world: &mut World, eid: EntityId) {
         // remove the Child component - if nonexistent, do nothing
         if let Some(child) = children.remove(eid) {
             // retrieve and update Parent component from ancestor
-            if let Ok(parent) = (&mut parents).get(child.parent) {
+            if let Ok(mut parent) = (&mut parents).get(child.parent) {
                 if let Some(i) = parent.children.iter().position(|e| *e == eid) {
                     parent.children.remove(i);
                     if parent.children.is_empty() {
@@ -233,7 +233,7 @@ fn attach(world: &mut World, eid: EntityId, parent: EntityId, adjacent: EntityId
     dettach(world, eid);
 
     world.run(|mut hierarchy: UniqueViewMut<Hierarchy>, mut parents: ViewMut<Parent>, children: ViewMut<Child>, entities: EntitiesViewMut| {
-        if let Ok(p) = (&mut parents).get(parent) { // the parent entity already has a Parent component
+        if let Ok(mut p) = (&mut parents).get(parent) { // the parent entity already has a Parent component
             let i = get_insert_position(adjacent, prev, p.children.iter());
             p.children.insert(i, eid);
         } else if parent == EntityId::dead() { // attach to the top level
