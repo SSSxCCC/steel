@@ -2,13 +2,14 @@
 
 ## Steel game engine introduction
 
-The Steel is an open source cross-platform rust game engine with the following features:
+Steel is an open source cross-platform rust game engine with the following features:
 * It is completely open source, and the engine layer code can be easily modified if there is a need for customization;
 * With a visual editor, you can develop games efficiently;
 * The game can be compiled into a Windows program or an Android application with one click;
 * Using modern rust language, while ensuring code stability and game performance;
-* Use widely used rust open source libraries, such as [rapier][rapier], [glam][glam], [egui][egui], [vulkano][vulkano], [shipyard][shipyard], etc., to speed up the speed of getting started;
-* Using vulkan, an advanced graphics API, can achieve any modern graphics effect.
+* Use widely used rust open source libraries, such as [shipyard][shipyard], [glam][glam], [egui][egui], [vulkano][vulkano], [rapier][rapier], etc., to speed up the speed of getting started;
+* Using vulkan, an advanced graphics API, can achieve any modern graphics effect;
+* It is modular, and complex game modules, such as the physics system, can be easily added to your game as plugins.
 
 Steel game engine is implemented based on ECS architecture. The most basic unit of the game world is the entity. Each entity can have several components. Each component can store custom data structures. In addition to data on the components, there are also uniques that can also store custom data structures. The system reads and writes these data to drive the running of the entire game world.
 
