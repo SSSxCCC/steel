@@ -2,22 +2,34 @@
 
 ## 搭建环境
 
-目前推荐在VSCode中运行，方便调试。
 1. 在Windows系统安装[Visual Studio 2022][Visual Studio 2022]的"使用C++的桌面开发"，保持默认勾选
 2. 为了[shaderc-rs][shaderc-rs]，安装[Rust][Rust]，[Git][Git]，[Python][Python]，[CMake][CMake]和[Ninja][Ninja]
 3. 安装[VSCode][VSCode]及其"C/C++"和"rust-analyzer"插件
-4. 下载Steel的源码，并切换到v0.2版本的分支，因为当前教程是基于这个版本写的：
+
+## 运行Steel编辑器
+
+Steel编辑器可以使用源码编译运行，或者使用已经编译好了的可执行文件直接运行。目前推荐在VSCode中打开Steel的源码运行Steel编辑器，因为方便调试。本教程后续的内容和图片是基于使用源码运行Steel编辑器的方式，不过也同样适用于使用可执行文件运行Steel编辑器的方式。
+
+### 使用源码运行
+
+1. 下载Steel的源码，并切换到v0.2版本的分支，因为当前教程是基于这个版本写的：
 ```
 git clone https://github.com/SSSxCCC/steel
 cd steel
 git checkout v0.2
 ```
-5. 使用VSCode打开根目录“steel”，按F5即可编译运行
-
-VSCode存在首次按F5时无法运行exe文件的bug。你可以在控制台中编译并运行exe文件：
-
+2. 使用VSCode打开根目录“steel”，按F5即可以调试模式编译运行。或者你也可以使用命令运行：
 ```
 cargo run -p steel-editor -F desktop
+```
+
+### 使用可执行文件运行
+
+1. 在[Release页面][Release]下载“steel-editor.zip”并解压
+2. 打开Windows PowerShell，执行：
+```
+cd steel-editor
+.\steel-editor.exe
 ```
 
 ## Steel编辑器界面介绍
@@ -48,8 +60,8 @@ Steel引擎源码目录下面有一个examples目录，其下面有一个ball目
 [1]: 1-引言.md
 [2]: 2-运行Steel编辑器.md
 [3]: 3-创建项目.md
-[4]: 4-场景搭建.md
-[5]: 5-实现Engine.md
+[4]: 4-编写代码.md
+[5]: 5-场景搭建.md
 [6]: 6-玩家控制.md
 [7]: 7-推一下球.md
 [8]: 8-游戏失败.md
@@ -62,3 +74,4 @@ Steel引擎源码目录下面有一个examples目录，其下面有一个ball目
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [Visual Studio 2022]: https://visualstudio.microsoft.com/vs/
 [VSCode]: https://code.visualstudio.com/
+[Release]: https://github.com/SSSxCCC/steel/releases

@@ -21,7 +21,7 @@ use vulkano::{
 use vulkano_util::context::VulkanoContext;
 
 /// FrameRenderInfo is a temporary unique that carries render data of this frame.
-/// FrameRenderInfo is added to World at the start of Engine::draw, and is removed from World at the end of Engine::draw.
+/// FrameRenderInfo is added to World at the start of App::draw, and is removed from World at the end of App::draw.
 #[derive(Unique)]
 pub struct FrameRenderInfo {
     /// WindowIndex::GAME or WindowIndex::SCENE.

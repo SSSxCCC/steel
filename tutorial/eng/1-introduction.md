@@ -38,8 +38,8 @@ This tutorial uses the Steel editor to gradually build a simple catching ball ga
 [1]: 1-introduction.md
 [2]: 2-run-steel-editor.md
 [3]: 3-create-project.md
-[4]: 4-scene-building.md
-[5]: 5-engine-implementation.md
+[4]: 4-write-code.md
+[5]: 5-scene-building.md
 [6]: 6-player-control.md
 [7]: 7-push-the-ball.md
 [8]: 8-game-lost.md

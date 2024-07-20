@@ -14,12 +14,12 @@ struct MainMenu;
 And register the MainMenu component:
 
 ```rust
-impl Engine for EngineWrapper {
-    fn init(&mut self, info: InitInfo) {
+#[no_mangle]
+pub fn create() -> Box<dyn App> {
+    SteelApp::new()
         ...
-        self.inner.register_component::<MainMenu>();
-    }
-    ...
+        .register_component::<MainMenu>()
+        ...
 }
 ```
 
@@ -28,14 +28,24 @@ impl Engine for EngineWrapper {
 If the MainMenu component exists, the main menu is displayed through the main_menu_system:
 
 ```rust
-fn main_menu_system(main_menu_component: View<MainMenu>, egui_ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
+fn main_menu_system(
+    main_menu_component: View<MainMenu>,
+    egui_ctx: UniqueView<EguiContext>,
+    mut scene_manager: UniqueViewMut<SceneManager>,
+) {
     for _ in main_menu_component.iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
             let available_size = ui.available_size();
             let button_center = egui::pos2(available_size.x / 2.0, available_size.y / 2.0);
             let button_size = egui::vec2(200.0, 100.0);
             let button_rect = egui::Rect::from_center_size(button_center, button_size);
-            if ui.put(button_rect, egui::Button::new(egui::RichText::new("Start Game").size(30.0))).clicked() {
+            if ui
+                .put(
+                    button_rect,
+                    egui::Button::new(egui::RichText::new("Start Game").size(30.0)),
+                )
+                .clicked()
+            {
                 scene_manager.switch_scene("game.scene".into());
             }
         });
@@ -49,21 +59,15 @@ The main advantages of separating the main menu scene from the game scene are as
 * The main menu interface does not need to load all entities of the game scene;
 * Every time you jump from the main menu scene to the game scene, all entities and components of the game scene are automatically restored, and we do not need to manually restore the scene.
 
-We put main_menu_system in FrameStage::Maintain, so that when we are not running the game in the editor, we can see the main menu interface display effect in the game scene window:
+We put main_menu_system in Schedule::PreUpdate. Schedule::PreUpdate will also be executed when the game is not running in the editor, so that we can always see the main menu interface display effect in the editor's game window:
 
 ```rust
-impl Engine for EngineWrapper {
-    ...
-    fn frame(&mut self, info: &FrameInfo) {
-        self.inner.frame(info);
-        match info.stage {
-            FrameStage::Maintain => {
-                self.inner.world.run(main_menu_system);
-            },
-            ...
-        }
-    }
-    ...
+#[no_mangle]
+pub fn create() -> Box<dyn App> {
+    SteelApp::new()
+        ...
+        .add_system(Schedule::PreUpdate, main_menu_system)
+        ...
 }
 ```
 
@@ -101,7 +105,13 @@ impl Default for Lose {
 In border_check_system, we create the Lose component through the default method of Lose:
 
 ```rust
-fn border_check_system(border: View<Border>, ball: View<Ball>, mut lose: ViewMut<Lose>, col2d: View<Collider2D>, physics2d_manager: UniqueView<Physics2DManager>) {
+fn border_check_system(
+    border: View<Border>,
+    ball: View<Ball>,
+    mut lose: ViewMut<Lose>,
+    col2d: View<Collider2D>,
+    physics2d_manager: UniqueView<Physics2DManager>,
+) {
     ...
     if border_entity != EntityId::dead() {
         lose.add_component_unchecked(border_entity, Lose::default());
@@ -112,7 +122,12 @@ fn border_check_system(border: View<Border>, ball: View<Ball>, mut lose: ViewMut
 Finally, modify our lose_system to switch to the main menu scene after the 5-second timer ends:
 
 ```rust
-fn lose_system(mut lose: ViewMut<Lose>, time: UniqueView<Time>, egui_ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
+fn lose_system(
+    mut lose: ViewMut<Lose>,
+    time: UniqueView<Time>,
+    egui_ctx: UniqueView<EguiContext>,
+    mut scene_manager: UniqueViewMut<SceneManager>,
+) {
     for lose in (&mut lose).iter() {
         ...
         lose.lose_time -= time.delta();
@@ -135,8 +150,8 @@ Finally, compile the code and run the game in the main menu scene. Click the sta
 [1]: 1-introduction.md
 [2]: 2-run-steel-editor.md
 [3]: 3-create-project.md
-[4]: 4-scene-building.md
-[5]: 5-engine-implementation.md
+[4]: 4-write-code.md
+[5]: 5-scene-building.md
 [6]: 6-player-control.md
 [7]: 7-push-the-ball.md
 [8]: 8-game-lost.md

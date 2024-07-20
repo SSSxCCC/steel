@@ -6,17 +6,31 @@ Currently, it is recommended to run in VSCode, convenient for debugging.
 1. Install [Visual Studio 2022][Visual Studio 2022] with "Desktop development with C++" in Windows, keep the default check
 2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs]
 3. Install [VSCode][VSCode] with "C/C++" and "rust-analyzer" extensions
-4. Download the code of the Steel, and checkout "v0.2" branch, because the current tutorial is written based on this version:
+
+## Run Steel Editor
+
+The Steel Editor can be run by compiling the source code, or by running it directly using the compiled executable file. Currently, it is recommended to open the Steel source code in VSCode to run the Steel Editor, because it is convenient for debugging. The subsequent content and pictures in this tutorial are based on running the Steel Editor using the source code, but it is also applicable to running the Steel Editor using the executable file.
+
+### Run from source
+
+1. Download the code of the Steel, and checkout "v0.2" branch, because the current tutorial is written based on this version:
 ```
 git clone https://github.com/SSSxCCC/steel
 cd steel
 git checkout v0.2
 ```
-5. Use VSCode to open the root directory "steel", press F5 to compile and run
-
-There is a bug in VSCode failing to run the exe file when pressing the F5 for the first time. You can compile and run the exe file in terminal:
+2. Use VSCode to open the root directory "steel" and press F5 to compile and run in debug mode. Or you can run it using the command:
 ```
 cargo run -p steel-editor -F desktop
+```
+
+### Run using executable file
+
+1. Download "steel-editor.zip" from the [Release page][Release] and unzip it
+2. Open Windows PowerShell and execute:
+```
+cd steel-editor
+.\steel-editor.exe
 ```
 
 ## Steel editor UI introduction
@@ -47,8 +61,8 @@ There is an examples directory under the Steel engine source code directory, and
 [1]: 1-introduction.md
 [2]: 2-run-steel-editor.md
 [3]: 3-create-project.md
-[4]: 4-scene-building.md
-[5]: 5-engine-implementation.md
+[4]: 4-write-code.md
+[5]: 5-scene-building.md
 [6]: 6-player-control.md
 [7]: 7-push-the-ball.md
 [8]: 8-game-lost.md
@@ -61,3 +75,4 @@ There is an examples directory under the Steel engine source code directory, and
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [Visual Studio 2022]: https://visualstudio.microsoft.com/vs/
 [VSCode]: https://code.visualstudio.com/
+[Release]: https://github.com/SSSxCCC/steel/releases

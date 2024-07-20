@@ -59,9 +59,9 @@ After the current scene is saved, the editor will record the location where the 
 
 If you want to roll back to the last saved state after modifying the scene, click "Scene -> Load" in the top menu to load the last saved scene file.
 
-[Next: Engine Implementation][5]
+[Next: Player Control][6]
 
-[Prev: Create Project][3]
+[Prev: Write Code][4]
 
 [Table of Contents][0]
 
@@ -69,8 +69,8 @@ If you want to roll back to the last saved state after modifying the scene, clic
 [1]: 1-introduction.md
 [2]: 2-run-steel-editor.md
 [3]: 3-create-project.md
-[4]: 4-scene-building.md
-[5]: 5-engine-implementation.md
+[4]: 4-write-code.md
+[5]: 5-scene-building.md
 [6]: 6-player-control.md
 [7]: 7-push-the-ball.md
 [8]: 8-game-lost.md

@@ -26,7 +26,8 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 /// ```rust
 /// use steel::app::{App, SteelApp};
 ///
-/// fn create() -> Box<dyn App> {
+/// #[no_mangle]
+/// pub fn create() -> Box<dyn App> {
 ///     SteelApp::new().boxed()
 /// }
 /// ```
@@ -39,7 +40,8 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 /// ```rust
 /// use steel::app::{App, SteelApp, Schedule};
 ///
-/// fn create() -> Box<dyn App> {
+/// #[no_mangle]
+/// pub fn create() -> Box<dyn App> {
 ///     SteelApp::new()
 ///         .add_system(Schedule::Init, hello_world)
 ///         .boxed()
@@ -51,10 +53,16 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 /// ```
 /// You can add plugins, register/add uniques, and register components:
 /// ```rust
-/// use steel::{app::{App, SteelApp, Schedule}, data::Data, edit::Edit, physics2d::Physics2DPlugin};
+/// use steel::{
+///     app::{App, SteelApp, Schedule},
+///     data::Data,
+///     edit::Edit,
+///     physics2d::Physics2DPlugin,
+/// };
 /// use shipyard::{Component, Unique};
 ///
-/// fn create() -> Box<dyn App> {
+/// #[no_mangle]
+/// pub fn create() -> Box<dyn App> {
 ///     SteelApp::new()
 ///         .add_plugin(Physics2DPlugin)
 ///         .register_component::<MyComponent>()
