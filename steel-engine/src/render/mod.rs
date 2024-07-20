@@ -1,17 +1,27 @@
 pub mod canvas;
 pub mod renderer2d;
 
-use std::sync::Arc;
+use self::canvas::CanvasRenderContext;
+use crate::edit::Edit;
 use glam::{UVec2, Vec4};
 use shipyard::Unique;
-use steel_common::{data::{Data, Limit, Value}, engine::{DrawInfo, WindowIndex}, ext::VulkanoWindowRendererExt};
-use vulkano::{command_buffer::allocator::StandardCommandBufferAllocator, device::{Device, Queue}, format::Format, image::ImageViewAbstract, memory::allocator::StandardMemoryAllocator};
+use std::sync::Arc;
+use steel_common::{
+    app::{DrawInfo, WindowIndex},
+    data::{Data, Limit, Value},
+    ext::VulkanoWindowRendererExt,
+};
+use vulkano::{
+    command_buffer::allocator::StandardCommandBufferAllocator,
+    device::{Device, Queue},
+    format::Format,
+    image::view::ImageView,
+    memory::allocator::StandardMemoryAllocator,
+};
 use vulkano_util::context::VulkanoContext;
-use crate::edit::Edit;
-use self::canvas::CanvasRenderContext;
 
 /// FrameRenderInfo is a temporary unique that carries render data of this frame.
-/// FrameRenderInfo is added to World at the start of Engine::draw, and is removed from World at the end of Engine::draw.
+/// FrameRenderInfo is added to World at the start of App::draw, and is removed from World at the end of App::draw.
 #[derive(Unique)]
 pub struct FrameRenderInfo {
     /// WindowIndex::GAME or WindowIndex::SCENE.
@@ -23,7 +33,7 @@ pub struct FrameRenderInfo {
     /// The index of current image.
     pub image_index: usize,
     /// The image we will draw.
-    pub image: Arc<dyn ImageViewAbstract>,
+    pub image: Arc<ImageView>,
     /// The image format.
     pub format: Format,
     // We can not store before_future here because VulkanoWindowRenderer::acquire can not return Box<dyn GpuFuture + Send + Sync>.
@@ -33,9 +43,16 @@ pub struct FrameRenderInfo {
 impl FrameRenderInfo {
     pub fn from(info: &DrawInfo) -> Self {
         FrameRenderInfo {
-            window_index: if info.editor_info.is_some() { WindowIndex::SCENE } else { WindowIndex::GAME },
+            window_index: if info.editor_info.is_some() {
+                WindowIndex::SCENE
+            } else {
+                WindowIndex::GAME
+            },
             window_size: info.window_size,
-            image_count: std::cmp::max(info.renderer.image_count(), info.renderer.image_index() as usize + 1), // TODO: only use info.renderer.image_count() when it returns right value
+            image_count: std::cmp::max(
+                info.renderer.image_count(),
+                info.renderer.image_index() as usize + 1,
+            ), // TODO: only use info.renderer.image_count() when it returns right value
             image_index: info.renderer.image_index() as usize,
             image: info.image.clone(),
             format: info.renderer.swapchain_format(),
@@ -72,17 +89,22 @@ impl RenderManager {
                 device: context.device().clone(),
                 graphics_queue: context.graphics_queue().clone(),
                 memory_allocator: context.memory_allocator().clone(),
-                command_buffer_allocator: StandardCommandBufferAllocator::new(context.device().clone(), Default::default()),
+                command_buffer_allocator: StandardCommandBufferAllocator::new(
+                    context.device().clone(),
+                    Default::default(),
+                ),
             },
             canvas_context: None,
             image_index: [0, 0],
-            clear_color: Vec4::ZERO
+            clear_color: Vec4::ZERO,
         }
     }
 
     /// Update RenderManager from FrameRenderInfo.
     pub fn update(&mut self, info: &FrameRenderInfo) {
         self.image_index[info.window_index] = info.image_index;
-        self.canvas_context.get_or_insert_with(|| CanvasRenderContext::new(&self.context, info)).update(&self.context, info);
+        self.canvas_context
+            .get_or_insert_with(|| CanvasRenderContext::new(&self.context, info))
+            .update(&self.context, info);
     }
 }

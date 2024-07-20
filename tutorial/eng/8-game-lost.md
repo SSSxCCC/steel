@@ -16,12 +16,12 @@ struct Border;
 Also register:
 
 ```rust
-impl Engine for EngineWrapper {
-    fn init(&mut self, info: InitInfo) {
+#[no_mangle]
+pub fn create() -> Box<dyn App> {
+    SteelApp::new()
         ...
-        self.inner.register_component::<Border>();
-    }
-    ...
+        .register_component::<Border>()
+        ...
 }
 ```
 
@@ -49,11 +49,19 @@ The Lose component is only created by our code and does not need to be edited in
 After preparing our sensor collider and the component that marks the game lost, we can write a border_check_system to continuously check whether the ball falls off the screen:
 
 ```rust
-fn border_check_system(border: View<Border>, ball: View<Ball>, mut lose: ViewMut<Lose>, col2d: View<Collider2D>, physics2d_manager: UniqueView<Physics2DManager>) {
+fn border_check_system(
+    border: View<Border>,
+    ball: View<Ball>,
+    mut lose: ViewMut<Lose>,
+    col2d: View<Collider2D>,
+    physics2d_manager: UniqueView<Physics2DManager>,
+) {
     let mut border_entity = EntityId::dead();
     for (entity, (_border, border_col2d, _)) in (&border, &col2d, !&lose).iter().with_id() {
         for (_ball, ball_col2d) in (&ball, &col2d).iter() {
-            let intersection_pair = physics2d_manager.narrow_phase.intersection_pair(border_col2d.handle(), ball_col2d.handle());
+            let intersection_pair = physics2d_manager
+                .narrow_phase
+                .intersection_pair(border_col2d.handle(), ball_col2d.handle());
             if intersection_pair.is_none() {
                 border_entity = entity;
             }
@@ -72,35 +80,33 @@ By finding the entity with Border component and no Lose component, its Collider2
 After the game lost, we display an interface in the middle of the screen to prompt the game lost, which is implemented through lose_system:
 
 ```rust
-fn lose_system(lose: View<Lose>, egui_ctx: UniqueView<EguiContext>) {
+fn lose_system(
+    mut lose: View<Lose>,
+    egui_ctx: UniqueView<EguiContext>,
+) {
     for _lose in (&lose).iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
-            ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
-                ui.label(egui::RichText::new("You lose!").size(100.0));
-            });
+            ui.with_layout(
+                egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| {
+                    ui.label(egui::RichText::new("You lose!").size(100.0));
+                },
+            );
         });
     }
 }
 ```
 
-Both border_check_system and lose_system can be run in FrameStage::Update:
+Both border_check_system and lose_system can be run in Schedule::Update:
 
 ```rust
-impl Engine for EngineWrapper {
-    ...
-    fn frame(&mut self, info: &FrameInfo) {
-        self.inner.frame(info);
-        match info.stage {
-            FrameStage::Maintain => (),
-            FrameStage::Update => {
-                ...
-                self.inner.world.run(border_check_system);
-                self.inner.world.run(lose_system);
-            },
-            FrameStage::Finish => (),
-        }
-    }
-    ...
+#[no_mangle]
+pub fn create() -> Box<dyn App> {
+    SteelApp::new()
+        ...
+        .add_system(Schedule::Update, border_check_system)
+        .add_system(Schedule::Update, lose_system)
+        .boxed()
 }
 ```
 
@@ -116,8 +122,8 @@ Compile and run the game again, let the ball fall off the screen, and we can see
 [1]: 1-introduction.md
 [2]: 2-run-steel-editor.md
 [3]: 3-create-project.md
-[4]: 4-scene-building.md
-[5]: 5-engine-implementation.md
+[4]: 4-write-code.md
+[5]: 5-scene-building.md
 [6]: 6-player-control.md
 [7]: 7-push-the-ball.md
 [8]: 8-game-lost.md

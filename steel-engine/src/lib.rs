@@ -1,24 +1,25 @@
 //! The [steel game engine](https://github.com/SSSxCCC/steel) core library.
 
-pub mod engine;
-pub mod edit;
-pub mod transform;
+pub mod app;
 pub mod camera;
-pub mod physics2d;
-pub mod render;
-pub mod shape;
-pub mod entityinfo;
 pub mod data;
-pub mod scene;
+pub mod edit;
+pub mod entityinfo;
+pub mod hierarchy;
 pub mod input;
-pub mod ui;
-pub mod time;
+pub mod physics2d;
 pub mod platform;
+pub mod render;
+pub mod scene;
+pub mod shape;
+pub mod time;
+pub mod transform;
+pub mod ui;
 pub mod ext {
     pub use steel_common::ext::*;
 }
 
-use log::{Log, LevelFilter, SetLoggerError};
+use log::{LevelFilter, Log, SetLoggerError};
 
 /// This function is used by steel-dynlib to enable log output of log crate.
 #[no_mangle]

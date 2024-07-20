@@ -1,6 +1,6 @@
-use std::{iter::zip, str::FromStr};
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::{iter::zip, str::FromStr};
 use syn;
 
 pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
@@ -11,9 +11,7 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
 
     let fields = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
-            syn::Fields::Named(fields) => {
-                (&fields.named).iter().collect::<Vec<_>>()
-            },
+            syn::Fields::Named(fields) => (&fields.named).iter().collect::<Vec<_>>(),
             syn::Fields::Unnamed(_) => todo!(),
             syn::Fields::Unit => Vec::new(),
         },
@@ -25,18 +23,45 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
 
         let value_type = match &field.ty {
             syn::Type::Path(type_path) => {
-                let type_last_ident = &type_path.path.segments.last().expect(format!("No type path segment for field {field_ident:?}").as_str()).ident;
+                let type_last_segment = type_path.path.segments.last()
+                    .expect(format!("No type path segment for field {field_ident:?}").as_str());
+                let type_last_ident = &type_last_segment.ident;
                 match type_last_ident.to_string().as_str() {
                     "bool" => quote! { Value::Bool },
                     "i32" => quote! { Value::Int32 },
+                    "u32" => quote! { Value::UInt32 },
                     "f32" => quote! { Value::Float32 },
                     "String" => quote! { Value::String },
+                    "EntityId" => quote! { Value::Entity },
                     "Vec2" => quote! { Value::Vec2 },
                     "Vec3" => quote! { Value::Vec3 },
                     "Vec4" => quote! { Value::Vec4 },
+                    "IVec2" => quote! { Value::IVec2 },
+                    "IVec3" => quote! { Value::IVec3 },
+                    "IVec4" => quote! { Value::IVec4 },
+                    "UVec2" => quote! { Value::UVec2 },
+                    "UVec3" => quote! { Value::UVec3 },
+                    "UVec4" => quote! { Value::UVec4 },
+                    "Vec" => {
+                        let generic_arg = match &type_last_segment.arguments {
+                            syn::PathArguments::AngleBracketed(generic_arguments) => generic_arguments.args.first().unwrap(),
+                            _ => return None,
+                        };
+                        match generic_arg {
+                            syn::GenericArgument::Type(syn::Type::Path(generic_path)) => {
+                                let generic_type_last_ident = &generic_path.path.segments.last()
+                                    .expect(format!("No type path segment for field {field_ident:?}").as_str()).ident;
+                                match generic_type_last_ident.to_string().as_str() {
+                                    "EntityId" => quote! { Value::VecEntity },
+                                    _ => return None,
+                                }
+                            }
+                            _ => return None,
+                        }
+                    }
                     _ => return None,
                 }
-            },
+            }
             _ => return None,
         };
 
@@ -78,10 +103,12 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
         .map(|(value_type, field_ident)| quote! { #value_type (self.#field_ident.clone()) })
         .collect::<Vec<_>>();
     let insert_tokens = zip(&value_names, zip(insert_values, &value_limits))
-        .map(|(value_name, (insert_value, value_limit))| if let Some(limit) = value_limit {
-            quote! { .insert_with_limit(#value_name, #insert_value, #limit) }
-        } else {
-            quote! { .insert(#value_name, #insert_value) }
+        .map(|(value_name, (insert_value, value_limit))| {
+            if let Some(limit) = value_limit {
+                quote! { .insert_with_limit(#value_name, #insert_value, #limit) }
+            } else {
+                quote! { .insert(#value_name, #insert_value) }
+            }
         })
         .collect::<Vec<_>>();
     let get_data_fn = quote! {

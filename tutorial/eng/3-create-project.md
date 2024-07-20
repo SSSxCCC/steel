@@ -12,7 +12,7 @@ The project will start compiling. You can see the compilation output from the te
 
 When you see "Project::compile end", it means that the project has been compiled successfully.
 
-[Next: Scene building][4]
+[Next: Write Code][4]
 
 [Prev: Run Steel Editor][2]
 
@@ -22,8 +22,8 @@ When you see "Project::compile end", it means that the project has been compiled
 [1]: 1-introduction.md
 [2]: 2-run-steel-editor.md
 [3]: 3-create-project.md
-[4]: 4-scene-building.md
-[5]: 5-engine-implementation.md
+[4]: 4-write-code.md
+[5]: 5-scene-building.md
 [6]: 6-player-control.md
 [7]: 7-push-the-ball.md
 [8]: 8-game-lost.md

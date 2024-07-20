@@ -1,6 +1,6 @@
+use crate::edit::Edit;
 use shipyard::Component;
 use steel_common::data::{Data, Value};
-use crate::edit::Edit;
 
 /// The entity extra info, like entity name, mainly used in editor to display the name of this entity.
 #[derive(Component, Edit, Default, Debug)]

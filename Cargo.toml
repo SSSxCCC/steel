@@ -4,12 +4,12 @@ members = [
     "steel-engine",
     "steel-common",
     "steel-editor",
-    "steel-client",
-    "steel-dynlib",
-    "steel-server",
+    "steel-build/steel-dynlib",
+    "steel-build/steel-client",
+    "steel-build/steel-server",
 ]
 exclude = [
-    "steel-project",
+    "steel-build/steel-project",
     "examples/test-project",
     "examples/ball",
 ]

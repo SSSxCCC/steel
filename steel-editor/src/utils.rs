@@ -1,6 +1,17 @@
-use std::{error::Error, fs::File, io::{BufReader, BufWriter}, path::PathBuf};
+use crate::locale::Language;
 use serde::{Deserialize, Serialize};
+use std::{
+    error::Error,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
+/// Delete windows path prefix:
+/// ```
+/// \\?\
+/// ```
+/// This windows path prefix makes cargo build fail in std::process::Command.
 pub fn delte_windows_path_prefix(path: &mut PathBuf) {
     const WINDOWS_PATH_PREFIX: &str = r#"\\?\"#;
     let path_string = path.display().to_string();
@@ -14,10 +25,11 @@ pub fn delte_windows_path_prefix(path: &mut PathBuf) {
 #[derive(Serialize, Deserialize)]
 pub struct LocalData {
     pub last_open_project_path: PathBuf,
+    pub language: Option<Language>,
 }
 
 impl LocalData {
-    const PATH: &'static str = "local_data.json";
+    const PATH: &'static str = "local-data.json";
 
     pub fn load() -> Self {
         match Self::_load() {
@@ -25,11 +37,14 @@ impl LocalData {
             Err(error) => {
                 log::warn!("Failed to load LocalData, error={error}");
 
-                let mut last_open_project_path = std::fs::canonicalize("examples/test-project").unwrap();
-                // the windows path prefix "\\?\" makes cargo build fail in std::process::Command
+                let mut last_open_project_path =
+                    std::fs::canonicalize("examples/test-project").unwrap_or_default();
                 delte_windows_path_prefix(&mut last_open_project_path);
 
-                LocalData { last_open_project_path }
+                LocalData {
+                    last_open_project_path,
+                    language: None,
+                }
             }
         }
     }

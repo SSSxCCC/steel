@@ -14,6 +14,16 @@
               }
             }
           },
+          "Child": {
+            "values": {
+              "parent": {
+                "Entity": {
+                  "index": 281474976710654,
+                  "gen": 65535
+                }
+              }
+            }
+          },
           "MainMenu": {
             "values": {}
           }
@@ -82,6 +92,18 @@
             0.0,
             0.0,
             0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 0,
+              "gen": 0
+            }
           ]
         }
       }
