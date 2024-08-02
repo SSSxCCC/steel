@@ -3,9 +3,9 @@
 ## Set up the environment
 
 Currently, it is recommended to run in VSCode, convenient for debugging.
-1. Install [Visual Studio 2022][Visual Studio 2022] with "Desktop development with C++" in Windows, keep the default check
-2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs]
-3. Install [VSCode][VSCode] with "C/C++" and "rust-analyzer" extensions
+1. Install [Visual Studio 2022][Visual Studio 2022] with "Desktop development with C++" in Windows, keep the default check.
+2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs].
+3. Install [VSCode][VSCode] with "C/C++" and "rust-analyzer" extensions.
 
 ## Run Steel Editor
 
@@ -26,7 +26,7 @@ cargo run -p steel-editor -F desktop
 
 ### Run using executable file
 
-1. Download "steel-editor.zip" from the [Release page][Release] and unzip it
+1. Download "steel-editor.zip" from the [Releases][Releases] page and unzip it.
 2. Open Windows PowerShell and execute:
 ```
 cd steel-editor
@@ -75,4 +75,4 @@ There is an examples directory under the Steel engine source code directory, and
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [Visual Studio 2022]: https://visualstudio.microsoft.com/vs/
 [VSCode]: https://code.visualstudio.com/
-[Release]: https://github.com/SSSxCCC/steel/releases
+[Releases]: https://github.com/SSSxCCC/steel/releases

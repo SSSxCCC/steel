@@ -2672,6 +2672,7 @@ dependencies = [
  "shipyard",
  "steel-common",
  "steel-proc",
+ "steel-shader",
  "vulkano",
  "vulkano-shaders",
  "vulkano-util",
@@ -2714,6 +2715,10 @@ dependencies = [
 
 [[package]]
 name = "steel-server"
+version = "0.1.0"
+
+[[package]]
+name = "steel-shader"
 version = "0.1.0"
 
 [[package]]
