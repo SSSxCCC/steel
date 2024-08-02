@@ -28,4 +28,8 @@ impl Platform {
             self.project_path.join("asset").join(path),
         )?)
     }
+
+    pub fn read_asset(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, Box<dyn Error>> {
+        Ok(std::fs::read(self.project_path.join("asset").join(path))?)
+    }
 }

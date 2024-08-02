@@ -2,12 +2,14 @@ use crate::utils::LocalData;
 use egui_winit_vulkano::Gui;
 use libloading::{Library, Symbol};
 use log::{LevelFilter, Log, SetLoggerError};
+use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use shipyard::EntityId;
 use std::{
     error::Error,
     fs,
     path::{Path, PathBuf},
+    sync::mpsc::Receiver,
 };
 use steel_common::{
     app::{App, Command, InitInfo},
@@ -30,6 +32,10 @@ struct ProjectCompiledState {
 struct ProjectState {
     path: PathBuf,
     compiled: Option<ProjectCompiledState>,
+    /// Watch for file changes in asset folder.
+    watcher: RecommendedWatcher,
+    /// Receiver for file change events from watcher.
+    receiver: Receiver<Event>,
 }
 
 pub struct Project {
@@ -50,9 +56,26 @@ impl Project {
             Ok(_) => {
                 local_data.last_open_project_path = path.clone();
                 local_data.save();
+
+                let (sender, receiver) = std::sync::mpsc::channel();
+                let mut watcher = notify::recommended_watcher(move |result| match result {
+                    Ok(event) => {
+                        if let Err(e) = sender.send(event) {
+                            log::error!("Send watch event error: {e:?}");
+                        }
+                    }
+                    Err(e) => log::error!("Watch error: {e:?}"),
+                })
+                .unwrap();
+                watcher
+                    .watch(&path.join("asset"), RecursiveMode::Recursive)
+                    .unwrap();
+
                 self.state = Some(ProjectState {
                     path,
                     compiled: None,
+                    watcher,
+                    receiver,
                 });
             }
         }

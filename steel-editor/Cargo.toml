@@ -13,6 +13,7 @@ regex = "1.10.3"
 sys-locale = "0.3.1"
 egui_demo_lib = "0.24.1"
 egui_dock = "0.9.1"
+notify = "6.1.1"
 
 vulkano = "0.34.1"
 vulkano-shaders = "0.34.0"
