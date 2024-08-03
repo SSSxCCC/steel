@@ -49,25 +49,6 @@
               }
             }
           },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 0.7
-              },
-              "sensor": {
-                "Bool": false
-              }
-            }
-          },
           "Renderer2D": {
             "values": {
               "shape_type": {
@@ -86,6 +67,25 @@
                   2.3841858e-7,
                   1.0
                 ]
+              }
+            }
+          },
+          "Collider2D": {
+            "values": {
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
+              "restitution": {
+                "Float32": 0.7
+              },
+              "sensor": {
+                "Bool": false
               }
             }
           }
@@ -141,6 +141,27 @@
               }
             }
           },
+          "Renderer2D": {
+            "values": {
+              "shape_type": {
+                "Int32": 1
+              },
+              "size": {
+                "Vec2": [
+                  1.0,
+                  1.0
+                ]
+              },
+              "color": {
+                "Vec4": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              }
+            }
+          },
           "RigidBody2D": {
             "values": {
               "body_type": {
@@ -164,27 +185,6 @@
               },
               "sensor": {
                 "Bool": false
-              }
-            }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  0.0,
-                  0.0,
-                  1.0
-                ]
               }
             }
           }
@@ -240,6 +240,24 @@
               }
             }
           },
+          "Renderer2D": {
+            "values": {
+              "shape_type": {
+                "Int32": 0
+              },
+              "radius": {
+                "Float32": 0.5
+              },
+              "color": {
+                "Vec4": [
+                  0.0,
+                  0.014286041,
+                  1.0,
+                  1.0
+                ]
+              }
+            }
+          },
           "RigidBody2D": {
             "values": {
               "body_type": {
@@ -262,30 +280,44 @@
                 "Bool": false
               }
             }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 0
-              },
-              "radius": {
-                "Float32": 0.5
-              },
-              "color": {
-                "Vec4": [
-                  0.0,
-                  0.014286041,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
           }
         }
       }
     ]
   ],
   "uniques": {
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 0,
+              "gen": 0
+            },
+            {
+              "index": 1,
+              "gen": 0
+            },
+            {
+              "index": 2,
+              "gen": 0
+            }
+          ]
+        }
+      }
+    },
     "Physics2DManager": {
       "values": {
         "gravity": {
@@ -335,38 +367,6 @@
         },
         "max_ccd_substeps": {
           "Int32": 1
-        }
-      }
-    },
-    "RenderManager": {
-      "values": {
-        "clear_color": {
-          "Vec4": [
-            0.0,
-            0.0,
-            0.0,
-            0.0
-          ]
-        }
-      }
-    },
-    "Hierarchy": {
-      "values": {
-        "roots": {
-          "VecEntity": [
-            {
-              "index": 0,
-              "gen": 0
-            },
-            {
-              "index": 1,
-              "gen": 0
-            },
-            {
-              "index": 2,
-              "gen": 0
-            }
-          ]
         }
       }
     }

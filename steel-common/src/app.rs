@@ -1,4 +1,5 @@
 use crate::{
+    asset::AssetId,
     data::{EntitiesData, WorldData},
     platform::Platform,
 };
@@ -15,14 +16,15 @@ pub trait App {
     fn init(&mut self, info: InitInfo);
     fn update(&mut self, info: UpdateInfo);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
-    fn command(&mut self, cmd: Command);
+    fn command(&self, cmd: Command);
+    fn command_mut(&mut self, cmd: CommandMut);
 }
 
 /// The InitInfo contains some initialization data, and is passed to [App::init].
 pub struct InitInfo<'a> {
     pub platform: Platform,
     pub context: &'a VulkanoContext,
-    pub scene: Option<PathBuf>,
+    pub scene: Option<AssetId>,
 }
 
 /// The UpdateInfo contains some data about current frame, and is passed to [App::update] every frame.
@@ -60,30 +62,42 @@ pub struct EditorCamera {
     pub height: f32,
 }
 
-/// Command is sent by editor through [App::command] method to modify the game world.
+/// Command is sent by editor through [App::command] method to read the game world.
 pub enum Command<'a> {
     Save(&'a mut WorldData),
-    Load(&'a WorldData),
-    Reload(&'a WorldData),
-    SetCurrentScene(Option<PathBuf>),
 
-    CreateEntity,
-    DestroyEntity(EntityId),
-    ClearEntity,
     GetEntityCount(&'a mut usize),
-    /// entities_data, old_id_to_new_id map
-    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
-
-    GetComponents(&'a mut Vec<&'static str>),
-    CreateComponent(EntityId, &'static str),
-    DestroyComponent(EntityId, &'a String),
-
-    UpdateInput(&'a Vec<WindowEvent<'static>>),
-
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid.
     GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
 
+    GetComponents(&'a mut Vec<&'static str>),
+
+    UpdateInput(&'a Vec<WindowEvent<'static>>),
+
     ResetTime,
+
+    GetAssetPath(AssetId, &'a mut Option<PathBuf>),
+    AssetIdExists(AssetId, &'a mut bool),
+    InsertAsset(AssetId, PathBuf),
+    DeleteAsset(AssetId),
+    ClearAssetCache(AssetId),
+    UpdateAssetPath(AssetId, PathBuf),
+}
+
+/// CommandMut is sent by editor through [App::command] method to modify the game world.
+pub enum CommandMut<'a> {
+    Load(&'a WorldData),
+    Reload(&'a WorldData),
+    SetCurrentScene(Option<AssetId>),
+
+    CreateEntity,
+    /// entities_data, old_id_to_new_id map
+    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
+    DestroyEntity(EntityId),
+    ClearEntity,
+
+    CreateComponent(EntityId, &'static str),
+    DestroyComponent(EntityId, &'a String),
 
     // attached_entity, parent, before
     AttachBefore(EntityId, EntityId, EntityId),

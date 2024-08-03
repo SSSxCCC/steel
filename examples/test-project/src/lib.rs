@@ -43,11 +43,11 @@ fn test_system(ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<Sc
         if ui.button("Button").clicked() {
             log::info!("Click button of TestWindow");
             if let Some(current_scene) = scene_manager.current_scene() {
-                if *current_scene == PathBuf::from("scene/test.scene") {
-                    scene_manager.switch_scene("scene/scene.scene".into());
-                } else if *current_scene == PathBuf::from("scene/scene.scene") {
-                    scene_manager.switch_scene("scene/test.scene".into());
-                }
+                //if *current_scene == PathBuf::from("scene/test.scene") {
+                //    scene_manager.switch_scene("scene/scene.scene".into());
+                //} else if *current_scene == PathBuf::from("scene/scene.scene") {
+                //    scene_manager.switch_scene("scene/test.scene".into());
+                //}
             }
         }
     });

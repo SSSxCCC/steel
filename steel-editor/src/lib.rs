@@ -9,7 +9,7 @@ use crate::{project::Project, ui::Editor, utils::LocalData};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::{Vec2, Vec3};
 use steel_common::{
-    app::{Command, DrawInfo, EditorCamera, EditorInfo, UpdateInfo},
+    app::{Command, CommandMut, DrawInfo, EditorCamera, EditorInfo, UpdateInfo},
     data::WorldData,
 };
 use vulkano::sync::GpuFuture;
@@ -229,7 +229,7 @@ fn _main(event_loop: EventLoop<()>) {
                     app.command(Command::UpdateInput(&events));
 
                     if let Some(world_data) = world_data.as_mut() {
-                        app.command(Command::Load(world_data));
+                        app.command_mut(CommandMut::Load(world_data));
                     }
 
                     app.update(UpdateInfo {

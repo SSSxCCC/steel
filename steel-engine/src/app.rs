@@ -1,6 +1,9 @@
+use std::borrow::Borrow;
+
 pub use steel_common::app::*;
 
 use crate::{
+    asset::AssetManager,
     camera::{Camera, CameraInfo},
     data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry},
     edit::Edit,
@@ -17,7 +20,9 @@ use crate::{
     transform::Transform,
     ui::EguiContext,
 };
-use shipyard::{EntitiesView, IntoWorkloadSystem, Unique, UniqueViewMut, Workload, World};
+use shipyard::{
+    EntitiesView, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, Workload, World,
+};
 use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 
 /// SteelApp contains data and logic of a steel application.
@@ -128,6 +133,7 @@ impl SteelApp {
         .register_component::<Renderer2D>()
         .register_unique::<RenderManager>()
         .add_and_register_unique(Hierarchy::default())
+        .add_unique(AssetManager::default())
         .add_unique(CameraInfo::new())
         .add_unique(Canvas::new())
         .add_unique(Input::new())
@@ -307,7 +313,7 @@ impl App for SteelApp {
             .boxed()
     }
 
-    fn command(&mut self, cmd: Command) {
+    fn command(&self, cmd: Command) {
         match cmd {
             Command::Save(world_data) => {
                 world_data.clear();
@@ -318,64 +324,10 @@ impl App for SteelApp {
                     (unique_fn.save_to_data)(world_data, &self.world);
                 }
             }
-            Command::Load(world_data) => {
-                for component_fn in self.component_registry.values() {
-                    (component_fn.load_from_data)(&mut self.world, world_data);
-                }
-                for unique_fn in self.unique_registry.values() {
-                    (unique_fn.load_from_data)(&mut self.world, world_data);
-                }
-            }
-            Command::Reload(world_data) => {
-                SceneManager::load(
-                    &mut self.world,
-                    world_data,
-                    &self.component_registry,
-                    &self.unique_registry,
-                );
-            }
-            Command::SetCurrentScene(scene) => {
-                SceneManager::set_current_scene(&mut self.world, scene);
-            }
-            Command::CreateEntity => {
-                self.world.add_entity((
-                    EntityInfo::new("New Entity"),
-                    Transform::default(),
-                    Renderer2D::default(),
-                ));
-            }
-            Command::DestroyEntity(id) => {
-                self.world.delete_entity(id);
-            }
-            Command::ClearEntity => {
-                self.world.clear();
-            }
             Command::GetEntityCount(entity_count) => {
                 *entity_count = self
                     .world
                     .run(|entities: EntitiesView| entities.iter().count());
-            }
-            Command::AddEntities(entities_data, old_id_to_new_id) => {
-                *old_id_to_new_id =
-                    entities_data.add_to_world(&mut self.world, &self.component_registry);
-            }
-            Command::GetComponents(components) => {
-                *components = self.component_registry.keys().map(|s| *s).collect();
-                // TODO: cache components
-            }
-            Command::CreateComponent(id, component_name) => {
-                if let Some(component_fn) = self.component_registry.get(component_name) {
-                    (component_fn.create)(&mut self.world, id);
-                }
-            }
-            Command::DestroyComponent(id, component_name) => {
-                if let Some(component_fn) = self.component_registry.get(component_name.as_str()) {
-                    (component_fn.destroy)(&mut self.world, id);
-                }
-            }
-            Command::UpdateInput(events) => {
-                self.world
-                    .run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
             }
             Command::GetEntityAtScreen(window_index, screen_position, out_eid) => {
                 self.world.add_unique(GetEntityAtScreenParam {
@@ -389,13 +341,111 @@ impl App for SteelApp {
                     .remove_unique::<GetEntityAtScreenParam>()
                     .unwrap();
             }
+            Command::GetComponents(components) => {
+                *components = self.component_registry.keys().map(|s| *s).collect();
+                // TODO: cache components
+            }
+            Command::UpdateInput(events) => {
+                self.world
+                    .run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
+            }
             Command::ResetTime => {
                 self.world.run(|mut time: UniqueViewMut<Time>| time.reset());
             }
-            Command::AttachBefore(eid, parent, before) => {
+            Command::GetAssetPath(asset_id, path) => {
+                *path = self
+                    .world
+                    .borrow::<UniqueView<AssetManager>>()
+                    .unwrap()
+                    .get_asset_path(asset_id)
+                    .map(|path| path.clone());
+            }
+            Command::AssetIdExists(asset_id, exists) => {
+                *exists = self
+                    .world
+                    .borrow::<UniqueView<AssetManager>>()
+                    .unwrap()
+                    .contains_asset(asset_id);
+            }
+            Command::InsertAsset(asset_id, path) => {
+                self.world
+                    .borrow::<UniqueViewMut<AssetManager>>()
+                    .unwrap()
+                    .insert_asset(asset_id, path);
+            }
+            Command::DeleteAsset(asset_id) => {
+                self.world
+                    .borrow::<UniqueViewMut<AssetManager>>()
+                    .unwrap()
+                    .delete_asset(asset_id);
+            }
+            Command::ClearAssetCache(asset_id) => {
+                self.world
+                    .borrow::<UniqueViewMut<AssetManager>>()
+                    .unwrap()
+                    .clear_asset_cache(asset_id);
+            }
+            Command::UpdateAssetPath(asset_id, path) => {
+                self.world
+                    .borrow::<UniqueViewMut<AssetManager>>()
+                    .unwrap()
+                    .update_asset_path(asset_id, path);
+            }
+        }
+    }
+
+    fn command_mut(&mut self, cmd: CommandMut) {
+        match cmd {
+            CommandMut::Load(world_data) => {
+                for component_fn in self.component_registry.values() {
+                    (component_fn.load_from_data)(&mut self.world, world_data);
+                }
+                for unique_fn in self.unique_registry.values() {
+                    (unique_fn.load_from_data)(&mut self.world, world_data);
+                }
+            }
+            CommandMut::Reload(world_data) => {
+                SceneManager::load(
+                    &mut self.world,
+                    world_data,
+                    &self.component_registry,
+                    &self.unique_registry,
+                );
+            }
+            CommandMut::SetCurrentScene(scene) => {
+                SceneManager::set_current_scene(&mut self.world, scene);
+            }
+            CommandMut::CreateEntity => {
+                self.world.add_entity((
+                    EntityInfo::new("New Entity"),
+                    Transform::default(),
+                    Renderer2D::default(),
+                ));
+            }
+            CommandMut::AddEntities(entities_data, old_id_to_new_id) => {
+                *old_id_to_new_id =
+                    entities_data.add_to_world(&mut self.world, &self.component_registry);
+            }
+            CommandMut::DestroyEntity(id) => {
+                self.world.delete_entity(id);
+            }
+            CommandMut::ClearEntity => {
+                self.world.clear();
+            }
+            CommandMut::CreateComponent(id, component_name) => {
+                if let Some(component_fn) = self.component_registry.get(component_name) {
+                    (component_fn.create)(&mut self.world, id);
+                }
+            }
+            CommandMut::DestroyComponent(id, component_name) => {
+                if let Some(component_fn) = self.component_registry.get(component_name.as_str()) {
+                    (component_fn.destroy)(&mut self.world, id);
+                }
+            }
+            CommandMut::AttachBefore(eid, parent, before) => {
                 crate::hierarchy::attach_before(&mut self.world, eid, parent, before);
             }
-            Command::AttachAfter(eid, parent, after) => {
+            CommandMut::AttachAfter(eid, parent, after) => {
                 crate::hierarchy::attach_after(&mut self.world, eid, parent, after);
             }
         }

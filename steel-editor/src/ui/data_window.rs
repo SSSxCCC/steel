@@ -3,7 +3,7 @@ use glam::{Vec3, Vec4};
 use shipyard::EntityId;
 use std::{collections::HashMap, ops::RangeInclusive};
 use steel_common::{
-    app::{App, Command},
+    app::{App, Command, CommandMut},
     data::{Data, EntitiesData, EntityData, Limit, Value, WorldData},
 };
 
@@ -71,7 +71,11 @@ impl DataWindow {
             if let Some(drop_parent) = drop_parent {
                 if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released())
                 {
-                    app.command(Command::AttachBefore(drag_entity, drop_parent, drop_before));
+                    app.command_mut(CommandMut::AttachBefore(
+                        drag_entity,
+                        drop_parent,
+                        drop_before,
+                    ));
                 }
             }
         } else if !world_data.entities.is_empty() {
@@ -79,7 +83,7 @@ impl DataWindow {
         }
 
         if ui.button("+").clicked() {
-            app.command(Command::CreateEntity);
+            app.command_mut(CommandMut::CreateEntity);
         }
     }
 
@@ -221,7 +225,10 @@ impl DataWindow {
             entities_to_add = new_entities_to_add;
         }
         let mut old_id_to_new_id = HashMap::new();
-        app.command(Command::AddEntities(&entities_data, &mut old_id_to_new_id));
+        app.command_mut(CommandMut::AddEntities(
+            &entities_data,
+            &mut old_id_to_new_id,
+        ));
         let new_id = *old_id_to_new_id.get(&entity).unwrap();
 
         // attach duplicated entity next to the original entity
@@ -239,11 +246,11 @@ impl DataWindow {
             Some(Value::Entity(e)) => *e,
             _ => panic!("duplicate_entity: no parent value in Child component: {child:?}"),
         };
-        app.command(Command::AttachAfter(new_id, parent, entity));
+        app.command_mut(CommandMut::AttachAfter(new_id, parent, entity));
     }
 
     pub fn delete_entity(&mut self, entity: EntityId, app: &mut Box<dyn App>) {
-        app.command(Command::DestroyEntity(entity));
+        app.command_mut(CommandMut::DestroyEntity(entity));
         self.selected_entity = EntityId::dead();
     }
 
@@ -359,7 +366,7 @@ impl DataWindow {
                 if component_name != "Child" && component_name != "Parent" {
                     // TODO: use a more generic way to prevent some components from being destroyed by user
                     if ui.button("-").clicked() {
-                        app.command(Command::DestroyComponent(
+                        app.command_mut(CommandMut::DestroyComponent(
                             self.selected_entity,
                             component_name,
                         ));
@@ -389,7 +396,7 @@ impl DataWindow {
             {
                 // TODO: use a more generic way to prevent some components from being created by user
                 if ui.button(component).clicked() {
-                    app.command(Command::CreateComponent(self.selected_entity, component));
+                    app.command_mut(CommandMut::CreateComponent(self.selected_entity, component));
                     ui.close_menu();
                 }
             }

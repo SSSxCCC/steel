@@ -12,7 +12,8 @@ use std::{
     sync::mpsc::Receiver,
 };
 use steel_common::{
-    app::{App, Command, InitInfo},
+    app::{App, Command, CommandMut, InitInfo},
+    asset::{AssetId, AssetInfo},
     data::{Data, EntityData, Limit, Value, WorldData},
     platform::Platform,
 };
@@ -25,17 +26,18 @@ struct ProjectCompiledState {
 
     data: WorldData,
     running: bool,
-    /// The path of current opened scene file, which is relative to the asset directory of opened project
-    scene: Option<PathBuf>,
+    /// The asset id of current opened scene
+    scene: Option<AssetId>,
+
+    /// Watch for file changes in asset folder.
+    watcher: RecommendedWatcher,
+    /// Receiver for file change events from watcher.
+    receiver: Receiver<Event>,
 }
 
 struct ProjectState {
     path: PathBuf,
     compiled: Option<ProjectCompiledState>,
-    /// Watch for file changes in asset folder.
-    watcher: RecommendedWatcher,
-    /// Receiver for file change events from watcher.
-    receiver: Receiver<Event>,
 }
 
 pub struct Project {
@@ -56,26 +58,9 @@ impl Project {
             Ok(_) => {
                 local_data.last_open_project_path = path.clone();
                 local_data.save();
-
-                let (sender, receiver) = std::sync::mpsc::channel();
-                let mut watcher = notify::recommended_watcher(move |result| match result {
-                    Ok(event) => {
-                        if let Err(e) = sender.send(event) {
-                            log::error!("Send watch event error: {e:?}");
-                        }
-                    }
-                    Err(e) => log::error!("Watch error: {e:?}"),
-                })
-                .unwrap();
-                watcher
-                    .watch(&path.join("asset"), RecursiveMode::Recursive)
-                    .unwrap();
-
                 self.state = Some(ProjectState {
                     path,
                     compiled: None,
-                    watcher,
-                    receiver,
                 });
             }
         }
@@ -209,15 +194,39 @@ impl Project {
             });
 
             // restore game world from scene data
-            app.command(Command::Reload(&data));
-            app.command(Command::SetCurrentScene(scene.clone()));
+            app.command_mut(CommandMut::Reload(&data));
+            app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
 
+            // init a watcher to monitor file changes for asset system
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let mut watcher = notify::recommended_watcher(move |result| match result {
+                Ok(event) => {
+                    if let Err(e) = sender.send(event) {
+                        log::error!("Send watch event error: {e:?}");
+                    }
+                }
+                Err(e) => log::error!("Watch error: {e:?}"),
+            })
+            .unwrap();
+            let abs_asset_dir = state.path.join("asset");
+            watcher
+                .watch(&abs_asset_dir, RecursiveMode::Recursive)
+                .unwrap();
+
+            // process assets
+            if let Some(e) = Self::_scan_asset_dir(abs_asset_dir, &app).err() {
+                log::warn!("Project::_scan_asset_dir error: {e:?}");
+            }
+
+            // create ProjectCompiledState
             state.compiled = Some(ProjectCompiledState {
                 app,
                 library,
                 data,
                 running: false,
                 scene,
+                watcher,
+                receiver,
             });
             Ok(())
         } else {
@@ -431,6 +440,53 @@ impl Project {
         }
 
         compile_result
+    }
+
+    /// Scan asset folder to:
+    /// 1. Create ".asset" file for normal asset files
+    /// 2. Delete ".asset" file if its corresponding asset file not exists
+    /// 3. Collect asset info to insert into AssetManager
+    fn _scan_asset_dir(
+        asset_dir: impl AsRef<Path>,
+        app: &Box<dyn App>,
+    ) -> Result<(), Box<dyn Error>> {
+        Self::_scan_asset_dir_recursive(&asset_dir, &asset_dir, app)
+    }
+
+    fn _scan_asset_dir_recursive(
+        asset_dir: impl AsRef<Path>,
+        dir: impl AsRef<Path>,
+        app: &Box<dyn App>,
+    ) -> Result<(), Box<dyn Error>> {
+        let dir = dir.as_ref();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = dir.join(entry.file_name());
+            if path.is_dir() {
+                Self::_scan_asset_dir_recursive(asset_dir.as_ref(), path, app)?;
+            } else {
+                // path.is_file()
+                if path
+                    .extension()
+                    .is_some_and(|extension| extension == "asset")
+                {
+                    // asset info file
+                    let asset_info_file_name = path.file_name().unwrap().to_string_lossy(); // TODO: not convert OsStr to str
+                    let asset_file_name = &asset_info_file_name[0..asset_info_file_name.len() - 6];
+                    if !dir.join(asset_file_name).exists() {
+                        // corresponding asset file not exists, remove asset info file
+                        log::trace!("Project::_scan_asset_dir_recursive: remove independent asset info file: {path:?}");
+                        fs::remove_file(path)?;
+                    }
+                } else {
+                    // normal asset file
+                    let relative_path = path.strip_prefix(&asset_dir)?;
+                    // Read/Create AssetInfo and insert into AssetManager
+                    Self::_get_asset_info(&asset_dir, relative_path, app, true)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn is_compiled(&self) -> bool {
@@ -649,10 +705,10 @@ impl Project {
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command(Command::Reload(&compiled.data));
+            compiled.app.command_mut(CommandMut::Reload(&compiled.data));
             compiled
                 .app
-                .command(Command::SetCurrentScene(compiled.scene.clone()));
+                .command_mut(CommandMut::SetCurrentScene(compiled.scene.clone()));
         }
     }
 
@@ -668,26 +724,34 @@ impl Project {
 
     /// Return the absolute path of current opened scene, or None if no scene is opened
     pub fn scene_absolute_path(&self) -> Option<PathBuf> {
-        if let Some(compiled) = self.compiled_ref() {
-            compiled.scene.as_ref().map(|scene| {
-                let asset_dir = self
-                    .asset_dir()
-                    .expect("self.asset_dir() must be some when self.compiled_ref() is some");
-                asset_dir.join(scene)
+        self.compiled_ref().and_then(|compiled| {
+            compiled.scene.as_ref().and_then(|scene| {
+                let mut scene_path = None;
+                compiled
+                    .app
+                    .command(Command::GetAssetPath(*scene, &mut scene_path));
+                scene_path.map(|scene_path| {
+                    let asset_dir = self
+                        .asset_dir()
+                        .expect("self.asset_dir() must be some when self.compiled_ref() is some");
+                    asset_dir.join(scene_path)
+                })
             })
-        } else {
-            None
-        }
+        })
     }
 
     /// Return the relative path of current opened scene, which is relative to
     /// the asset directory of opened project, or None if no scene is opened
     pub fn scene_relative_path(&self) -> Option<PathBuf> {
-        if let Some(compiled) = self.compiled_ref() {
-            compiled.scene.clone()
-        } else {
-            None
-        }
+        self.compiled_ref().and_then(|compiled| {
+            compiled.scene.as_ref().and_then(|scene| {
+                let mut scene_path = None;
+                compiled
+                    .app
+                    .command(Command::GetAssetPath(*scene, &mut scene_path));
+                scene_path
+            })
+        })
     }
 
     /// Convert scene absolute path to relative path, which is relative to the asset
@@ -706,8 +770,8 @@ impl Project {
 
     pub fn new_scene(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command(Command::ClearEntity);
-            compiled.app.command(Command::SetCurrentScene(None));
+            compiled.app.command_mut(CommandMut::ClearEntity);
+            compiled.app.command_mut(CommandMut::SetCurrentScene(None));
             compiled.scene = None;
         }
     }
@@ -725,10 +789,12 @@ impl Project {
             let scene_abs = asset_dir.join(&scene);
             match Self::_save_to_file(&world_data, &scene_abs) {
                 Ok(_) => {
+                    let asset_info =
+                        Self::_get_asset_info(asset_dir, scene, &compiled.app, false).unwrap();
                     compiled
                         .app
-                        .command(Command::SetCurrentScene(Some(scene.clone())));
-                    compiled.scene = Some(scene);
+                        .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
+                    compiled.scene = Some(asset_info.id);
                 }
                 Err(err) => log::warn!(
                     "Failed to save WorldData to {} because {err}",
@@ -808,11 +874,13 @@ impl Project {
             match Self::_load_from_file(&scene_abs) {
                 Ok(data) => {
                     compiled.data = data;
-                    compiled.app.command(Command::Reload(&compiled.data));
+                    compiled.app.command_mut(CommandMut::Reload(&compiled.data));
+                    let asset_info =
+                        Self::_get_asset_info(asset_dir, scene, &compiled.app, false).unwrap();
                     compiled
                         .app
-                        .command(Command::SetCurrentScene(Some(scene.clone())));
-                    compiled.scene = Some(scene);
+                        .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
+                    compiled.scene = Some(asset_info.id);
                 }
                 Err(err) => log::warn!(
                     "Failed to load WorldData from {} because {err}",
@@ -825,6 +893,57 @@ impl Project {
     fn _load_from_file(path: &PathBuf) -> Result<WorldData, Box<dyn Error>> {
         let s = fs::read_to_string(path)?;
         Ok(serde_json::from_str::<WorldData>(&s)?)
+    }
+
+    /// get the asset info of file in asset_path.
+    /// * If asset info file already exists:
+    /// Read asset info file to get AssetInfo, and insert asset id to AssetManager if always_insert is true.
+    /// * If asset info file not exists:
+    /// Create a new AssetInfo, write AssetInfo into asset info file, and insert asset id to AssetManager.
+    fn _get_asset_info(
+        asset_dir: impl AsRef<Path>,
+        asset_path: impl AsRef<Path>,
+        app: &Box<dyn App>,
+        always_insert: bool,
+    ) -> Result<AssetInfo, Box<dyn Error>> {
+        let abs_asset_path = asset_dir.as_ref().join(&asset_path);
+        let mut asset_info_file = abs_asset_path.file_name().unwrap().to_os_string();
+        asset_info_file.push(".asset");
+        let abs_asset_info_path = abs_asset_path.parent().unwrap().join(asset_info_file);
+        if abs_asset_info_path.exists() {
+            let asset_info: AssetInfo =
+                serde_json::from_str(&fs::read_to_string(abs_asset_info_path)?)?;
+            if always_insert {
+                app.command(Command::InsertAsset(
+                    asset_info.id,
+                    asset_path.as_ref().to_path_buf(),
+                ));
+            }
+            Ok(asset_info)
+        } else {
+            let asset_info = Self::_create_asset_info(app);
+            fs::write(
+                abs_asset_info_path,
+                serde_json::to_string_pretty(&asset_info)?,
+            )?;
+            app.command(Command::InsertAsset(
+                asset_info.id,
+                asset_path.as_ref().to_path_buf(),
+            ));
+            Ok(asset_info)
+        }
+    }
+
+    /// Create a new AssetInfo with a new random id.
+    fn _create_asset_info(app: &Box<dyn App>) -> AssetInfo {
+        loop {
+            let asset_id = rand::random::<AssetId>();
+            let mut exists = false;
+            app.command(Command::AssetIdExists(asset_id, &mut exists));
+            if !exists {
+                return AssetInfo::new(asset_id);
+            }
+        }
     }
 }
 

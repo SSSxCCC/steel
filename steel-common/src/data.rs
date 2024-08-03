@@ -230,6 +230,24 @@ impl WorldData {
         let s = platform.read_asset_to_string(file)?;
         Ok(serde_json::from_str::<WorldData>(&s)?)
     }
+
+    /// Helper funtion to load WorldData from bytes.
+    pub fn load_from_bytes(bytes: &[u8]) -> Option<WorldData> {
+        match Self::_load_from_bytes(bytes) {
+            Ok(world_data) => Some(world_data),
+            Err(error) => {
+                log::warn!(
+                    "Failed to load world_data, bytes={:?}, error={error}",
+                    bytes
+                );
+                None
+            }
+        }
+    }
+
+    fn _load_from_bytes(bytes: &[u8]) -> Result<WorldData, Box<dyn Error>> {
+        Ok(serde_json::from_slice::<WorldData>(bytes)?)
+    }
 }
 
 pub mod vectorize {

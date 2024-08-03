@@ -1,20 +1,21 @@
-use crate::data::{ComponentRegistry, UniqueRegistry, WorldDataExt};
+use crate::{
+    asset::AssetManager,
+    data::{ComponentRegistry, UniqueRegistry, WorldDataExt},
+};
 use shipyard::{Unique, UniqueView, UniqueViewMut, World};
-use std::path::PathBuf;
-use steel_common::{data::WorldData, platform::Platform};
+use steel_common::{asset::AssetId, data::WorldData, platform::Platform};
 
 /// The SceneManager unique. You can use SceneManager::current_scene to get the current scene
 /// and use SceneManager::switch_scene to change scene at the start of next frame.
-/// Note that the scene is a PathBuf which is relative to the asset folder.
 #[derive(Unique)]
 pub struct SceneManager {
-    current_scene: Option<PathBuf>,
-    to_scene: Option<PathBuf>,
+    current_scene: Option<AssetId>,
+    to_scene: Option<AssetId>,
 }
 
 impl SceneManager {
     /// Create a new SceneManager, if scene is some, we will switch to it at the start of next frame.
-    pub fn new(scene: Option<PathBuf>) -> Self {
+    pub fn new(scene: Option<AssetId>) -> Self {
         SceneManager {
             current_scene: None,
             to_scene: scene,
@@ -22,12 +23,12 @@ impl SceneManager {
     }
 
     /// Get the current scene.
-    pub fn current_scene(&self) -> Option<&PathBuf> {
+    pub fn current_scene(&self) -> Option<&AssetId> {
         self.current_scene.as_ref()
     }
 
     /// Switch to the scene at the start of next frame.
-    pub fn switch_scene(&mut self, scene: PathBuf) {
+    pub fn switch_scene(&mut self, scene: AssetId) {
         self.to_scene = Some(scene);
     }
 
@@ -38,10 +39,14 @@ impl SceneManager {
         unique_registry: &UniqueRegistry,
     ) {
         let world_data_and_scene = world.run(
-            |mut scene_manager: UniqueViewMut<SceneManager>, platform: UniqueView<Platform>| {
+            |mut scene_manager: UniqueViewMut<SceneManager>,
+             mut asset_manager: UniqueViewMut<AssetManager>,
+             platform: UniqueView<Platform>| {
                 if let Some(to_scene) = scene_manager.to_scene.take() {
-                    if let Some(world_data) = WorldData::load_from_file(&to_scene, &platform) {
-                        return Some((world_data, to_scene));
+                    if let Some(bytes) = asset_manager.get_asset_content(to_scene, &platform) {
+                        if let Some(world_data) = WorldData::load_from_bytes(bytes) {
+                            return Some((world_data, to_scene));
+                        }
                     }
                 }
                 None
@@ -71,13 +76,20 @@ impl SceneManager {
     }
 
     /// Update scene_manager.current_scene to the scene.
-    pub(crate) fn set_current_scene(world: &mut World, scene: Option<PathBuf>) {
-        world.run(|mut scene_manager: UniqueViewMut<SceneManager>| {
-            scene_manager.current_scene = scene;
-            log::info!(
-                "SceneManager.current_scene={:?}",
-                scene_manager.current_scene
-            );
-        });
+    pub(crate) fn set_current_scene(world: &mut World, scene: Option<AssetId>) {
+        world.run(
+            |mut scene_manager: UniqueViewMut<SceneManager>,
+             asset_manager: UniqueView<AssetManager>| {
+                scene_manager.current_scene = scene;
+                log::info!(
+                    "SceneManager::set_current_scene: id={:?}, path={:?}",
+                    scene_manager.current_scene,
+                    scene_manager
+                        .current_scene
+                        .as_ref()
+                        .and_then(|scene| asset_manager.get_asset_path(*scene)),
+                );
+            },
+        );
     }
 }
