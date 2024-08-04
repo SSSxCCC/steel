@@ -11,11 +11,13 @@ pub struct Platform {
 }
 
 impl Platform {
+    /// Used by steel-editor in android build.
     pub fn new(android_app: AndroidApp) -> Self {
         Platform { android_app }
     }
 
     // TODO: use ndk::asset::AssetManager and extract common code to a helper function.
+    /// Read an asset file to string, path is relative to the root asset directory.
     pub fn read_asset_to_string(&self, path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
         let path = CString::new(path.as_ref().to_str().unwrap()).unwrap();
         let mut asset = match self.android_app.asset_manager().open(path.as_c_str()) {
@@ -27,6 +29,7 @@ impl Platform {
         Ok(buf)
     }
 
+    /// Read an asset file to bytes, path is relative to the root asset directory.
     pub fn read_asset(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, Box<dyn Error>> {
         let path = CString::new(path.as_ref().to_str().unwrap()).unwrap();
         let mut asset = match self.android_app.asset_manager().open(path.as_c_str()) {

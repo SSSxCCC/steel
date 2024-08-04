@@ -5,7 +5,11 @@ use crate::{
 };
 use glam::{UVec2, Vec3};
 use shipyard::EntityId;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use vulkano::{image::view::ImageView, sync::GpuFuture};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::WindowEvent;
@@ -80,7 +84,7 @@ pub enum Command<'a> {
     AssetIdExists(AssetId, &'a mut bool),
     InsertAsset(AssetId, PathBuf),
     DeleteAsset(AssetId),
-    ClearAssetCache(AssetId),
+    DeleteAssetDir(&'a Path),
     UpdateAssetPath(AssetId, PathBuf),
 }
 

@@ -167,6 +167,7 @@ fn _main(event_loop: EventLoop<()>) {
             }
         }
         Event::RedrawRequested(_) => {
+            project.maintain_asset_dir();
             input_editor.step_with_window_events(&events);
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let window_size = renderer.window().inner_size();

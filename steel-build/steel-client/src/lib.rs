@@ -58,9 +58,9 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     // egui
     let mut gui = None;
 
-    // engine
-    let mut engine = steel::create();
-    engine.init(InitInfo {
+    // app
+    let mut app = steel::create();
+    app.init(InitInfo {
         platform,
         context: &context,
         scene: Some(PathBuf::from("scene_path")),
@@ -118,7 +118,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             }
         }
         Event::RedrawRequested(_) => {
-            engine.command(Command::UpdateInput(&events));
+            app.command(Command::UpdateInput(&events));
             events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let window_size = renderer.window().inner_size();
@@ -130,12 +130,12 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 let gui = gui.as_mut().unwrap();
                 gui.begin_frame();
 
-                engine.update(UpdateInfo {
+                app.update(UpdateInfo {
                     update: true,
                     ctx: &gui.egui_ctx,
                 });
 
-                gpu_future = engine.draw(DrawInfo {
+                gpu_future = app.draw(DrawInfo {
                     before_future: gpu_future,
                     context: &context,
                     renderer: &renderer,

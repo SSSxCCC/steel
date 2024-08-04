@@ -1,12 +1,17 @@
 pub use steel_common::asset::*;
 
 use shipyard::Unique;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use steel_common::platform::Platform;
 
 /// Asset info.
 pub struct Asset {
+    /// The path is relative to the root asset directory.
     path: PathBuf,
+    /// Asset file content in bytes. We cache file content here to avoid reading file more than once.
     content: Option<Vec<u8>>,
 }
 
@@ -50,6 +55,7 @@ impl AssetManager {
         None
     }
 
+    /// Get the asset path of asset_id. The path is relative to the root asset directory
     pub fn get_asset_path(&self, asset_id: AssetId) -> Option<&PathBuf> {
         self.assets.get(&asset_id).map(|asset| &asset.path)
     }
@@ -59,7 +65,8 @@ impl AssetManager {
         self.assets.contains_key(&asset_id)
     }
 
-    /// Insert an asset with asset_id and path.
+    /// Insert an asset with asset_id and path. If asset_id exists,
+    /// this is equivalent to clear an asset cache by setting asset's content to None.
     pub(crate) fn insert_asset(&mut self, asset_id: AssetId, path: PathBuf) {
         self.assets.insert(asset_id, Asset::new(path));
     }
@@ -69,10 +76,21 @@ impl AssetManager {
         self.assets.remove(&asset_id);
     }
 
-    /// Clear an asset cache by setting asset's content to None.
-    pub(crate) fn clear_asset_cache(&mut self, asset_id: AssetId) {
-        if let Some(asset) = self.assets.get_mut(&asset_id) {
-            asset.content = None;
+    /// Delete all asset in an asset directory. dir is relative to the root asset directory.
+    pub(crate) fn delete_asset_dir(&mut self, dir: impl AsRef<Path>) {
+        let asset_ids_to_delete = self
+            .assets
+            .iter()
+            .filter_map(|(id, asset)| {
+                if asset.path.starts_with(&dir) {
+                    Some(*id)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        for id in asset_ids_to_delete {
+            self.assets.remove(&id);
         }
     }
 

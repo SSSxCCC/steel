@@ -379,11 +379,11 @@ impl App for SteelApp {
                     .unwrap()
                     .delete_asset(asset_id);
             }
-            Command::ClearAssetCache(asset_id) => {
+            Command::DeleteAssetDir(dir) => {
                 self.world
                     .borrow::<UniqueViewMut<AssetManager>>()
                     .unwrap()
-                    .clear_asset_cache(asset_id);
+                    .delete_asset_dir(dir);
             }
             Command::UpdateAssetPath(asset_id, path) => {
                 self.world

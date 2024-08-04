@@ -2,18 +2,21 @@ use crate::utils::LocalData;
 use egui_winit_vulkano::Gui;
 use libloading::{Library, Symbol};
 use log::{LevelFilter, Log, SetLoggerError};
-use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+    event::{ModifyKind, RenameMode},
+    Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+};
 use regex::Regex;
 use shipyard::EntityId;
 use std::{
     error::Error,
     fs,
     path::{Path, PathBuf},
-    sync::mpsc::Receiver,
+    sync::mpsc::{Receiver, TryRecvError},
 };
 use steel_common::{
     app::{App, Command, CommandMut, InitInfo},
-    asset::{AssetId, AssetInfo},
+    asset::{AssetId, AssetIdType, AssetInfo},
     data::{Data, EntityData, Limit, Value, WorldData},
     platform::Platform,
 };
@@ -30,9 +33,13 @@ struct ProjectCompiledState {
     scene: Option<AssetId>,
 
     /// Watch for file changes in asset folder.
+    #[allow(unused)]
     watcher: RecommendedWatcher,
     /// Receiver for file change events from watcher.
     receiver: Receiver<Event>,
+    /// Last EventKind::Modify(ModifyKind::Name(RenameMode::From)),
+    /// to be used with upcoming EventKind::Modify(ModifyKind::Name(RenameMode::To)).
+    last_rename_from_event: Option<Event>,
 }
 
 struct ProjectState {
@@ -202,10 +209,10 @@ impl Project {
             let mut watcher = notify::recommended_watcher(move |result| match result {
                 Ok(event) => {
                     if let Err(e) = sender.send(event) {
-                        log::error!("Send watch event error: {e:?}");
+                        log::error!("Send watch event error: {e}");
                     }
                 }
-                Err(e) => log::error!("Watch error: {e:?}"),
+                Err(e) => log::error!("Watch error: {e}"),
             })
             .unwrap();
             let abs_asset_dir = state.path.join("asset");
@@ -214,8 +221,8 @@ impl Project {
                 .unwrap();
 
             // process assets
-            if let Some(e) = Self::_scan_asset_dir(abs_asset_dir, &app).err() {
-                log::warn!("Project::_scan_asset_dir error: {e:?}");
+            if let Err(e) = Self::_scan_asset_dir(abs_asset_dir, &app) {
+                log::warn!("Project::_scan_asset_dir error: {e}");
             }
 
             // create ProjectCompiledState
@@ -227,6 +234,7 @@ impl Project {
                 scene,
                 watcher,
                 receiver,
+                last_rename_from_event: None,
             });
             Ok(())
         } else {
@@ -443,9 +451,9 @@ impl Project {
     }
 
     /// Scan asset folder to:
-    /// 1. Create ".asset" file for normal asset files
-    /// 2. Delete ".asset" file if its corresponding asset file not exists
-    /// 3. Collect asset info to insert into AssetManager
+    /// 1. Create ".asset" file for normal asset files.
+    /// 2. Delete ".asset" file if its corresponding asset file not exists.
+    /// 3. Collect asset info to insert into AssetManager.
     fn _scan_asset_dir(
         asset_dir: impl AsRef<Path>,
         app: &Box<dyn App>,
@@ -464,8 +472,7 @@ impl Project {
             let path = dir.join(entry.file_name());
             if path.is_dir() {
                 Self::_scan_asset_dir_recursive(asset_dir.as_ref(), path, app)?;
-            } else {
-                // path.is_file()
+            } else if path.is_file() {
                 if path
                     .extension()
                     .is_some_and(|extension| extension == "asset")
@@ -482,11 +489,122 @@ impl Project {
                     // normal asset file
                     let relative_path = path.strip_prefix(&asset_dir)?;
                     // Read/Create AssetInfo and insert into AssetManager
-                    Self::_get_asset_info(&asset_dir, relative_path, app, true)?;
+                    Self::_get_asset_info_and_insert(&asset_dir, relative_path, app, true)?;
                 }
             }
         }
         Ok(())
+    }
+
+    /// Maintain asset files in asset directory:
+    /// 1. If an asset file is added/created, add/create asset info file, and insert the asset into AssetManager.
+    /// 2. If an asset file is removed/deleted, remove/delete asset info file, and delete the asset in AssetManager.
+    /// 3. When a file is moved, two events are generated: remove and create, so 1 and 2 have handled file moving.
+    /// This will create a new asset id for the moved file! Therefore if user want to keep the asset id
+    /// after moving a file, the user must move its corresponding ".asset" file at the same time!
+    /// 4. If an asset file is renamed, rename asset info file, and update the asset path in AssetManager.
+    /// 5. If an asset file is modified, clear the asset cache in AssetManager.
+    pub fn maintain_asset_dir(&mut self) {
+        let asset_dir = self.asset_dir();
+        if let Some(compiled) = self.compiled_mut() {
+            let asset_dir =
+                asset_dir.expect("self.asset_dir() must be some when self.compiled_mut() is some");
+            loop {
+                match compiled.receiver.try_recv() {
+                    Err(TryRecvError::Empty) => break, // no more events, just break
+                    Err(e) => log::error!("Project::maintain_asset_dir: try receive error: {e}"),
+                    Ok(event) => match event.kind {
+                        EventKind::Remove(_) => {
+                            for path in event.paths {
+                                let asset_relative_path = path.strip_prefix(&asset_dir).unwrap();
+                                // the path has been removed, so we do not know if it is file or directory
+                                // for removed directory
+                                compiled
+                                    .app
+                                    .command(Command::DeleteAssetDir(asset_relative_path));
+                                // for removed file
+                                let asset_info_path = Self::_corresponding_asset_info_path(path);
+                                match Self::_read_asset_info(&asset_info_path) {
+                                    Ok(asset_info) => {
+                                        if let Some(asset_info) = asset_info {
+                                            compiled
+                                                .app
+                                                .command(Command::DeleteAsset(asset_info.id));
+                                            if let Err(e) = fs::remove_file(&asset_info_path) {
+                                                log::warn!("Project::maintain_asset_dir: remove {} error: {e}", asset_info_path.display());
+                                            }
+                                        }
+                                    }
+                                    Err(e) => log::error!("Project::maintain_asset_dir: read asset info from {} error: {e}", asset_info_path.display()),
+                                }
+                            }
+                        }
+                        EventKind::Modify(ModifyKind::Name(mode)) => {
+                            match mode {
+                                RenameMode::From => {
+                                    if let Some(last_rename_from_event) = &compiled.last_rename_from_event {
+                                        log::warn!("Project::maintain_asset_dir: unexpected received another rename from event! previous: {last_rename_from_event:?}");
+                                    }
+                                    if event.paths.len() != 1 {
+                                        log::warn!("Project::maintain_asset_dir: length of rename from event paths is not 1! event: {event:?}");
+                                    }
+                                    compiled.last_rename_from_event = Some(event);
+                                }
+                                RenameMode::To => {
+                                    if let Some(last_rename_from_event) = compiled.last_rename_from_event.take() {
+                                        if event.paths.len() != 1 {
+                                            log::warn!("Project::maintain_asset_dir: length of rename to event paths is not 1! event: {event:?}");
+                                        }
+                                        if event.paths[0].is_file() && !event.paths[0].extension().is_some_and(|ext| ext == "asset") {
+                                            let from_asset_info_file = Self::_corresponding_asset_info_path(&last_rename_from_event.paths[0]);
+                                            let to_asset_info_file = Self::_corresponding_asset_info_path(&event.paths[0]);
+                                            if from_asset_info_file.exists() && !to_asset_info_file.exists() {
+                                                match fs::rename(&from_asset_info_file, &to_asset_info_file) {
+                                                    Ok(_) => {
+                                                        match Self::_read_asset_info(&to_asset_info_file) {
+                                                            Ok(asset_info) => {
+                                                                if let Some(asset_info) = asset_info {
+                                                                    let asset_relative_path = event.paths[0].strip_prefix(&asset_dir).unwrap();
+                                                                    compiled.app.command(Command::UpdateAssetPath(asset_info.id, asset_relative_path.to_path_buf()));
+                                                                } else {
+                                                                    log::error!("Project::maintain_asset_dir: read asset info from {} returns None!", to_asset_info_file.display())
+                                                                }
+                                                            }
+                                                            Err(e) => log::error!("Project::maintain_asset_dir: read asset info from {} error: {e}", to_asset_info_file.display()),
+                                                        }
+                                                    }
+                                                    Err(e) => log::error!("Project::maintain_asset_dir: rename asset info file error: {e}, from: {}, to: {}", from_asset_info_file.display(), to_asset_info_file.display()),
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        log::warn!("Project::maintain_asset_dir: unexpected received rename to event: {event:?}");
+                                    }
+                                }
+                                _ => log::warn!("Project::maintain_asset_dir: receiving an unknown RenameMode event: {event:?}"),
+                            }
+                        }
+                        EventKind::Modify(_) | EventKind::Create(_) => {
+                            for path in event.paths {
+                                if path.is_file() && !path.extension().is_some_and(|ext| ext == "asset") {
+                                    let asset_relative_path =
+                                        path.strip_prefix(&asset_dir).unwrap();
+                                    if let Err(e) = Self::_get_asset_info_and_insert(
+                                        &asset_dir,
+                                        asset_relative_path,
+                                        &compiled.app,
+                                        true,
+                                    ) {
+                                        log::error!("Project::maintain_asset_dir: get asset info and insert from {} error: {e}", path.display());
+                                    }
+                                }
+                            }
+                        }
+                        _ => (),
+                    },
+                }
+            }
+        }
     }
 
     pub fn is_compiled(&self) -> bool {
@@ -789,15 +907,23 @@ impl Project {
             let scene_abs = asset_dir.join(&scene);
             match Self::_save_to_file(&world_data, &scene_abs) {
                 Ok(_) => {
-                    let asset_info =
-                        Self::_get_asset_info(asset_dir, scene, &compiled.app, false).unwrap();
-                    compiled
-                        .app
-                        .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
-                    compiled.scene = Some(asset_info.id);
+                    match Self::_get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
+                        Ok(asset_info) => {
+                            compiled
+                                .app
+                                .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
+                            compiled.scene = Some(asset_info.id);
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "get asset info and insert from {} error: {e}",
+                                scene_abs.display()
+                            )
+                        }
+                    }
                 }
-                Err(err) => log::warn!(
-                    "Failed to save WorldData to {} because {err}",
+                Err(err) => log::error!(
+                    "Failed to save WorldData to {} error: {err}",
                     scene_abs.display()
                 ),
             }
@@ -875,15 +1001,23 @@ impl Project {
                 Ok(data) => {
                     compiled.data = data;
                     compiled.app.command_mut(CommandMut::Reload(&compiled.data));
-                    let asset_info =
-                        Self::_get_asset_info(asset_dir, scene, &compiled.app, false).unwrap();
-                    compiled
-                        .app
-                        .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
-                    compiled.scene = Some(asset_info.id);
+                    match Self::_get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
+                        Ok(asset_info) => {
+                            compiled
+                                .app
+                                .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
+                            compiled.scene = Some(asset_info.id);
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "get asset info and insert from {} error: {e}",
+                                scene_abs.display()
+                            )
+                        }
+                    }
                 }
-                Err(err) => log::warn!(
-                    "Failed to load WorldData from {} because {err}",
+                Err(e) => log::error!(
+                    "Failed to load WorldData from {} error: {e}",
                     scene_abs.display()
                 ),
             }
@@ -895,24 +1029,20 @@ impl Project {
         Ok(serde_json::from_str::<WorldData>(&s)?)
     }
 
-    /// get the asset info of file in asset_path.
+    /// Get the asset info of file in asset_path.
     /// * If asset info file already exists:
     /// Read asset info file to get AssetInfo, and insert asset id to AssetManager if always_insert is true.
     /// * If asset info file not exists:
     /// Create a new AssetInfo, write AssetInfo into asset info file, and insert asset id to AssetManager.
-    fn _get_asset_info(
+    fn _get_asset_info_and_insert(
         asset_dir: impl AsRef<Path>,
         asset_path: impl AsRef<Path>,
         app: &Box<dyn App>,
         always_insert: bool,
     ) -> Result<AssetInfo, Box<dyn Error>> {
         let abs_asset_path = asset_dir.as_ref().join(&asset_path);
-        let mut asset_info_file = abs_asset_path.file_name().unwrap().to_os_string();
-        asset_info_file.push(".asset");
-        let abs_asset_info_path = abs_asset_path.parent().unwrap().join(asset_info_file);
-        if abs_asset_info_path.exists() {
-            let asset_info: AssetInfo =
-                serde_json::from_str(&fs::read_to_string(abs_asset_info_path)?)?;
+        let abs_asset_info_path = Self::_corresponding_asset_info_path(abs_asset_path);
+        if let Some(asset_info) = Self::_read_asset_info(&abs_asset_info_path)? {
             if always_insert {
                 app.command(Command::InsertAsset(
                     asset_info.id,
@@ -934,10 +1064,33 @@ impl Project {
         }
     }
 
+    /// Get corresponding asset info path of an asset path.
+    fn _corresponding_asset_info_path(path: impl AsRef<Path>) -> PathBuf {
+        let mut asset_info_file_name = path.as_ref().file_name().unwrap().to_os_string();
+        asset_info_file_name.push(".asset");
+        path.as_ref().parent().unwrap().join(asset_info_file_name)
+    }
+
+    /// Get the asset info from asset info file. Returns None if asset info file not exists.
+    fn _read_asset_info(
+        abs_asset_info_path: impl AsRef<Path>,
+    ) -> Result<Option<AssetInfo>, Box<dyn Error>> {
+        if abs_asset_info_path.as_ref().exists() {
+            Ok(Some(serde_json::from_str(&fs::read_to_string(
+                abs_asset_info_path,
+            )?)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Create a new AssetInfo with a new random id.
     fn _create_asset_info(app: &Box<dyn App>) -> AssetInfo {
         loop {
-            let asset_id = rand::random::<AssetId>();
+            let asset_id = AssetId::new(rand::random::<AssetIdType>());
+            if asset_id == AssetId::INVALID {
+                continue;
+            }
             let mut exists = false;
             app.command(Command::AssetIdExists(asset_id, &mut exists));
             if !exists {

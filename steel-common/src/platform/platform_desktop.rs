@@ -12,23 +12,26 @@ pub struct Platform {
 }
 
 impl Platform {
+    /// Used by steel-editor in desktop build.
     pub fn new_editor(project_path: PathBuf) -> Self {
         Platform { project_path }
     }
 
-    /// steel-client can use relative path to access asset folder, so that we set project_path to empty.
+    /// Used by steel-client, steel-client can use relative path to access asset folder, so that we set project_path to empty.
     pub fn new_client() -> Self {
         Platform {
             project_path: PathBuf::from(""),
         }
     }
 
+    /// Read an asset file to string, path is relative to the root asset directory.
     pub fn read_asset_to_string(&self, path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
         Ok(std::fs::read_to_string(
             self.project_path.join("asset").join(path),
         )?)
     }
 
+    /// Read an asset file to bytes, path is relative to the root asset directory.
     pub fn read_asset(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, Box<dyn Error>> {
         Ok(std::fs::read(self.project_path.join("asset").join(path))?)
     }
