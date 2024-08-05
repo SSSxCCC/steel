@@ -63,7 +63,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     app.init(InitInfo {
         platform,
         context: &context,
-        scene: Some(PathBuf::from("scene_path")),
+        scene: None,//Some(PathBuf::from("scene_path")),
     }); // scene path will be modified to init scene path temporily while compiling
 
     log::debug!("Start main loop!");

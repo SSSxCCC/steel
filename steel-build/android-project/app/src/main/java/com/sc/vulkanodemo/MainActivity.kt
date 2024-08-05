@@ -41,18 +41,26 @@ class MainActivity : GameActivity() {
 
     companion object {
         init {
-            // Load the STL first to workaround issues on old Android versions:
-            // "if your app targets a version of Android earlier than Android 4.3
-            // (Android API level 18),
-            // and you use libc++_shared.so, you must load the shared library before any other
-            // library that depends on it."
-            // See https://developer.android.com/ndk/guides/cpp-support#shared_runtimes
-            //System.loadLibrary("c++_shared");
-
             // Load the native library.
-            // The name "android-game" depends on your CMake configuration, must be
-            // consistent here and inside AndroidManifect.xml
             System.loadLibrary("main")
+        }
+    }
+
+    fun listAssetFiles(): List<String> {
+        val list = ArrayList<String>()
+        listAssetFilesRecursive("", list)
+        return list
+    }
+
+    private fun listAssetFilesRecursive(path: String, outList: MutableList<String>) {
+        assets.list(path)?.let {
+            if (it.isEmpty()) { // path is a file
+                outList.add(path)
+            } else { // path is a directory
+                for (entry in it) {
+                    listAssetFilesRecursive(if (path.isEmpty()) entry else "$path/$entry", outList)
+                }
+            }
         }
     }
 }

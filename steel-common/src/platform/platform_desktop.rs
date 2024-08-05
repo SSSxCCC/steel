@@ -17,10 +17,11 @@ impl Platform {
         Platform { project_path }
     }
 
-    /// Used by steel-client, steel-client can use relative path to access asset folder, so that we set project_path to empty.
+    /// Used by steel-client. steel-client in desktop build can use relative path
+    /// to access asset folder, so that we set project_path to empty.
     pub fn new_client() -> Self {
         Platform {
-            project_path: PathBuf::from(""),
+            project_path: PathBuf::new(),
         }
     }
 
