@@ -589,7 +589,11 @@ pub fn physics2d_update_system(
     let physics2d_manager = physics2d_manager.as_mut();
 
     // dynamically change integration_parameters.dt according to time.delta()
-    physics2d_manager.integration_parameters.dt = time.delta();
+    physics2d_manager.integration_parameters.dt = if time.delta() < 0.1 {
+        time.delta()
+    } else {
+        0.1
+    };
 
     physics2d_update_from_transform(
         physics2d_manager,
