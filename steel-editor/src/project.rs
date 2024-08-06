@@ -307,10 +307,10 @@ impl Project {
     /// 1. Modify "steel-project path" of steel-client/Cargo.toml and steel-dynlib/Cargo.toml to project_path.
     /// (Note: we must modify both of them at same time even when only one project is compiling,
     /// because cargo requires that all path of same dependency in a workspace must be same)
-    /// 2. Modify "scene_path" of steel-client/src/lib.rs to scene_path, just pass None when not compile steel-client.
+    /// 2. Modify "init_scene" of steel-client/src/lib.rs to init_scene, just pass None when not compile steel-client.
     fn _modify_files_while_compiling(
         project_path: impl AsRef<Path>,
-        scene_path: Option<PathBuf>,
+        init_scene: Option<AssetId>,
         compile_fn: fn() -> Result<(), Box<dyn Error>>,
     ) -> Result<(), Box<dyn Error>> {
         let cargo_toml_paths = [
@@ -337,16 +337,16 @@ impl Project {
             }
             cargo_toml_original_contents.push(original_content);
         }
-        let steel_client_src_original_content = if scene_path.is_some() {
+        let steel_client_src_original_content = if init_scene.is_some() {
             log::info!("Read {}", steel_client_src_path.display());
             let original_content = fs::read_to_string(&steel_client_src_path)?;
             let num_match = original_content
-                .matches(SCENE_PATH)
+                .matches(INIT_SCENE)
                 .collect::<Vec<_>>()
                 .len();
             if num_match != 1 {
                 return Err(ProjectError::new(format!(
-                    "Expected only 1 match '{SCENE_PATH}' in {}, \
+                    "Expected only 1 match '{INIT_SCENE}' in {}, \
                     actual number of match: {num_match}",
                     steel_client_src_path.display()
                 ))
@@ -372,24 +372,11 @@ impl Project {
             })
             .collect::<Vec<_>>();
 
-        let scene_path = if let Some(scene_path) = &scene_path {
-            Some(
-                scene_path
-                    .to_str()
-                    .ok_or(ProjectError::new(format!(
-                        "{} to_str() returns None",
-                        scene_path.display()
-                    )))?
-                    .replace("\\", "/"),
-            )
-        } else {
-            None
-        };
         let steel_client_src_new_content =
             steel_client_src_original_content
                 .as_ref()
                 .map(|original_content| {
-                    original_content.replacen(SCENE_PATH, scene_path.unwrap().as_str(), 1)
+                    original_content.replacen(INIT_SCENE, &init_scene.unwrap().to_string(), 1)
                 });
 
         let mut num_modified_cargo_toml = cargo_toml_paths.len();
@@ -469,7 +456,7 @@ impl Project {
         let dir = dir.as_ref();
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
-            let path = dir.join(entry.file_name());
+            let path = entry.path();
             if path.is_dir() {
                 Self::_scan_asset_dir_recursive(asset_dir.as_ref(), path, app)?;
             } else if path.is_file() {
@@ -633,9 +620,13 @@ impl Project {
 
     fn _export_windows(&self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_ref() {
-            let scene = self.scene_relative_path().ok_or(ProjectError::new(
-                "No scene is opened, you must open a scene as init scene before export",
-            ))?;
+            let scene = state
+                .compiled
+                .as_ref()
+                .and_then(|compiled| compiled.scene)
+                .ok_or(ProjectError::new(
+                    "No scene is opened, you must open a scene as init scene before export",
+                ))?;
 
             Self::_export_asset(
                 self.asset_dir()
@@ -692,9 +683,13 @@ impl Project {
 
     fn _export_android(&self) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_ref() {
-            let scene = self.scene_relative_path().ok_or(ProjectError::new(
-                "No scene is opened, you must open a scene as init scene before export",
-            ))?;
+            let scene = state
+                .compiled
+                .as_ref()
+                .and_then(|compiled| compiled.scene)
+                .ok_or(ProjectError::new(
+                    "No scene is opened, you must open a scene as init scene before export",
+                ))?;
 
             Self::_export_asset(
                 self.asset_dir()
@@ -1169,4 +1164,4 @@ pub fn create() -> Box<dyn App> {
 
 const STEEL_PROJECT_PATH: &'static str = "../steel-project";
 
-const SCENE_PATH: &'static str = "scene_path";
+const INIT_SCENE: &'static str = "init_scene";

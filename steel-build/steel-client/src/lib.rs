@@ -2,9 +2,10 @@
 
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::UVec2;
-use std::path::PathBuf;
+use std::{error::Error, path::Path};
 use steel_common::{
     app::{Command, DrawInfo, InitInfo, UpdateInfo},
+    asset::{AssetId, AssetInfo},
     platform::Platform,
 };
 use vulkano_util::{
@@ -60,11 +61,41 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
 
     // app
     let mut app = steel::create();
+
+    // insert all assets into AssetManager
+    let insert_asset_fn = |asset_info_file: &Path| -> Result<(), Box<dyn Error>> {
+        let asset_info_string = platform.read_asset_to_string(asset_info_file)?;
+        let asset_id = serde_json::from_str::<AssetInfo>(&asset_info_string)?.id;
+        let asset_info_file_name = asset_info_file.file_name().unwrap().to_string_lossy(); // TODO: not convert OsStr to str
+        let asset_file_name = &asset_info_file_name[0..asset_info_file_name.len() - 6];
+        let asest_file_path = asset_info_file.parent().unwrap().join(asset_file_name);
+        log::debug!(
+            "Insert asset \"{}\", id: {asset_id:?}",
+            asest_file_path.display()
+        );
+        app.command(Command::InsertAsset(asset_id, asest_file_path));
+        Ok(())
+    };
+    platform
+        .list_asset_files()
+        .unwrap()
+        .into_iter()
+        .filter(|f| f.extension().is_some_and(|e| e == "asset"))
+        .for_each(|asset_info_file| {
+            if let Err(e) = insert_asset_fn(&asset_info_file) {
+                log::warn!(
+                    "Failed to insert asset: {}, error: {e}",
+                    asset_info_file.display()
+                );
+            }
+        });
+
+    // call App::init
     app.init(InitInfo {
         platform,
         context: &context,
-        scene: None,//Some(PathBuf::from("scene_path")),
-    }); // scene path will be modified to init scene path temporily while compiling
+        scene: Some(AssetId::new("init_scene".parse().unwrap())),
+    }); // init scene will be modified to init scene asset id temporily while compiling
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {

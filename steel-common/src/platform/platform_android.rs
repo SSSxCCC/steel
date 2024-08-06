@@ -35,7 +35,7 @@ impl Platform {
     /// Read an asset file to bytes, path is relative to the root asset directory.
     pub fn read_asset(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut asset = self.get_asset(path)?;
-        let mut buf = Vec::new();
+        let mut buf = vec![0; asset.get_length()];
         asset.read(&mut buf)?;
         Ok(buf)
     }
