@@ -457,26 +457,25 @@ impl Project {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_dir() {
+            if entry.file_type()?.is_dir() {
                 Self::_scan_asset_dir_recursive(asset_dir.as_ref(), path, app)?;
-            } else if path.is_file() {
+            } else if entry.file_type()?.is_file() {
                 if path
                     .extension()
                     .is_some_and(|extension| extension == "asset")
                 {
-                    // asset info file
-                    let asset_info_file_name = path.file_name().unwrap().to_string_lossy(); // TODO: not convert OsStr to str
-                    let asset_file_name = &asset_info_file_name[0..asset_info_file_name.len() - 6];
-                    if !dir.join(asset_file_name).exists() {
+                    // path is asset info file
+                    let asset_file = AssetInfo::asset_info_path_to_asset_path(&path);
+                    if !asset_file.exists() {
                         // corresponding asset file not exists, remove asset info file
                         log::trace!("Project::_scan_asset_dir_recursive: remove independent asset info file: {path:?}");
                         fs::remove_file(path)?;
                     }
                 } else {
-                    // normal asset file
+                    // path is normal asset file
                     let relative_path = path.strip_prefix(&asset_dir)?;
                     // Read/Create AssetInfo and insert into AssetManager
-                    Self::_get_asset_info_and_insert(&asset_dir, relative_path, app, true)?;
+                    Self::get_asset_info_and_insert(&asset_dir, relative_path, app, true)?;
                 }
             }
         }
@@ -510,7 +509,7 @@ impl Project {
                                     .app
                                     .command(Command::DeleteAssetDir(asset_relative_path));
                                 // for removed file
-                                let asset_info_path = Self::_corresponding_asset_info_path(path);
+                                let asset_info_path = AssetInfo::asset_path_to_asset_info_path(path);
                                 match Self::_read_asset_info(&asset_info_path) {
                                     Ok(asset_info) => {
                                         if let Some(asset_info) = asset_info {
@@ -543,8 +542,8 @@ impl Project {
                                             log::warn!("Project::maintain_asset_dir: length of rename to event paths is not 1! event: {event:?}");
                                         }
                                         if event.paths[0].is_file() && !event.paths[0].extension().is_some_and(|ext| ext == "asset") {
-                                            let from_asset_info_file = Self::_corresponding_asset_info_path(&last_rename_from_event.paths[0]);
-                                            let to_asset_info_file = Self::_corresponding_asset_info_path(&event.paths[0]);
+                                            let from_asset_info_file = AssetInfo::asset_path_to_asset_info_path(&last_rename_from_event.paths[0]);
+                                            let to_asset_info_file = AssetInfo::asset_path_to_asset_info_path(&event.paths[0]);
                                             if from_asset_info_file.exists() && !to_asset_info_file.exists() {
                                                 match fs::rename(&from_asset_info_file, &to_asset_info_file) {
                                                     Ok(_) => {
@@ -576,7 +575,7 @@ impl Project {
                                 if path.is_file() && !path.extension().is_some_and(|ext| ext == "asset") {
                                     let asset_relative_path =
                                         path.strip_prefix(&asset_dir).unwrap();
-                                    if let Err(e) = Self::_get_asset_info_and_insert(
+                                    if let Err(e) = Self::get_asset_info_and_insert(
                                         &asset_dir,
                                         asset_relative_path,
                                         &compiled.app,
@@ -902,7 +901,7 @@ impl Project {
             let scene_abs = asset_dir.join(&scene);
             match Self::_save_to_file(&world_data, &scene_abs) {
                 Ok(_) => {
-                    match Self::_get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
+                    match Self::get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
                         Ok(asset_info) => {
                             compiled
                                 .app
@@ -996,7 +995,7 @@ impl Project {
                 Ok(data) => {
                     compiled.data = data;
                     compiled.app.command_mut(CommandMut::Reload(&compiled.data));
-                    match Self::_get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
+                    match Self::get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
                         Ok(asset_info) => {
                             compiled
                                 .app
@@ -1029,14 +1028,14 @@ impl Project {
     /// Read asset info file to get AssetInfo, and insert asset id to AssetManager if always_insert is true.
     /// * If asset info file not exists:
     /// Create a new AssetInfo, write AssetInfo into asset info file, and insert asset id to AssetManager.
-    fn _get_asset_info_and_insert(
+    pub fn get_asset_info_and_insert(
         asset_dir: impl AsRef<Path>,
         asset_path: impl AsRef<Path>,
         app: &Box<dyn App>,
         always_insert: bool,
     ) -> Result<AssetInfo, Box<dyn Error>> {
         let abs_asset_path = asset_dir.as_ref().join(&asset_path);
-        let abs_asset_info_path = Self::_corresponding_asset_info_path(abs_asset_path);
+        let abs_asset_info_path = AssetInfo::asset_path_to_asset_info_path(abs_asset_path);
         if let Some(asset_info) = Self::_read_asset_info(&abs_asset_info_path)? {
             if always_insert {
                 app.command(Command::InsertAsset(
@@ -1057,13 +1056,6 @@ impl Project {
             ));
             Ok(asset_info)
         }
-    }
-
-    /// Get corresponding asset info path of an asset path.
-    fn _corresponding_asset_info_path(path: impl AsRef<Path>) -> PathBuf {
-        let mut asset_info_file_name = path.as_ref().file_name().unwrap().to_os_string();
-        asset_info_file_name.push(".asset");
-        path.as_ref().parent().unwrap().join(asset_info_file_name)
     }
 
     /// Get the asset info from asset info file. Returns None if asset info file not exists.

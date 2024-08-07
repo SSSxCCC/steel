@@ -23,8 +23,8 @@ impl SceneManager {
     }
 
     /// Get the current scene.
-    pub fn current_scene(&self) -> Option<&AssetId> {
-        self.current_scene.as_ref()
+    pub fn current_scene(&self) -> Option<AssetId> {
+        self.current_scene
     }
 
     /// Switch to the scene at the start of next frame.

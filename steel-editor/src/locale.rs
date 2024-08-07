@@ -83,6 +83,7 @@ impl Texts {
             "The Steel game engine has a simple asset system. Scenes, images, prefabs and other files used in the game are stored in the \"asset\" directory of the game project directory. Next to each asset file is an additional file with the same name but with the \".asset\" suffix added, which stores the ID of the asset. Each asset is loaded by its ID, not its file path. Therefore, if you need to move/rename an asset, you need to move/rename its corresponding \".asset\" file as well.",
             "Steel游戏引擎有一个简单的资产系统，场景、图像、预制件等游戏要用到的文件都保存在游戏项目目录的“asset”目录下。每个资产文件旁边都有一个同名的额外添加了“.asset”后缀的文件，这里面保存了这个资产的ID。每个资产是通过ID加载的，而不是其文件路径。因此如果你需要移动/重命名一个资产，你需要同时也移动/重命名其对应的“.asset”文件。",
         )
+        .add("Select", "Select", "选择")
     }
 
     fn add(mut self, key: &'static str, eng: &'static str, chs: &'static str) -> Self {

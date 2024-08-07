@@ -1,9 +1,14 @@
-use crate::locale::Texts;
+use crate::{locale::Texts, project::Project};
 use glam::{Vec3, Vec4};
 use shipyard::EntityId;
-use std::{collections::HashMap, ops::RangeInclusive};
+use std::{
+    collections::HashMap,
+    ops::RangeInclusive,
+    path::{Path, PathBuf},
+};
 use steel_common::{
     app::{App, Command, CommandMut},
+    asset::{AssetId, AssetInfo},
     data::{Data, EntitiesData, EntityData, Limit, Value, WorldData},
 };
 
@@ -25,6 +30,7 @@ impl DataWindow {
         ctx: &egui::Context,
         world_data: &mut WorldData,
         app: &mut Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
         texts: &Texts,
     ) {
         egui::Window::new(texts.get("Entities")).show(&ctx, |ui| {
@@ -33,7 +39,7 @@ impl DataWindow {
 
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
             egui::Window::new(texts.get("Components")).show(&ctx, |ui| {
-                self.entity_view(ui, entity_data, app);
+                self.entity_view(ui, entity_data, app, asset_dir, texts);
             });
         }
     }
@@ -359,6 +365,8 @@ impl DataWindow {
         ui: &mut egui::Ui,
         entity_data: &mut EntityData,
         app: &mut Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
+        texts: &Texts,
     ) {
         for (component_name, component_data) in &mut entity_data.components {
             ui.horizontal(|ui| {
@@ -373,7 +381,7 @@ impl DataWindow {
                     }
                 }
             });
-            Self::data_view(ui, component_name, component_data);
+            Self::data_view(ui, component_name, component_data, app, &asset_dir, texts);
             if component_name == "EntityInfo" {
                 ui.horizontal(|ui| {
                     ui.label("id");
@@ -403,12 +411,19 @@ impl DataWindow {
         });
     }
 
-    pub fn data_view(ui: &mut egui::Ui, data_name: &String, data: &mut Data) {
+    pub fn data_view(
+        ui: &mut egui::Ui,
+        data_name: &String,
+        data: &mut Data,
+        app: &Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
+        texts: &Texts,
+    ) {
         for (name, value) in &mut data.values {
             ui.horizontal(|ui| {
                 ui.label(name);
+                let color = egui::Color32::BLACK;
                 if let Some(Limit::ReadOnly) = data.limits.get(name) {
-                    let color = egui::Color32::BLACK;
                     match value {
                         Value::Bool(b) => Self::color_label(ui, color, if *b { "☑" } else { "☐" }),
                         Value::Int32(v) => Self::color_label(ui, color, format!("{v}")),
@@ -425,6 +440,9 @@ impl DataWindow {
                         Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
                         Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
                         Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
+                        Value::Asset(v) => {
+                            Self::show_asset(ui, color, *v, app);
+                        }
                         Value::VecEntity(v) => {
                             ui.vertical(|ui| {
                                 for e in v {
@@ -760,10 +778,55 @@ impl DataWindow {
                                 );
                             });
                         }
+                        Value::Asset(v) => {
+                            ui.horizontal(|ui| {
+                                let asest_path = Self::show_asset(ui, color, *v, app);
+                                let starting_dir = if let Some(asset_path) = &asest_path {
+                                    asset_dir
+                                        .as_ref()
+                                        .join(asset_path)
+                                        .parent()
+                                        .unwrap()
+                                        .to_path_buf()
+                                } else {
+                                    asset_dir.as_ref().to_path_buf()
+                                };
+                                if ui.button(texts.get("Select")).clicked() {
+                                    let file = rfd::FileDialog::new()
+                                        .set_directory(starting_dir)
+                                        .pick_file();
+                                    if let Some(mut file) = file {
+                                        if file.starts_with(&asset_dir) {
+                                            if file
+                                                .extension()
+                                                .is_some_and(|extension| extension == "asset")
+                                            {
+                                                file =
+                                                    AssetInfo::asset_info_path_to_asset_path(file);
+                                            }
+                                            let asset_file = file.strip_prefix(&asset_dir).unwrap();
+                                            match Project::get_asset_info_and_insert(
+                                                &asset_dir, asset_file, app, false,
+                                            ) {
+                                                Ok(asset_info) => *v = asset_info.id,
+                                                Err(e) => log::error!(
+                                                    "Failed to get asset info, error: {e}"
+                                                ),
+                                            }
+                                        } else {
+                                            log::error!(
+                                                "You must select a file in asset directory: {}",
+                                                asset_dir.as_ref().display()
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                        }
                         Value::VecEntity(v) => {
                             ui.vertical(|ui| {
                                 for e in v {
-                                    Self::color_label(ui, egui::Color32::BLACK, format!("{e:?}"));
+                                    Self::color_label(ui, color, format!("{e:?}"));
                                     // TODO: add/remove/change entity in editor
                                 }
                             });
@@ -802,10 +865,32 @@ impl DataWindow {
         ui.add(drag_value);
     }
 
+    fn show_asset(
+        ui: &mut egui::Ui,
+        color: egui::Color32,
+        asset_id: AssetId,
+        app: &Box<dyn App>,
+    ) -> Option<PathBuf> {
+        let mut asset_path = None;
+        app.command(Command::GetAssetPath(asset_id, &mut asset_path));
+        if let Some(asset_path) = &asset_path {
+            Self::color_label(
+                ui,
+                color,
+                format!("Asset({}, {asset_id:?})", asset_path.display()),
+            );
+        } else {
+            Self::color_label(ui, color, format!("InvalidAsset({asset_id:?})"));
+        }
+        asset_path
+    }
+
     pub fn unique_windows(
         &mut self,
         ctx: &egui::Context,
         world_data: &mut WorldData,
+        app: &Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
         texts: &Texts,
     ) {
         egui::Window::new(texts.get("Uniques")).show(&ctx, |ui| {
@@ -814,7 +899,14 @@ impl DataWindow {
 
         if let Some(unique_data) = world_data.uniques.get_mut(&self.selected_unique) {
             egui::Window::new(&self.selected_unique).show(&ctx, |ui| {
-                Self::data_view(ui, &self.selected_unique, unique_data);
+                Self::data_view(
+                    ui,
+                    &self.selected_unique,
+                    unique_data,
+                    app,
+                    asset_dir,
+                    texts,
+                );
             });
         }
     }

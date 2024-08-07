@@ -108,6 +108,8 @@ impl Editor {
                 Self::compile_error_dialog(&ctx, &self.texts);
             }
 
+            let asset_dir = project.asset_dir();
+
             if !self.editor_state.use_dock {
                 if let Some(world_data) = world_data {
                     if let Some(app) = project.app() {
@@ -115,10 +117,11 @@ impl Editor {
                             &ctx,
                             world_data,
                             app,
+                            asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
                             &self.texts,
                         );
                         self.data_window
-                            .unique_windows(&ctx, world_data, &self.texts);
+                            .unique_windows(&ctx, world_data, app, asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"), &self.texts);
                     }
                 }
             }
@@ -160,7 +163,13 @@ impl Editor {
                                                 .entities
                                                 .get_mut(&self.data_window.selected_entity())
                                             {
-                                                self.data_window.entity_view(ui, entity_data, app);
+                                                self.data_window.entity_view(
+                                                    ui,
+                                                    entity_data,
+                                                    app,
+                                                    asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
+                                                    &self.texts,
+                                                );
                                             }
                                         }
                                     }
@@ -172,15 +181,20 @@ impl Editor {
                                 }
                                 "Unique" => {
                                     if let Some(world_data) = world_data {
-                                        if let Some(unique_data) = world_data
-                                            .uniques
-                                            .get_mut(self.data_window.selected_unique())
-                                        {
-                                            DataWindow::data_view(
-                                                ui,
-                                                self.data_window.selected_unique(),
-                                                unique_data,
-                                            );
+                                        if let Some(app) = project.app() {
+                                            if let Some(unique_data) = world_data
+                                                .uniques
+                                                .get_mut(self.data_window.selected_unique())
+                                            {
+                                                DataWindow::data_view(
+                                                    ui,
+                                                    self.data_window.selected_unique(),
+                                                    unique_data,
+                                                    app,
+                                                    asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
+                                                    &self.texts,
+                                                );
+                                            }
                                         }
                                     }
                                 }

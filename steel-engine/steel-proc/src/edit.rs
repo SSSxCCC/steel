@@ -42,6 +42,7 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
                     "UVec2" => quote! { Value::UVec2 },
                     "UVec3" => quote! { Value::UVec3 },
                     "UVec4" => quote! { Value::UVec4 },
+                    "AssetId" => quote! { Value::Asset },
                     "Vec" => {
                         let generic_arg = match &type_last_segment.arguments {
                             syn::PathArguments::AngleBracketed(generic_arguments) => generic_arguments.args.first().unwrap(),

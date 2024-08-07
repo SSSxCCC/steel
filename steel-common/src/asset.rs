@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// The inner type of AssetId.
@@ -52,5 +53,43 @@ impl AssetInfo {
     /// Create a new AssetInfo with asset_id.
     pub fn new(asset_id: AssetId) -> Self {
         AssetInfo { id: asset_id }
+    }
+
+    /// Helper function to get the corresponding asset file path from an asset info file path.
+    /// # Example
+    /// ```rust
+    /// let asset_file = PathBuf::from("texts/test.txt");
+    /// let asset_info_file = PathBuf::from("texts/test.txt.asset");
+    /// assert_eq!(asset_file, AssetInfo::asset_info_path_to_asset_path(asset_info_file));
+    /// ```
+    pub fn asset_info_path_to_asset_path(asset_info_file: impl AsRef<Path>) -> PathBuf {
+        let asset_info_file_name = asset_info_file
+            .as_ref()
+            .file_name()
+            .unwrap()
+            .to_string_lossy(); // TODO: not convert OsStr to str
+        let asset_file_name = &asset_info_file_name[0..asset_info_file_name.len() - ".asset".len()];
+        asset_info_file
+            .as_ref()
+            .parent()
+            .unwrap()
+            .join(asset_file_name)
+    }
+
+    /// Helper function to get the corresponding asset info file path from an asset file path.
+    /// # Example
+    /// ```rust
+    /// let asset_file = PathBuf::from("texts/test.txt");
+    /// let asset_info_file = PathBuf::from("texts/test.txt.asset");
+    /// assert_eq!(AssetInfo::asset_path_to_asset_info_path(asset_file), asset_info_file);
+    /// ```
+    pub fn asset_path_to_asset_info_path(asset_file: impl AsRef<Path>) -> PathBuf {
+        let mut asset_info_file_name = asset_file.as_ref().file_name().unwrap().to_os_string();
+        asset_info_file_name.push(".asset");
+        asset_file
+            .as_ref()
+            .parent()
+            .unwrap()
+            .join(asset_info_file_name)
     }
 }

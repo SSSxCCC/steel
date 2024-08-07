@@ -1,8 +1,8 @@
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
-use shipyard::{Component, EntityId, UniqueView, UniqueViewMut};
-use std::path::PathBuf;
+use shipyard::{Component, EntityId, Unique, UniqueView, UniqueViewMut};
 use steel::{
     app::{App, Schedule, SteelApp},
+    asset::AssetId,
     data::{Data, Value},
     edit::Edit,
     physics2d::Physics2DPlugin,
@@ -14,6 +14,7 @@ use steel::{
 pub fn create() -> Box<dyn App> {
     SteelApp::new()
         .add_plugin(Physics2DPlugin)
+        .add_and_register_unique(MyUnique::default())
         .register_component::<TestComponent>()
         .add_system(Schedule::PostUpdate, test_system)
         .boxed()
@@ -38,16 +39,26 @@ struct TestComponent {
     uvec4: UVec4,
 }
 
-fn test_system(ctx: UniqueView<EguiContext>, mut scene_manager: UniqueViewMut<SceneManager>) {
+#[derive(Unique, Edit, Default)]
+struct MyUnique {
+    scene1: AssetId,
+    scene2: AssetId,
+}
+
+fn test_system(
+    ctx: UniqueView<EguiContext>,
+    mut scene_manager: UniqueViewMut<SceneManager>,
+    my_unique: UniqueView<MyUnique>,
+) {
     egui::Window::new("TestWindow").show(ctx.as_ref(), |ui| {
         if ui.button("Button").clicked() {
             log::info!("Click button of TestWindow");
             if let Some(current_scene) = scene_manager.current_scene() {
-                //if *current_scene == PathBuf::from("scene/test.scene") {
-                //    scene_manager.switch_scene("scene/scene.scene".into());
-                //} else if *current_scene == PathBuf::from("scene/scene.scene") {
-                //    scene_manager.switch_scene("scene/test.scene".into());
-                //}
+                if current_scene == my_unique.scene1 {
+                    scene_manager.switch_scene(my_unique.scene2);
+                } else if current_scene == my_unique.scene2 {
+                    scene_manager.switch_scene(my_unique.scene1);
+                }
             }
         }
     });

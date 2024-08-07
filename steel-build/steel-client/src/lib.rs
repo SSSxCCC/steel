@@ -66,9 +66,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let insert_asset_fn = |asset_info_file: &Path| -> Result<(), Box<dyn Error>> {
         let asset_info_string = platform.read_asset_to_string(asset_info_file)?;
         let asset_id = serde_json::from_str::<AssetInfo>(&asset_info_string)?.id;
-        let asset_info_file_name = asset_info_file.file_name().unwrap().to_string_lossy(); // TODO: not convert OsStr to str
-        let asset_file_name = &asset_info_file_name[0..asset_info_file_name.len() - 6];
-        let asest_file_path = asset_info_file.parent().unwrap().join(asset_file_name);
+        let asest_file_path = AssetInfo::asset_info_path_to_asset_path(asset_info_file);
         log::debug!(
             "Insert asset \"{}\", id: {asset_id:?}",
             asest_file_path.display()
