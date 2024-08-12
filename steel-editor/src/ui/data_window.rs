@@ -874,11 +874,7 @@ impl DataWindow {
         let mut asset_path = None;
         app.command(Command::GetAssetPath(asset_id, &mut asset_path));
         if let Some(asset_path) = &asset_path {
-            Self::color_label(
-                ui,
-                color,
-                format!("Asset({})", asset_path.display()),
-            );
+            Self::color_label(ui, color, format!("Asset({})", asset_path.display()));
         } else {
             Self::color_label(ui, color, format!("Invalid{asset_id:?}"));
         }

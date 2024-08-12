@@ -55,7 +55,7 @@ impl AssetManager {
         None
     }
 
-    /// Get the asset path of asset_id. The path is relative to the root asset directory
+    /// Get asset path by AssetId. The asset path is relative to the root asset directory.
     pub fn get_asset_path(&self, asset_id: AssetId) -> Option<&PathBuf> {
         self.assets.get(&asset_id).map(|asset| &asset.path)
     }
@@ -63,6 +63,20 @@ impl AssetManager {
     /// Check if asset_id exists.
     pub fn contains_asset(&self, asset_id: AssetId) -> bool {
         self.assets.contains_key(&asset_id)
+    }
+
+    /// Get AssetId by asset path. The asset path is relative to the root asset directory.
+    /// Note that this function has a time complexity of O(n), where n is the total number
+    /// of assets. Because assets are stored with AssetId as the key, please use AssetId
+    /// to search for assets whenever possible.
+    pub fn get_asset_id(&self, asset_path: impl AsRef<Path>) -> Option<AssetId> {
+        self.assets.iter().find_map(|(id, asset)| {
+            if asset.path == asset_path.as_ref() {
+                Some(*id)
+            } else {
+                None
+            }
+        })
     }
 
     /// Insert an asset with asset_id and path. If asset_id exists,

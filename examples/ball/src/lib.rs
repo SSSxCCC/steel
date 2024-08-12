@@ -5,6 +5,7 @@ use shipyard::{
 };
 use steel::{
     app::{App, Schedule, SteelApp},
+    asset::AssetManager,
     data::{Data, Limit, Value},
     edit::Edit,
     input::Input,
@@ -141,6 +142,7 @@ fn lose_system(
     time: UniqueView<Time>,
     egui_ctx: UniqueView<EguiContext>,
     mut scene_manager: UniqueViewMut<SceneManager>,
+    asset_manager: UniqueView<AssetManager>,
 ) {
     for lose in (&mut lose).iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
@@ -154,7 +156,9 @@ fn lose_system(
 
         lose.lose_time -= time.delta();
         if lose.lose_time < 0.0 {
-            scene_manager.switch_scene("main.scene".into());
+            if let Some(main_scene) = asset_manager.get_asset_id("main.scene") {
+                scene_manager.switch_scene(main_scene);
+            }
         }
     }
 }
@@ -166,6 +170,7 @@ fn main_menu_system(
     main_menu_component: View<MainMenu>,
     egui_ctx: UniqueView<EguiContext>,
     mut scene_manager: UniqueViewMut<SceneManager>,
+    asset_manager: UniqueView<AssetManager>,
 ) {
     for _ in main_menu_component.iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
@@ -180,7 +185,9 @@ fn main_menu_system(
                 )
                 .clicked()
             {
-                scene_manager.switch_scene("game.scene".into());
+                if let Some(game_scene) = asset_manager.get_asset_id("game.scene") {
+                    scene_manager.switch_scene(game_scene);
+                }
             }
         });
     }
