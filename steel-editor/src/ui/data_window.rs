@@ -781,17 +781,17 @@ impl DataWindow {
                         Value::Asset(v) => {
                             ui.horizontal(|ui| {
                                 let asest_path = Self::show_asset(ui, color, *v, app);
-                                let starting_dir = if let Some(asset_path) = &asest_path {
-                                    asset_dir
-                                        .as_ref()
-                                        .join(asset_path)
-                                        .parent()
-                                        .unwrap()
-                                        .to_path_buf()
-                                } else {
-                                    asset_dir.as_ref().to_path_buf()
-                                };
                                 if ui.button(texts.get("Select")).clicked() {
+                                    let starting_dir = if let Some(asset_path) = &asest_path {
+                                        asset_dir
+                                            .as_ref()
+                                            .join(asset_path)
+                                            .parent()
+                                            .unwrap()
+                                            .to_path_buf()
+                                    } else {
+                                        asset_dir.as_ref().to_path_buf()
+                                    };
                                     let file = rfd::FileDialog::new()
                                         .set_directory(starting_dir)
                                         .pick_file();
@@ -877,10 +877,10 @@ impl DataWindow {
             Self::color_label(
                 ui,
                 color,
-                format!("Asset({}, {asset_id:?})", asset_path.display()),
+                format!("Asset({})", asset_path.display()),
             );
         } else {
-            Self::color_label(ui, color, format!("InvalidAsset({asset_id:?})"));
+            Self::color_label(ui, color, format!("Invalid{asset_id:?}"));
         }
         asset_path
     }
