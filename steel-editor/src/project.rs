@@ -7,7 +7,6 @@ use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
 use regex::Regex;
-use shipyard::EntityId;
 use std::{
     error::Error,
     fs,
@@ -17,7 +16,7 @@ use std::{
 use steel_common::{
     app::{App, Command, CommandMut, InitInfo},
     asset::{AssetId, AssetIdType, AssetInfo},
-    data::{Data, EntityData, Limit, Value, WorldData},
+    data::WorldData,
     platform::Platform,
 };
 use vulkano_util::context::VulkanoContext;
@@ -894,7 +893,7 @@ impl Project {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
             compiled.app.command(Command::Save(&mut compiled.data));
-            let world_data = Self::_cut_world_data(&compiled.data);
+            let world_data = compiled.data.cut();
             let asset_dir =
                 asset_dir.expect("self.asset_dir() must be some when self.compiled_mut() is some");
             let scene = scene.into();
@@ -928,58 +927,6 @@ impl Project {
         let s = serde_json::to_string_pretty(data)?;
         fs::write(path, s)?;
         Ok(())
-    }
-
-    /// Erase generation value of EntityId and skip read only values,
-    /// because they are useless when loading from file.
-    fn _cut_world_data(world_data: &WorldData) -> WorldData {
-        let mut world_data_cut = WorldData::new();
-        for (eid, entity_data) in &world_data.entities {
-            let mut entity_data_cut = EntityData::new();
-            for (comopnent_name, component_data) in &entity_data.components {
-                let cut_read_only = comopnent_name != "Child" && comopnent_name != "Parent"; // TODO: use a more generic way to allow read-only values of some components to save to file
-                let component_data_cut = Self::_cut_data(component_data, cut_read_only);
-                entity_data_cut
-                    .components
-                    .insert(comopnent_name.clone(), component_data_cut);
-            }
-            world_data_cut
-                .entities
-                .insert(Self::_erase_generation(eid), entity_data_cut);
-        }
-        for (unique_name, unique_data) in &world_data.uniques {
-            let cut_read_only = unique_name != "Hierarchy"; // TODO: use a more generic way to allow read-only values of some uniques to save to file
-            let unique_data_cut = Self::_cut_data(unique_data, cut_read_only);
-            world_data_cut
-                .uniques
-                .insert(unique_name.clone(), unique_data_cut);
-        }
-        world_data_cut
-    }
-
-    fn _cut_data(data: &Data, cut_read_only: bool) -> Data {
-        let mut data_cut = Data::new();
-        for (name, value) in &data.values {
-            if !(cut_read_only && matches!(data.limits.get(name), Some(Limit::ReadOnly))) {
-                let value = match value {
-                    Value::Entity(e) => Value::Entity(Self::_erase_generation(e)),
-                    Value::VecEntity(v) => {
-                        Value::VecEntity(v.iter().map(|e| Self::_erase_generation(e)).collect())
-                    }
-                    _ => value.clone(),
-                };
-                data_cut.values.insert(name.clone(), value);
-            }
-        }
-        data_cut
-    }
-
-    fn _erase_generation(eid: &EntityId) -> EntityId {
-        if *eid == EntityId::dead() {
-            *eid
-        } else {
-            EntityId::new_from_index_and_gen(eid.index(), 0)
-        }
     }
 
     /// Load world_data from file, scene is the load file path,

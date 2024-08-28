@@ -9,7 +9,7 @@ use std::{
 use steel_common::{
     app::{App, Command, CommandMut},
     asset::{AssetId, AssetInfo},
-    data::{Data, EntitiesData, EntityData, Limit, Value, WorldData},
+    data::{Data, EntitiesData, EntityData, Limit, Prefab, PrefabData, Value, WorldData},
 };
 
 pub struct DataWindow {
@@ -34,7 +34,7 @@ impl DataWindow {
         texts: &Texts,
     ) {
         egui::Window::new(texts.get("Entities")).show(&ctx, |ui| {
-            self.entities_view(ui, world_data, app, texts);
+            self.entities_view(ui, world_data, app, &asset_dir, texts);
         });
 
         if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
@@ -49,6 +49,7 @@ impl DataWindow {
         ui: &mut egui::Ui,
         world_data: &WorldData,
         app: &mut Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
         texts: &Texts,
     ) {
         let hierarchy = world_data
@@ -69,6 +70,7 @@ impl DataWindow {
                 ui,
                 world_data,
                 app,
+                &asset_dir,
                 &mut drag_entity,
                 &mut drop_parent,
                 &mut drop_before,
@@ -88,9 +90,18 @@ impl DataWindow {
             panic!("entities_view: hierarchy.roots is empty but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
         }
 
-        if ui.button("+").clicked() {
-            app.command_mut(CommandMut::CreateEntity);
-        }
+        ui.menu_button("+", |ui| {
+            if ui.button(texts.get("New Entity")).clicked() {
+                log::info!("entities_view_create_menu->New Entity");
+                Self::create_new_entity(app);
+                ui.close_menu();
+            }
+            if ui.button(texts.get("From Prefab")).clicked() {
+                log::info!("entities_view_create_menu->From Prefab");
+                Self::create_entities_from_prefab(app, asset_dir);
+                ui.close_menu();
+            }
+        });
     }
 
     fn entity_level(
@@ -100,6 +111,7 @@ impl DataWindow {
         ui: &mut egui::Ui,
         world_data: &WorldData,
         app: &mut Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
         drag_entity: &mut EntityId,
         drop_parent: &mut Option<EntityId>,
         drop_before: &mut EntityId,
@@ -147,6 +159,11 @@ impl DataWindow {
                                     self.delete_entity(entity, app);
                                     ui.close_menu();
                                 }
+                                if ui.button(texts.get("Save As Prefab")).clicked() {
+                                    log::info!("entity_context_menu->Save As Prefab");
+                                    Self::save_as_prefab(entity, world_data, &asset_dir);
+                                    ui.close_menu();
+                                }
                             });
                         });
                     },
@@ -191,6 +208,7 @@ impl DataWindow {
                         ui,
                         world_data,
                         app,
+                        asset_dir.as_ref(),
                         drag_entity,
                         drop_parent,
                         drop_before,
@@ -207,29 +225,7 @@ impl DataWindow {
     }
 
     pub fn duplicate_entity(entity: EntityId, world_data: &WorldData, app: &mut Box<dyn App>) {
-        let mut entities_data = EntitiesData::new();
-        let mut entities_to_add = vec![entity];
-        while !entities_to_add.is_empty() {
-            let mut new_entities_to_add = Vec::new();
-            for entity in &entities_to_add {
-                let entity_data = world_data.entities.get(entity).expect(
-                    format!("entity_level::duplicate: non-existent entity: {entity:?}").as_str(),
-                );
-                entities_data.insert(*entity, entity_data.clone()); // TODO: avoid clone here
-                if let Some(parent) = entity_data.components.get("Parent") {
-                    let children = match parent.get("children") {
-                        Some(Value::VecEntity(v)) => v,
-                        _ => panic!(
-                            "duplicate_entity: no children value in Parent component: {parent:?}"
-                        ),
-                    };
-                    for e in children {
-                        new_entities_to_add.push(*e);
-                    }
-                }
-            }
-            entities_to_add = new_entities_to_add;
-        }
+        let entities_data = Self::get_entities_data_of_entity(entity, world_data);
         let mut old_id_to_new_id = HashMap::new();
         app.command_mut(CommandMut::AddEntities(
             &entities_data,
@@ -255,9 +251,98 @@ impl DataWindow {
         app.command_mut(CommandMut::AttachAfter(new_id, parent, entity));
     }
 
+    /// Get EntitiesData of an entity with its ancestors.
+    fn get_entities_data_of_entity(entity: EntityId, world_data: &WorldData) -> EntitiesData {
+        let mut entities_data = EntitiesData::new();
+        let mut entities_to_add = vec![entity];
+        while !entities_to_add.is_empty() {
+            let mut new_entities_to_add = Vec::new();
+            for entity in &entities_to_add {
+                let entity_data = world_data.entities.get(entity).expect(
+                    format!("entity_level::duplicate: non-existent entity: {entity:?}").as_str(),
+                );
+                entities_data.insert(*entity, entity_data.clone()); // TODO: avoid clone here
+                if let Some(parent) = entity_data.components.get("Parent") {
+                    let children = match parent.get("children") {
+                        Some(Value::VecEntity(v)) => v,
+                        _ => panic!(
+                            "duplicate_entity: no children value in Parent component: {parent:?}"
+                        ),
+                    };
+                    for e in children {
+                        new_entities_to_add.push(*e);
+                    }
+                }
+            }
+            entities_to_add = new_entities_to_add;
+        }
+        entities_data
+    }
+
     pub fn delete_entity(&mut self, entity: EntityId, app: &mut Box<dyn App>) {
         app.command_mut(CommandMut::DestroyEntity(entity));
         self.selected_entity = EntityId::dead();
+    }
+
+    pub fn save_as_prefab(entity: EntityId, world_data: &WorldData, asset_dir: impl AsRef<Path>) {
+        let entities = Self::get_entities_data_of_entity(entity, world_data).cut();
+        let prefab = Prefab {
+            entities,
+            id_paths: Default::default(),
+            nested_prefabs: Default::default(),
+        };
+        let file = rfd::FileDialog::new().set_directory(&asset_dir).save_file();
+        if let Some(mut file) = file {
+            if file.starts_with(&asset_dir) {
+                file.set_extension("prefab");
+                if let Err(e) = crate::utils::save_to_file(&PrefabData::Prefab(prefab), &file) {
+                    log::error!(
+                        "DataWindow::save_as_prefab: failed to save prefab, path: {}, error: {e}",
+                        file.display()
+                    );
+                }
+            } else {
+                log::error!(
+                    "DataWindow::save_as_prefab: you must save in asset directory: {}",
+                    asset_dir.as_ref().display()
+                );
+            }
+        }
+    }
+
+    pub fn create_new_entity(app: &mut Box<dyn App>) {
+        app.command_mut(CommandMut::CreateEntity);
+    }
+
+    pub fn create_entities_from_prefab(app: &mut Box<dyn App>, asset_dir: impl AsRef<Path>) {
+        let file = rfd::FileDialog::new().set_directory(&asset_dir).pick_file();
+        if let Some(file) = file {
+            if file.starts_with(&asset_dir) {
+                match crate::utils::load_from_file::<PrefabData>(&file) {
+                    Ok(prefab_data) => match prefab_data {
+                        PrefabData::Prefab(prefab) => {
+                            let mut old_id_to_new_id = HashMap::new();
+                            app.command_mut(CommandMut::AddEntities(
+                                &prefab.entities,
+                                &mut old_id_to_new_id,
+                            ));
+                        }
+                        PrefabData::Variant(prefab) => todo!(),
+                    },
+                    Err(e) => {
+                        log::error!(
+                            "DataWindow::create_entities_from_prefab: failed to load prefab, path: {}, error: {e}",
+                            file.display()
+                        );
+                    }
+                }
+            } else {
+                log::error!(
+                    "DataWindow::create_entities_from_prefab: you must load from file in asset directory: {}",
+                    asset_dir.as_ref().display()
+                );
+            }
+        }
     }
 
     fn drag_source<R>(ui: &mut egui::Ui, id: egui::Id, body: impl FnOnce(&mut egui::Ui) -> R) {
@@ -419,421 +504,324 @@ impl DataWindow {
         asset_dir: impl AsRef<Path>,
         texts: &Texts,
     ) {
+        let color = egui::Color32::BLACK;
         for (name, value) in &mut data.values {
             ui.horizontal(|ui| {
                 ui.label(name);
-                let color = egui::Color32::BLACK;
-                if let Some(Limit::ReadOnly) = data.limits.get(name) {
-                    match value {
-                        Value::Bool(b) => Self::color_label(ui, color, if *b { "☑" } else { "☐" }),
-                        Value::Int32(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::UInt32(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::Float32(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::String(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::Entity(v) => Self::color_label(ui, color, format!("{v:?}")),
-                        Value::Vec2(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::Vec3(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::Vec4(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::IVec2(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::IVec3(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::IVec4(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
-                        Value::Asset(v) => {
-                            Self::show_asset(ui, color, *v, app);
-                        }
-                        Value::VecEntity(v) => {
-                            ui.vertical(|ui| {
-                                for e in v {
-                                    Self::color_label(ui, color, format!("{e:?}"));
-                                }
-                            });
-                        }
-                    }
+                let limit = data.limits.get(name);
+                if let Some(Limit::ReadOnly) = limit {
+                    Self::immutable_value_view(ui, value, color, app);
                 } else {
-                    match value {
-                        Value::Bool(b) => {
-                            ui.checkbox(b, "");
-                        }
-                        Value::Int32(v) => {
-                            if let Some(Limit::Int32Enum(int_enum)) = data.limits.get(name) {
-                                if int_enum.len() > 0 {
-                                    let mut i = int_enum
-                                        .iter()
-                                        .enumerate()
-                                        .find_map(
-                                            |(i, (int, _))| {
-                                                if v == int {
-                                                    Some(i)
-                                                } else {
-                                                    None
-                                                }
-                                            },
-                                        )
-                                        .unwrap_or(0);
-                                    // Use component_name/unique_name + value_name as id to make sure that every id is unique
-                                    egui::ComboBox::from_id_source(format!(
-                                        "{} {}",
-                                        data_name, name
-                                    ))
-                                    .show_index(
-                                        ui,
-                                        &mut i,
-                                        int_enum.len(),
-                                        |i| &int_enum[i].1,
-                                    );
-                                    *v = int_enum[i].0;
-                                } else {
-                                    Self::color_label(
-                                        ui,
-                                        egui::Color32::RED,
-                                        "zero length int_enum!",
-                                    );
-                                }
-                            } else {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::Int32Range(range)) => Some(range.clone()),
-                                    _ => None,
-                                };
-                                Self::drag_value(ui, v, range);
-                            }
-                        }
-                        Value::UInt32(v) => {
-                            let range = match data.limits.get(name) {
-                                Some(Limit::UInt32Range(range)) => Some(range.clone()),
-                                _ => None,
-                            };
-                            Self::drag_value(ui, v, range);
-                        }
-                        Value::String(v) => {
-                            if let Some(Limit::StringMultiline) = data.limits.get(name) {
-                                ui.text_edit_multiline(v);
-                            } else {
-                                ui.text_edit_singleline(v);
-                            }
-                        }
-                        Value::Entity(v) => {
-                            ui.label(format!("{v:?}")); // TODO: change entity in editor
-                        }
-                        Value::Float32(v) => {
-                            if let Some(Limit::Float32Rotation) = data.limits.get(name) {
-                                ui.drag_angle(v);
-                            } else {
-                                Self::drag_float32(
-                                    ui,
-                                    v,
-                                    match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => Some(range.clone()),
-                                        _ => None,
-                                    },
-                                );
-                            }
-                        }
-                        Value::Vec2(v) => {
-                            ui.horizontal(|ui| {
-                                if let Some(Limit::Float32Rotation) = data.limits.get(name) {
-                                    ui.drag_angle(&mut v.x);
-                                    ui.drag_angle(&mut v.y);
-                                } else {
-                                    let range = match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => {
-                                            vec![Some(range.clone()); 2]
-                                        }
-                                        Some(Limit::VecRange(range)) => range.clone(),
-                                        _ => Vec::new(),
-                                    };
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.x,
-                                        range.get(0).and_then(|r| r.clone()),
-                                    );
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.y,
-                                        range.get(1).and_then(|r| r.clone()),
-                                    );
-                                }
-                            });
-                        }
-                        Value::Vec3(v) => {
-                            ui.horizontal(|ui| {
-                                if let Some(Limit::Vec3Color) = data.limits.get(name) {
-                                    let mut color = v.to_array();
-                                    ui.color_edit_button_rgb(&mut color);
-                                    *v = Vec3::from_array(color);
-                                } else if let Some(Limit::Float32Rotation) = data.limits.get(name) {
-                                    ui.drag_angle(&mut v.x);
-                                    ui.drag_angle(&mut v.y);
-                                    ui.drag_angle(&mut v.z);
-                                } else {
-                                    let range = match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => {
-                                            vec![Some(range.clone()); 3]
-                                        }
-                                        Some(Limit::VecRange(range)) => range.clone(),
-                                        _ => Vec::new(),
-                                    };
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.x,
-                                        range.get(0).and_then(|r| r.clone()),
-                                    );
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.y,
-                                        range.get(1).and_then(|r| r.clone()),
-                                    );
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.z,
-                                        range.get(2).and_then(|r| r.clone()),
-                                    );
-                                }
-                            });
-                        }
-                        Value::Vec4(v) => {
-                            ui.horizontal(|ui| {
-                                if let Some(Limit::Vec4Color) = data.limits.get(name) {
-                                    let mut color = v.to_array();
-                                    ui.color_edit_button_rgba_unmultiplied(&mut color);
-                                    *v = Vec4::from_array(color);
-                                } else if let Some(Limit::Float32Rotation) = data.limits.get(name) {
-                                    ui.drag_angle(&mut v.x);
-                                    ui.drag_angle(&mut v.y);
-                                    ui.drag_angle(&mut v.z);
-                                    ui.drag_angle(&mut v.w);
-                                } else {
-                                    let range = match data.limits.get(name) {
-                                        Some(Limit::Float32Range(range)) => {
-                                            vec![Some(range.clone()); 4]
-                                        }
-                                        Some(Limit::VecRange(range)) => range.clone(),
-                                        _ => Vec::new(),
-                                    };
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.x,
-                                        range.get(0).and_then(|r| r.clone()),
-                                    );
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.y,
-                                        range.get(1).and_then(|r| r.clone()),
-                                    );
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.z,
-                                        range.get(2).and_then(|r| r.clone()),
-                                    );
-                                    Self::drag_float32(
-                                        ui,
-                                        &mut v.w,
-                                        range.get(3).and_then(|r| r.clone()),
-                                    );
-                                }
-                            });
-                        }
-                        Value::IVec2(v) => {
-                            ui.horizontal(|ui| {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 2],
-                                    Some(Limit::IVecRange(range)) => range.clone(),
-                                    _ => Vec::new(),
-                                };
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.x,
-                                    range.get(0).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.y,
-                                    range.get(1).and_then(|r| r.clone()),
-                                );
-                            });
-                        }
-                        Value::IVec3(v) => {
-                            ui.horizontal(|ui| {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 3],
-                                    Some(Limit::IVecRange(range)) => range.clone(),
-                                    _ => Vec::new(),
-                                };
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.x,
-                                    range.get(0).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.y,
-                                    range.get(1).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.z,
-                                    range.get(2).and_then(|r| r.clone()),
-                                );
-                            });
-                        }
-                        Value::IVec4(v) => {
-                            ui.horizontal(|ui| {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 4],
-                                    Some(Limit::IVecRange(range)) => range.clone(),
-                                    _ => Vec::new(),
-                                };
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.x,
-                                    range.get(0).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.y,
-                                    range.get(1).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.z,
-                                    range.get(2).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.w,
-                                    range.get(3).and_then(|r| r.clone()),
-                                );
-                            });
-                        }
-                        Value::UVec2(v) => {
-                            ui.horizontal(|ui| {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 2],
-                                    Some(Limit::UVecRange(range)) => range.clone(),
-                                    _ => Vec::new(),
-                                };
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.x,
-                                    range.get(0).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.y,
-                                    range.get(1).and_then(|r| r.clone()),
-                                );
-                            });
-                        }
-                        Value::UVec3(v) => {
-                            ui.horizontal(|ui| {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 3],
-                                    Some(Limit::UVecRange(range)) => range.clone(),
-                                    _ => Vec::new(),
-                                };
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.x,
-                                    range.get(0).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.y,
-                                    range.get(1).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.z,
-                                    range.get(2).and_then(|r| r.clone()),
-                                );
-                            });
-                        }
-                        Value::UVec4(v) => {
-                            ui.horizontal(|ui| {
-                                let range = match data.limits.get(name) {
-                                    Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 4],
-                                    Some(Limit::UVecRange(range)) => range.clone(),
-                                    _ => Vec::new(),
-                                };
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.x,
-                                    range.get(0).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.y,
-                                    range.get(1).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.z,
-                                    range.get(2).and_then(|r| r.clone()),
-                                );
-                                Self::drag_value(
-                                    ui,
-                                    &mut v.w,
-                                    range.get(3).and_then(|r| r.clone()),
-                                );
-                            });
-                        }
-                        Value::Asset(v) => {
-                            ui.horizontal(|ui| {
-                                let asest_path = Self::show_asset(ui, color, *v, app);
-                                if ui.button(texts.get("Select")).clicked() {
-                                    let starting_dir = if let Some(asset_path) = &asest_path {
-                                        asset_dir
-                                            .as_ref()
-                                            .join(asset_path)
-                                            .parent()
-                                            .unwrap()
-                                            .to_path_buf()
-                                    } else {
-                                        asset_dir.as_ref().to_path_buf()
-                                    };
-                                    let file = rfd::FileDialog::new()
-                                        .set_directory(starting_dir)
-                                        .pick_file();
-                                    if let Some(mut file) = file {
-                                        if file.starts_with(&asset_dir) {
-                                            if file
-                                                .extension()
-                                                .is_some_and(|extension| extension == "asset")
-                                            {
-                                                file =
-                                                    AssetInfo::asset_info_path_to_asset_path(file);
-                                            }
-                                            let asset_file = file.strip_prefix(&asset_dir).unwrap();
-                                            match Project::get_asset_info_and_insert(
-                                                &asset_dir, asset_file, app, false,
-                                            ) {
-                                                Ok(asset_info) => *v = asset_info.id,
-                                                Err(e) => log::error!(
-                                                    "Failed to get asset info, error: {e}"
-                                                ),
-                                            }
-                                        } else {
-                                            log::error!(
-                                                "You must select a file in asset directory: {}",
-                                                asset_dir.as_ref().display()
-                                            );
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                        Value::VecEntity(v) => {
-                            ui.vertical(|ui| {
-                                for e in v {
-                                    Self::color_label(ui, color, format!("{e:?}"));
-                                    // TODO: add/remove/change entity in editor
-                                }
-                            });
-                        }
-                    }
+                    Self::mutable_value_view(
+                        ui,
+                        value,
+                        limit,
+                        name,
+                        data_name,
+                        color,
+                        app,
+                        asset_dir.as_ref(),
+                        texts,
+                    );
                 }
             });
+        }
+    }
+
+    fn immutable_value_view(
+        ui: &mut egui::Ui,
+        value: &Value,
+        color: egui::Color32,
+        app: &Box<dyn App>,
+    ) {
+        match value {
+            Value::Bool(b) => Self::color_label(ui, color, if *b { "☑" } else { "☐" }),
+            Value::Int32(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::UInt32(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::Float32(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::String(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::Entity(v) => Self::color_label(ui, color, format!("{v:?}")),
+            Value::Vec2(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::Vec3(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::Vec4(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::IVec2(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::IVec3(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::IVec4(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
+            Value::Asset(v) => {
+                Self::show_asset(ui, color, *v, app);
+            }
+            Value::VecEntity(v) => {
+                ui.vertical(|ui| {
+                    for e in v {
+                        Self::color_label(ui, color, format!("{e:?}"));
+                    }
+                });
+            }
+        }
+    }
+
+    fn mutable_value_view(
+        ui: &mut egui::Ui,
+        value: &mut Value,
+        limit: Option<&Limit>,
+        name: &String,
+        data_name: &String,
+        color: egui::Color32,
+        app: &Box<dyn App>,
+        asset_dir: impl AsRef<Path>,
+        texts: &Texts,
+    ) {
+        match value {
+            Value::Bool(b) => {
+                ui.checkbox(b, "");
+            }
+            Value::Int32(v) => {
+                if let Some(Limit::Int32Enum(int_enum)) = limit {
+                    if int_enum.len() > 0 {
+                        let mut i = int_enum
+                            .iter()
+                            .enumerate()
+                            .find_map(|(i, (int, _))| if v == int { Some(i) } else { None })
+                            .unwrap_or(0);
+                        // Use component_name/unique_name + value_name as id to make sure that every id is unique
+                        egui::ComboBox::from_id_source(format!("{} {}", data_name, name))
+                            .show_index(ui, &mut i, int_enum.len(), |i| &int_enum[i].1);
+                        *v = int_enum[i].0;
+                    } else {
+                        Self::color_label(ui, egui::Color32::RED, "zero length int_enum!");
+                    }
+                } else {
+                    let range = match limit {
+                        Some(Limit::Int32Range(range)) => Some(range.clone()),
+                        _ => None,
+                    };
+                    Self::drag_value(ui, v, range);
+                }
+            }
+            Value::UInt32(v) => {
+                let range = match limit {
+                    Some(Limit::UInt32Range(range)) => Some(range.clone()),
+                    _ => None,
+                };
+                Self::drag_value(ui, v, range);
+            }
+            Value::String(v) => {
+                if let Some(Limit::StringMultiline) = limit {
+                    ui.text_edit_multiline(v);
+                } else {
+                    ui.text_edit_singleline(v);
+                }
+            }
+            Value::Entity(v) => {
+                ui.label(format!("{v:?}")); // TODO: change entity in editor
+            }
+            Value::Float32(v) => {
+                if let Some(Limit::Float32Rotation) = limit {
+                    ui.drag_angle(v);
+                } else {
+                    Self::drag_float32(
+                        ui,
+                        v,
+                        match limit {
+                            Some(Limit::Float32Range(range)) => Some(range.clone()),
+                            _ => None,
+                        },
+                    );
+                }
+            }
+            Value::Vec2(v) => {
+                ui.horizontal(|ui| {
+                    if let Some(Limit::Float32Rotation) = limit {
+                        ui.drag_angle(&mut v.x);
+                        ui.drag_angle(&mut v.y);
+                    } else {
+                        let range = match limit {
+                            Some(Limit::Float32Range(range)) => {
+                                vec![Some(range.clone()); 2]
+                            }
+                            Some(Limit::VecRange(range)) => range.clone(),
+                            _ => Vec::new(),
+                        };
+                        Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                        Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                    }
+                });
+            }
+            Value::Vec3(v) => {
+                ui.horizontal(|ui| {
+                    if let Some(Limit::Vec3Color) = limit {
+                        let mut color = v.to_array();
+                        ui.color_edit_button_rgb(&mut color);
+                        *v = Vec3::from_array(color);
+                    } else if let Some(Limit::Float32Rotation) = limit {
+                        ui.drag_angle(&mut v.x);
+                        ui.drag_angle(&mut v.y);
+                        ui.drag_angle(&mut v.z);
+                    } else {
+                        let range = match limit {
+                            Some(Limit::Float32Range(range)) => {
+                                vec![Some(range.clone()); 3]
+                            }
+                            Some(Limit::VecRange(range)) => range.clone(),
+                            _ => Vec::new(),
+                        };
+                        Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                        Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                        Self::drag_float32(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                    }
+                });
+            }
+            Value::Vec4(v) => {
+                ui.horizontal(|ui| {
+                    if let Some(Limit::Vec4Color) = limit {
+                        let mut color = v.to_array();
+                        ui.color_edit_button_rgba_unmultiplied(&mut color);
+                        *v = Vec4::from_array(color);
+                    } else if let Some(Limit::Float32Rotation) = limit {
+                        ui.drag_angle(&mut v.x);
+                        ui.drag_angle(&mut v.y);
+                        ui.drag_angle(&mut v.z);
+                        ui.drag_angle(&mut v.w);
+                    } else {
+                        let range = match limit {
+                            Some(Limit::Float32Range(range)) => {
+                                vec![Some(range.clone()); 4]
+                            }
+                            Some(Limit::VecRange(range)) => range.clone(),
+                            _ => Vec::new(),
+                        };
+                        Self::drag_float32(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                        Self::drag_float32(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                        Self::drag_float32(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                        Self::drag_float32(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                    }
+                });
+            }
+            Value::IVec2(v) => {
+                ui.horizontal(|ui| {
+                    let range = match limit {
+                        Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 2],
+                        Some(Limit::IVecRange(range)) => range.clone(),
+                        _ => Vec::new(),
+                    };
+                    Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                });
+            }
+            Value::IVec3(v) => {
+                ui.horizontal(|ui| {
+                    let range = match limit {
+                        Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 3],
+                        Some(Limit::IVecRange(range)) => range.clone(),
+                        _ => Vec::new(),
+                    };
+                    Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                });
+            }
+            Value::IVec4(v) => {
+                ui.horizontal(|ui| {
+                    let range = match limit {
+                        Some(Limit::Int32Range(range)) => vec![Some(range.clone()); 4],
+                        Some(Limit::IVecRange(range)) => range.clone(),
+                        _ => Vec::new(),
+                    };
+                    Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                });
+            }
+            Value::UVec2(v) => {
+                ui.horizontal(|ui| {
+                    let range = match limit {
+                        Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 2],
+                        Some(Limit::UVecRange(range)) => range.clone(),
+                        _ => Vec::new(),
+                    };
+                    Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                });
+            }
+            Value::UVec3(v) => {
+                ui.horizontal(|ui| {
+                    let range = match limit {
+                        Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 3],
+                        Some(Limit::UVecRange(range)) => range.clone(),
+                        _ => Vec::new(),
+                    };
+                    Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                });
+            }
+            Value::UVec4(v) => {
+                ui.horizontal(|ui| {
+                    let range = match limit {
+                        Some(Limit::UInt32Range(range)) => vec![Some(range.clone()); 4],
+                        Some(Limit::UVecRange(range)) => range.clone(),
+                        _ => Vec::new(),
+                    };
+                    Self::drag_value(ui, &mut v.x, range.get(0).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.y, range.get(1).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.z, range.get(2).and_then(|r| r.clone()));
+                    Self::drag_value(ui, &mut v.w, range.get(3).and_then(|r| r.clone()));
+                });
+            }
+            Value::Asset(v) => {
+                ui.horizontal(|ui| {
+                    let asest_path = Self::show_asset(ui, color, *v, app);
+                    if ui.button(texts.get("Select")).clicked() {
+                        let starting_dir = if let Some(asset_path) = &asest_path {
+                            asset_dir
+                                .as_ref()
+                                .join(asset_path)
+                                .parent()
+                                .unwrap()
+                                .to_path_buf()
+                        } else {
+                            asset_dir.as_ref().to_path_buf()
+                        };
+                        let file = rfd::FileDialog::new()
+                            .set_directory(starting_dir)
+                            .pick_file();
+                        if let Some(mut file) = file {
+                            if file.starts_with(&asset_dir) {
+                                if file
+                                    .extension()
+                                    .is_some_and(|extension| extension == "asset")
+                                {
+                                    file = AssetInfo::asset_info_path_to_asset_path(file);
+                                }
+                                let asset_file = file.strip_prefix(&asset_dir).unwrap();
+                                match Project::get_asset_info_and_insert(
+                                    &asset_dir, asset_file, app, false,
+                                ) {
+                                    Ok(asset_info) => *v = asset_info.id,
+                                    Err(e) => log::error!("Failed to get asset info, error: {e}"),
+                                }
+                            } else {
+                                log::error!(
+                                    "You must select a file in asset directory: {}",
+                                    asset_dir.as_ref().display()
+                                );
+                            }
+                        }
+                    }
+                });
+            }
+            Value::VecEntity(v) => {
+                ui.vertical(|ui| {
+                    for e in v {
+                        Self::color_label(ui, color, format!("{e:?}"));
+                        // TODO: add/remove/change entity in editor
+                    }
+                });
+            }
         }
     }
 

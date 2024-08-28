@@ -151,6 +151,7 @@ impl Editor {
                                                 ui,
                                                 world_data,
                                                 app,
+                                                asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
                                                 &self.texts,
                                             );
                                         }

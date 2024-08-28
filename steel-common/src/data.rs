@@ -116,6 +116,35 @@ impl Data {
     pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
         self.values.get(name.as_ref())
     }
+
+    /// Cut useless data in Data before saving to file:
+    /// 1. Erase generation value of EntityId.
+    /// 2. Skip read only values if cut_read_only is true.
+    pub fn cut(&self, cut_read_only: bool) -> Data {
+        let mut data_cut = Data::new();
+        for (name, value) in &self.values {
+            if !(cut_read_only && matches!(self.limits.get(name), Some(Limit::ReadOnly))) {
+                let value = match value {
+                    Value::Entity(e) => Value::Entity(Self::erase_generation(e)),
+                    Value::VecEntity(v) => {
+                        Value::VecEntity(v.iter().map(|e| Self::erase_generation(e)).collect())
+                    }
+                    _ => value.clone(),
+                };
+                data_cut.values.insert(name.clone(), value);
+            }
+        }
+        data_cut
+    }
+
+    /// Helper function to set generation value of EntityId to 0 if it is not EntityId::dead().
+    pub fn erase_generation(eid: &EntityId) -> EntityId {
+        if *eid == EntityId::dead() {
+            *eid
+        } else {
+            EntityId::new_from_index_and_gen(eid.index(), 0)
+        }
+    }
 }
 
 /// EntityData contains all component Data in a entity.
@@ -144,6 +173,25 @@ impl EntitiesData {
     /// Create a new EntitiesData.
     pub fn new() -> Self {
         EntitiesData(IndexMap::new())
+    }
+
+    /// Cut useless data in EntitiesData before saving to file:
+    /// 1. Erase generation value of EntityId.
+    /// 2. Skip read only values.
+    pub fn cut(&self) -> EntitiesData {
+        let mut entities_data_cut = EntitiesData::new();
+        for (eid, entity_data) in self {
+            let mut entity_data_cut = EntityData::new();
+            for (comopnent_name, component_data) in &entity_data.components {
+                let cut_read_only = comopnent_name != "Child" && comopnent_name != "Parent"; // TODO: use a more generic way to allow read-only values of some components to save to file
+                let component_data_cut = component_data.cut(cut_read_only);
+                entity_data_cut
+                    .components
+                    .insert(comopnent_name.clone(), component_data_cut);
+            }
+            entities_data_cut.insert(Data::erase_generation(eid), entity_data_cut);
+        }
+        entities_data_cut
     }
 }
 
@@ -188,11 +236,76 @@ impl<'a> IntoIterator for &'a mut EntitiesData {
     }
 }
 
+/// A collection of unique Data. This is a wrapper of IndexMap<String, Data>.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UniquesData(pub IndexMap<String, Data>);
+
+impl UniquesData {
+    /// Create a new UniquesData.
+    pub fn new() -> Self {
+        UniquesData(IndexMap::new())
+    }
+
+    /// Cut useless data in UniquesData before saving to file:
+    /// 1. Erase generation value of EntityId.
+    /// 2. Skip read only values.
+    pub fn cut(&self) -> UniquesData {
+        let mut uniques_data_cut = UniquesData::new();
+        for (unique_name, unique_data) in self {
+            let cut_read_only = unique_name != "Hierarchy"; // TODO: use a more generic way to allow read-only values of some uniques to save to file
+            let unique_data_cut = unique_data.cut(cut_read_only);
+            uniques_data_cut.insert(unique_name.clone(), unique_data_cut);
+        }
+        uniques_data_cut
+    }
+}
+
+impl std::ops::Deref for UniquesData {
+    type Target = IndexMap<String, Data>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for UniquesData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl IntoIterator for UniquesData {
+    type Item = <IndexMap<String, Data> as IntoIterator>::Item;
+    type IntoIter = <IndexMap<String, Data> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a UniquesData {
+    type Item = <&'a IndexMap<String, Data> as IntoIterator>::Item;
+    type IntoIter = <&'a IndexMap<String, Data> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.0).into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut UniquesData {
+    type Item = <&'a mut IndexMap<String, Data> as IntoIterator>::Item;
+    type IntoIter = <&'a mut IndexMap<String, Data> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&mut self.0).into_iter()
+    }
+}
+
 /// WorldData contains all EntityData and UniqueData in the world.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorldData {
     pub entities: EntitiesData,
-    pub uniques: IndexMap<String, Data>,
+    pub uniques: UniquesData,
 }
 
 impl WorldData {
@@ -200,7 +313,7 @@ impl WorldData {
     pub fn new() -> Self {
         WorldData {
             entities: EntitiesData::new(),
-            uniques: IndexMap::new(),
+            uniques: UniquesData::new(),
         }
     }
 
@@ -249,6 +362,95 @@ impl WorldData {
     fn _load_from_bytes(bytes: &[u8]) -> Result<WorldData, Box<dyn Error>> {
         Ok(serde_json::from_slice::<WorldData>(bytes)?)
     }
+
+    /// Cut useless data in WorldData before saving to file:
+    /// 1. Erase generation value of EntityId.
+    /// 2. Skip read only values.
+    pub fn cut(&self) -> WorldData {
+        WorldData {
+            entities: self.entities.cut(),
+            uniques: self.uniques.cut(),
+        }
+    }
+}
+
+/// SceneData is a compressed version of [WorldData].
+/// SceneData stores prefabs as their asset ids while WorldData stores all data for every entity.
+pub struct SceneData {
+    /// SceneData regard all eneities in world as one prefab.
+    pub entities: Prefab,
+    /// All uniques data.
+    pub uniques: UniquesData,
+    /// All id paths in uniques. unique_name -> data_name -> entity_id_path.
+    pub unique_id_paths: IndexMap<String, DataEntityIdPaths>,
+}
+
+/// PrefabData is either a Prefab or a PrefabVariant.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PrefabData {
+    Prefab(Prefab),
+    Variant(PrefabVariant),
+}
+
+/// Prefab is a collection of entities, which stored in an asset, to be used to
+/// create entities as template. A prefab can have many nested prefabs.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Prefab {
+    /// All entities in this prefab.
+    pub entities: EntitiesData,
+    /// All id paths in entities. entity_id -> component_name -> data_name -> entity_id_path.
+    pub id_paths: IndexMap<EntityId, IndexMap<String, DataEntityIdPaths>>,
+    /// All nested prefabs and their local modification.
+    pub nested_prefabs: Vec<NestedPrefab>,
+}
+
+/// PrefabVariant is the prefab that have some modifications from the original prefab.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PrefabVariant {
+    /// The asset id of the original prefab.
+    pub prefab: AssetId,
+    /// All modifications from the original prefab.
+    pub variant: Vec<EntityDataVariant>,
+    /// All nested prefabs and their local modification.
+    pub nested_prefabs: Vec<NestedPrefab>,
+}
+
+/// NestedPrefab is the prefab in another prefab, and have some modifications from the original prefab.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NestedPrefab {
+    /// The asset id of the original prefab.
+    pub prefab: AssetId,
+    /// All modifications from the original prefab.
+    pub variant: Vec<EntityDataVariant>,
+}
+
+/// EntityDataVariant is an EntityData with nested ids.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EntityDataVariant {
+    /// The id of this entity.
+    pub id: EntityId,
+    /// The entity id path.
+    pub id_path: EntityIdPath,
+    /// The entity data.
+    pub data: EntityData,
+    /// All entity id paths in data.
+    pub data_id_paths: IndexMap<String, DataEntityIdPaths>,
+}
+
+/// EntityIdPath is the path to an entity in a nested prefab. Examples:
+/// 1. \[\] or None means EntityId is in the current Prefab.
+/// 2. \[a\] means EntityId is in the nested prefab at index a.
+/// 3. \[a, b\] means the EntityId is in the nested prefab at index b of the nested prefab at index a.
+pub type EntityIdPath = Vec<usize>;
+
+/// All [EntityIdPath] in [Data].
+pub type DataEntityIdPaths = IndexMap<String, EntityIdPathInValue>;
+
+/// The [EntityIdPath] in [Value].
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum EntityIdPathInValue {
+    EntityId(EntityIdPath),
+    EntityVec(IndexMap<usize, EntityIdPath>),
 }
 
 pub mod vectorize {

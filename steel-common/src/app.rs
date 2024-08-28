@@ -81,6 +81,7 @@ pub enum Command<'a> {
     ResetTime,
 
     GetAssetPath(AssetId, &'a mut Option<PathBuf>),
+    GetAssetContent(AssetId, &'a mut Option<Arc<Vec<u8>>>),
     AssetIdExists(AssetId, &'a mut bool),
     InsertAsset(AssetId, PathBuf),
     DeleteAsset(AssetId),

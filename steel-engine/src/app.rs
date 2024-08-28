@@ -21,6 +21,7 @@ use crate::{
 use shipyard::{
     EntitiesView, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, Workload, World,
 };
+use steel_common::platform::Platform;
 use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 
 /// SteelApp contains data and logic of a steel application.
@@ -357,6 +358,16 @@ impl App for SteelApp {
                     .unwrap()
                     .get_asset_path(asset_id)
                     .map(|path| path.clone());
+            }
+            Command::GetAssetContent(asset_id, content) => {
+                *content = self.world.run(
+                    |mut asset_manager: UniqueViewMut<AssetManager>,
+                     platform: UniqueView<Platform>| {
+                        asset_manager
+                            .get_asset_content(asset_id, platform.as_ref())
+                            .map(|content| content.clone())
+                    },
+                );
             }
             Command::AssetIdExists(asset_id, exists) => {
                 *exists = self

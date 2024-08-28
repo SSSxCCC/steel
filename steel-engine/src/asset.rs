@@ -4,6 +4,7 @@ use shipyard::Unique;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use steel_common::platform::Platform;
 
@@ -12,7 +13,7 @@ pub struct Asset {
     /// The path is relative to the root asset directory.
     path: PathBuf,
     /// Asset file content in bytes. We cache file content here to avoid reading file more than once.
-    content: Option<Vec<u8>>,
+    content: Option<Arc<Vec<u8>>>,
 }
 
 impl Asset {
@@ -39,18 +40,18 @@ impl AssetManager {
         &mut self,
         asset_id: AssetId,
         platform: &Platform,
-    ) -> Option<&Vec<u8>> {
+    ) -> Option<&Arc<Vec<u8>>> {
         if let Some(asset) = self.assets.get_mut(&asset_id) {
             if asset.content.is_none() {
                 match platform.read_asset(&asset.path) {
-                    Ok(asset_content) => asset.content = Some(asset_content),
+                    Ok(asset_content) => asset.content = Some(Arc::new(asset_content)),
                     Err(e) => {
                         log::warn!("AssetManager::get_asset_content: failed to read asset: {e:?}");
                         return None;
                     }
                 }
             }
-            return Some(asset.content.as_ref().unwrap());
+            return asset.content.as_ref();
         }
         None
     }
