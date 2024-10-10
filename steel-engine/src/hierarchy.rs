@@ -1,23 +1,24 @@
 use crate::edit::Edit;
 use shipyard::{
-    AddComponent, AllStoragesViewMut, Component, EntitiesViewMut, EntityId, Get, IntoIter,
-    IntoWithId, Remove, Unique, UniqueViewMut, ViewMut, World,
+    AllStoragesViewMut, Component, EntitiesViewMut, EntityId, Get, Remove, Unique, UniqueViewMut,
+    ViewMut, World,
 };
 use std::collections::HashSet;
 use steel_common::data::{Data, Limit, Value};
 
-/// A parent in the hierarchy tree.
+/// Stores the parent of this entity in the hierarchy tree. An entity without Parent component is at the top level.
+/// You can use *parent to dereference the Parent component to get the entity id of parent.
 ///
 /// Warning: Users should not add or remove this component, otherwise a panic will occur.
 #[derive(Component, Default)]
-pub struct Parent {
-    children: Vec<EntityId>,
-}
+#[track(All)]
+pub struct Parent(EntityId);
 
-impl Parent {
-    /// List of children.
-    pub fn children(&self) -> &Vec<EntityId> {
-        &self.children
+impl std::ops::Deref for Parent {
+    type Target = EntityId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -27,48 +28,64 @@ impl Edit for Parent {
     }
 
     fn get_data(&self) -> Data {
+        Data::new().insert_with_limit("unnamed-0", Value::Entity(self.0), Limit::ReadOnly)
+    }
+
+    fn load_data(&mut self, data: &Data) {
+        if let Some(Value::Entity(v)) = data.get("unnamed-0") {
+            self.0 = *v;
+        }
+    }
+}
+
+/// Stores all children of this entity in the hierarchy tree.
+///
+/// Warning: Users should not add or remove this component, otherwise a panic will occur.
+#[derive(Component, Default)]
+pub struct Children(Vec<EntityId>);
+
+impl std::ops::Deref for Children {
+    type Target = Vec<EntityId>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl IntoIterator for Children {
+    type Item = <Vec<EntityId> as IntoIterator>::Item;
+    type IntoIter = <Vec<EntityId> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type Item = <&'a Vec<EntityId> as IntoIterator>::Item;
+    type IntoIter = <&'a Vec<EntityId> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.0).into_iter()
+    }
+}
+
+impl Edit for Children {
+    fn name() -> &'static str {
+        "Children"
+    }
+
+    fn get_data(&self) -> Data {
         Data::new().insert_with_limit(
-            "children",
-            Value::VecEntity(self.children.clone()),
+            "unnamed-0",
+            Value::VecEntity(self.0.clone()),
             Limit::ReadOnly,
         )
     }
 
     fn load_data(&mut self, data: &Data) {
-        if let Some(Value::VecEntity(v)) = data.get("children") {
-            self.children = v.clone();
-        }
-    }
-}
-
-/// A child in the hierarchy tree. An entity is at the top level if the parent field of Child component is EntityId::dead().
-///
-/// Warning: Users should not add or remove this component, otherwise a panic will occur.
-#[derive(Component, Default)]
-#[track(All)]
-pub struct Child {
-    parent: EntityId,
-}
-
-impl Child {
-    /// The parent of this child. If parent is EntityId::dead(), this entity is a root entity which is at top level.
-    pub fn parent(&self) -> EntityId {
-        self.parent
-    }
-}
-
-impl Edit for Child {
-    fn name() -> &'static str {
-        "Child"
-    }
-
-    fn get_data(&self) -> Data {
-        Data::new().insert_with_limit("parent", Value::Entity(self.parent), Limit::ReadOnly)
-    }
-
-    fn load_data(&mut self, data: &Data) {
-        if let Some(Value::Entity(v)) = data.get("parent") {
-            self.parent = *v;
+        if let Some(Value::VecEntity(v)) = data.get("unnamed-0") {
+            self.0 = v.clone();
         }
     }
 }
@@ -106,78 +123,60 @@ impl Edit for Hierarchy {
     }
 }
 
-/// The hierarchy maintain system. After running this system:
-/// * All children list of Parent components and Hierarchy unique must not miss any child.
-/// * All entities must have a Child component.
-/// * All entities in children list of Parent compnents must be alive.
+/// The hierarchy maintain system deals with:
+/// * For newly created entities, attach them to the top layer.
+/// * For deleted entities, dettach them from their parents and delete their ancestors.
+///
+/// After running this system:
+/// * Dead entities in hierarchy root list must be deleted.
+/// * Entities with a Parent component must be added to the Children component of their parent entity.
+/// * Entities without a Parent component must be added to the root list of the Hierarchy unique.
 /// * Entities which are not in hierarchy are deleted.
 pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     let entities_to_delete = all_storages.run(
         |mut hierarchy: UniqueViewMut<Hierarchy>,
-         mut parents: ViewMut<Parent>,
-         mut children: ViewMut<Child>,
+         mut childrens: ViewMut<Children>,
+         parents: ViewMut<Parent>,
          entities: EntitiesViewMut| {
-            // add entities which have newly created Child component to children list of Parent component
-            let mut root_set = HashSet::new();
-            for (eid, child) in children.inserted().iter().with_id() {
-                if child.parent == EntityId::dead() {
-                    if root_set.is_empty() {
-                        hierarchy.roots.iter().for_each(|e| {
-                            root_set.insert(*e);
-                        });
-                    }
-                    if !root_set.contains(&eid) {
-                        root_set.insert(eid);
-                        hierarchy.roots.push(eid);
-                    }
-                } else {
-                    if !parents.contains(child.parent) {
-                        parents.add_component_unchecked(child.parent, Parent::default());
-                    }
-                    let mut parent = (&mut parents).get(child.parent).unwrap();
-                    if !parent.children.contains(&eid) {
-                        // TODO: check in O(1)
-                        parent.children.push(eid);
+            // remove dead entities in hierarchy root list
+            for i in (0..hierarchy.roots.len()).rev() {
+                if !entities.is_alive(hierarchy.roots[i]) {
+                    hierarchy.roots.remove(i);
+                }
+            }
+
+            // remove dead entities with Parent component from Children component
+            for (e, parent) in parents.deleted() {
+                if let Ok(mut children) = (&mut childrens).get(**parent) {
+                    if let Some(i) = children.iter().position(|c| *c == e) {
+                        children.0.remove(i);
+                        if children.is_empty() {
+                            childrens.remove(**parent);
+                        }
                     }
                 }
             }
 
-            // all entities must have a Child component
-            let entities_without_child_component = entities
+            // entities without a Parent component must be added to the root list of the Hierarchy unique
+            let mut root_set = HashSet::new();
+            hierarchy.roots.iter().for_each(|&e| {
+                root_set.insert(e);
+            });
+            let entities_without_parent_component = entities
                 .iter()
-                .filter(|eid| !children.contains(*eid))
+                .filter(|&e| !parents.contains(e))
                 .collect::<Vec<_>>();
-            for eid in entities_without_child_component {
-                hierarchy.roots.push(eid);
-                entities.add_component(
-                    eid,
-                    &mut children,
-                    Child {
-                        parent: EntityId::dead(),
-                    },
-                );
-            }
-
-            // remove deleted entities with Child component from children list of Parent component
-            for (eid, child) in children.deleted() {
-                if child.parent == EntityId::dead() {
-                    if let Some(i) = hierarchy.roots.iter().position(|c| *c == eid) {
-                        hierarchy.roots.remove(i);
-                    }
-                } else if let Ok(mut parent) = (&mut parents).get(child.parent) {
-                    if let Some(i) = parent.children.iter().position(|c| *c == eid) {
-                        parent.children.remove(i);
-                        if parent.children.is_empty() {
-                            parents.remove(child.parent);
-                        }
-                    }
+            for e in entities_without_parent_component {
+                if !root_set.contains(&e) {
+                    hierarchy.roots.push(e);
+                    // root_set.insert(e); // if root_set is needed later, this line must be uncommented
                 }
             }
 
             // find entities which are not in hierarchy
             let (mut alive, mut dead) = (HashSet::new(), HashSet::new());
             for eid in entities.iter() {
-                check_in_hierarchy(eid, &mut alive, &mut dead, &children, &parents, &entities);
+                check_in_hierarchy(eid, &mut alive, &mut dead, &parents, &childrens, &entities);
             }
             dead
         },
@@ -192,17 +191,17 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     all_storages.run(clear_track_data_system);
 }
 
-pub(crate) fn clear_track_data_system(mut children: ViewMut<Child>) {
-    children.clear_all_removed_and_deleted();
-    children.clear_all_inserted_and_modified();
+pub(crate) fn clear_track_data_system(mut parents: ViewMut<Parent>) {
+    parents.clear_all_removed_and_deleted();
+    parents.clear_all_inserted_and_modified();
 }
 
 fn check_in_hierarchy(
     eid: EntityId,
     alive: &mut HashSet<EntityId>,
     dead: &mut HashSet<EntityId>,
-    children: &ViewMut<Child>,
     parents: &ViewMut<Parent>,
+    childrens: &ViewMut<Children>,
     entities: &EntitiesViewMut,
 ) -> bool {
     // already checked entity
@@ -213,18 +212,17 @@ fn check_in_hierarchy(
     }
 
     // not yet checked, check now
-    let child = children
-        .get(eid)
-        .expect(format!("No Child component in entity {eid:?}").as_str());
-    let in_hierarchy = if child.parent == EntityId::dead() {
+    let in_hierarchy = if let Ok(parent) = parents.get(eid) {
+        if entities.is_alive(**parent) {
+            // alive or dead depends on parent
+            check_in_hierarchy(**parent, alive, dead, parents, childrens, entities)
+        } else {
+            // parent is dead
+            false
+        }
+    } else {
         // eid is a root entity in top level
         true
-    } else if entities.is_alive(child.parent) {
-        // alive or dead depends on parent
-        check_in_hierarchy(child.parent, alive, dead, children, parents, entities)
-    } else {
-        // parent is dead
-        false
     };
 
     // remember check result and return
@@ -236,49 +234,49 @@ fn check_in_hierarchy(
     in_hierarchy
 }
 
-/// Dettach a Child form its Parent.
+/// Dettach a child form its parent.
 /// This function must be called after hierarchy_maintain_system, or may panic.
 fn dettach(world: &mut World, eid: EntityId) {
     world.run(
         |mut hierarchy: UniqueViewMut<Hierarchy>,
-         mut parents: ViewMut<Parent>,
-         mut children: ViewMut<Child>| {
-            // remove the Child component - if nonexistent, do nothing
-            if let Some(child) = children.remove(eid) {
-                // retrieve and update Parent component from ancestor
-                if let Ok(mut parent) = (&mut parents).get(child.parent) {
-                    if let Some(i) = parent.children.iter().position(|e| *e == eid) {
-                        parent.children.remove(i);
-                        if parent.children.is_empty() {
-                            parents.remove(child.parent);
+         mut childrens: ViewMut<Children>,
+         mut parents: ViewMut<Parent>| {
+            // remove the Parent component if exists
+            if let Some(parent) = parents.remove(eid) {
+                // retrieve and update Children component of it's parent
+                if let Ok(mut children) = (&mut childrens).get(*parent) {
+                    if let Some(i) = children.iter().position(|e| *e == eid) {
+                        children.0.remove(i);
+                        if children.is_empty() {
+                            childrens.remove(*parent);
                         }
                     }
-                } else if child.parent == EntityId::dead() {
-                    // child is at the top level
-                    if let Some(i) = hierarchy.roots.iter().position(|e| *e == eid) {
-                        hierarchy.roots.remove(i);
-                    }
+                }
+            } else {
+                // child is at the top level, update root list of Hierarchy unique
+                if let Some(i) = hierarchy.roots.iter().position(|e| *e == eid) {
+                    hierarchy.roots.remove(i);
                 }
             }
         },
     );
 }
 
-/// Attach a Child to a Parent previous to before entity. If before is EntityId::dead(), attach as the last child.
+/// Attach a child to a parent previous to before entity. If before is EntityId::dead(), attach as the last child.
 /// This function must be called after hierarchy_maintain_system, or may panic.
 pub(crate) fn attach_before(world: &mut World, eid: EntityId, parent: EntityId, before: EntityId) {
     log::trace!("Attach {eid:?} to {parent:?} before {before:?}");
     attach(world, eid, parent, before, true);
 }
 
-/// Attach a Child to a Parent next to after entity. If after is EntityId::dead(), attach as the first child.
+/// Attach a child to a parent next to after entity. If after is EntityId::dead(), attach as the first child.
 /// This function must be called after hierarchy_maintain_system, or may panic.
 pub(crate) fn attach_after(world: &mut World, eid: EntityId, parent: EntityId, after: EntityId) {
     log::trace!("Attach {eid:?} to {parent:?} after {after:?}");
     attach(world, eid, parent, after, false);
 }
 
-/// Attach a Child to a Parent adjacent to adjacent entity.
+/// Attach a child to a parent adjacent to adjacent entity.
 /// ### If prev is true:
 /// attach previous to adjacent. If adjacent is EntityId::dead(), attach as the last child.
 /// ### If prev is false:
@@ -289,28 +287,24 @@ fn attach(world: &mut World, eid: EntityId, parent: EntityId, adjacent: EntityId
 
     world.run(
         |mut hierarchy: UniqueViewMut<Hierarchy>,
-         mut parents: ViewMut<Parent>,
-         children: ViewMut<Child>,
+         mut childrens: ViewMut<Children>,
+         parents: ViewMut<Parent>,
          entities: EntitiesViewMut| {
-            if let Ok(mut p) = (&mut parents).get(parent) {
-                // the parent entity already has a Parent component
-                let i = get_insert_position(adjacent, prev, p.children.iter());
-                p.children.insert(i, eid);
-            } else if parent == EntityId::dead() {
+            if parent == EntityId::dead() {
                 // attach to the top level
                 let i = get_insert_position(adjacent, prev, hierarchy.roots.iter());
                 hierarchy.roots.insert(i, eid);
             } else {
-                // in this case our parent entity is missing a Parent component
-                entities.add_component(
-                    parent,
-                    parents,
-                    Parent {
-                        children: vec![eid],
-                    },
-                );
+                if let Ok(mut children) = (&mut childrens).get(parent) {
+                    // the parent entity already has a Children component
+                    let i = get_insert_position(adjacent, prev, children.iter());
+                    children.0.insert(i, eid);
+                } else {
+                    // in this case our parent entity is missing a Children component
+                    entities.add_component(parent, childrens, Children(vec![eid]));
+                }
+                entities.add_component(eid, parents, Parent(parent));
             }
-            entities.add_component(eid, children, Child { parent });
         },
     );
 }

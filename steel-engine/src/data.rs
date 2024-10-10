@@ -1,13 +1,17 @@
 pub use steel_common::data::*;
 
-use crate::edit::Edit;
+use crate::{
+    edit::Edit,
+    hierarchy::{Children, Parent},
+};
 use indexmap::IndexMap;
 use shipyard::{
     track::{All, Deletion, Insertion, Modification, Removal, Untracked},
-    Component, EntitiesView, EntityId, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut,
-    View, ViewMut, World,
+    AddComponent, Component, EntitiesView, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView,
+    UniqueViewMut, View, ViewMut, World,
 };
 use std::collections::HashMap;
+use steel_common::asset::AssetId;
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
@@ -171,7 +175,7 @@ impl ComponentRegistry {
                 let entity_data = world_data
                     .entities
                     .entry(e)
-                    .or_insert_with(|| EntityData::new());
+                    .or_insert_with(|| EntityData::default());
                 entity_data
                     .components
                     .insert(C::name().into(), c.get_data());
@@ -421,7 +425,7 @@ impl WorldDataExt for WorldData {
         unique_registry: &UniqueRegistry,
     ) -> HashMap<EntityId, EntityId> {
         // create new_world_data from self by changing old entity ids to new entity ids.
-        let mut new_world_data = WorldData::new();
+        let mut new_world_data = WorldData::default();
         let old_id_to_new_id = create_old_id_to_new_id_map(&self.entities, world);
         fill_new_entities_data(
             &mut new_world_data.entities,
@@ -465,7 +469,7 @@ impl EntitiesDataExt for EntitiesData {
         component_registry: &ComponentRegistry,
     ) -> HashMap<EntityId, EntityId> {
         // create new_entities_data from self by changing old entity ids to new entity ids.
-        let mut new_entities_data = EntitiesData::new();
+        let mut new_entities_data = EntitiesData::default();
         let old_id_to_new_id = create_old_id_to_new_id_map(self, world);
         fill_new_entities_data(&mut new_entities_data, self, &old_id_to_new_id, &world);
 
@@ -497,7 +501,7 @@ fn fill_new_entities_data(
 ) {
     for (old_id, entity_data) in old_entities_data {
         let new_id = *old_id_to_new_id.get(old_id).unwrap();
-        let mut new_entity_data = EntityData::new();
+        let mut new_entity_data = EntityData::default();
         for (component_name, component_data) in &entity_data.components {
             let new_component_data = update_eid_in_data(component_data, &old_id_to_new_id, world);
             new_entity_data
@@ -549,6 +553,181 @@ fn create_components_in_world(
             if let Some(component_fn) = component_registry.get(component_name.as_str()) {
                 (component_fn.create_with_data)(world, *eid, component_data);
             }
+        }
+    }
+}
+
+/// Prefab component contains prefab info about this entity:
+/// 1. Prefab asset id
+/// 2. Entity id in prefab
+/// 3. Entity id path in prefab
+/// 4. Prefab root entity id
+///
+/// An entity without this component means that it is not created from a prefab.
+#[derive(Component, Edit, Default, Debug)]
+pub struct Prefab {
+    /// The asset id of the prefab that this entity belongs to.
+    #[edit(limit = "Limit::ReadOnly")]
+    asset: AssetId,
+    /// The entity id index in the prefab that this entity belongs to.
+    /// This type is not [EntityId] because:
+    /// 1. this is a static id so that it should not be mapped with other entity ids when saving prefab.
+    /// 2. the generation of entity id is always 0 in prefabs.
+    ///
+    /// You can use [EntityId::new_from_index_and_gen] and [EntityId::index] to convert beetween [u64] and [EntityId].
+    #[edit(limit = "Limit::ReadOnly")]
+    entity_index: u64,
+    /// The entity id path of the prefab that this entity belongs to. Note that this type is [EntityIdPath],
+    /// but we use Vec\<u64\> here because currently edit derive macro dosen't support rust type alias.
+    /// TODO: support rust type alias in edit derive macro.
+    #[edit(limit = "Limit::ReadOnly")]
+    entity_path: Vec<u64>,
+    /// The root entity of the prefab that this entity belongs to.
+    #[edit(limit = "Limit::ReadOnly")]
+    root_entity: EntityId,
+}
+
+impl Prefab {
+    /// Get the asset id of the prefab that this entity belongs to.
+    pub fn asset(&self) -> AssetId {
+        self.asset
+    }
+
+    /// Get the entity id index in prefab.
+    pub fn entity_index(&self) -> u64 {
+        self.entity_index
+    }
+
+    /// Get the entity id path in prefab.
+    pub fn entity_path(&self) -> &EntityIdPath {
+        &self.entity_path
+    }
+
+    /// Get the root entity of prefab that this entity belongs to.
+    pub fn root_entity(&self) -> EntityId {
+        self.root_entity
+    }
+}
+
+/// Parameters for [create_prefab_system].
+#[derive(Unique)]
+pub(crate) struct CreatePrefabParam {
+    pub prefab_root_entity: EntityId,
+    pub prefab_asset: AssetId,
+    pub prefab_root_entity_to_nested_prefabs_index: HashMap<EntityId, u64>,
+}
+
+/// After creating a prefab, we must run this system to update [Prefab] components.
+pub(crate) fn create_prefab_system(
+    param: UniqueView<CreatePrefabParam>,
+    childrens: View<Children>,
+    mut prefabs: ViewMut<Prefab>,
+) {
+    // traverse param.prefab_root_entity and all its ancestors
+    let mut es = vec![param.prefab_root_entity];
+    while let Some(e) = es.pop() {
+        if let Ok(children) = childrens.get(e) {
+            es.extend(children);
+        }
+
+        // get the Prefab component for e
+        if !prefabs.contains(e) {
+            prefabs.add_component_unchecked(e, Prefab::default());
+        }
+        let mut prefab = (&mut prefabs).get(e).unwrap();
+
+        // update Prefab component values
+        if prefab.asset == AssetId::INVALID {
+            prefab.entity_index = e.index();
+        } else {
+            let nested_prefab_index =
+                param.prefab_root_entity_to_nested_prefabs_index[&prefab.root_entity];
+            prefab.entity_path.insert(0, nested_prefab_index);
+        }
+        prefab.asset = param.prefab_asset;
+        prefab.root_entity = param.prefab_root_entity;
+    }
+}
+
+/// Parameters for [load_prefab_system].
+#[derive(Unique)]
+pub(crate) struct LoadPrefabParam {
+    pub prefab_root_entity: EntityId,
+    pub prefab_asset: AssetId,
+    pub entity_id_to_prefab_entity_id_with_path: HashMap<EntityId, EntityIdWithPath>,
+}
+
+/// After loading a prefab, we must run this system to update [Prefab] components.
+pub(crate) fn load_prefab_system(
+    mut param: UniqueViewMut<LoadPrefabParam>,
+    mut prefabs: ViewMut<Prefab>,
+) {
+    // traverse all entities in this prefab
+    for (e, EntityIdWithPath(prefab_entity, prefab_entity_path)) in
+        std::mem::take(&mut param.entity_id_to_prefab_entity_id_with_path)
+    {
+        // get the Prefab component for e
+        if !prefabs.contains(e) {
+            prefabs.add_component_unchecked(e, Prefab::default());
+        }
+        let mut prefab = (&mut prefabs).get(e).unwrap();
+
+        // update Prefab component values
+        prefab.entity_index = prefab_entity.index();
+        prefab.entity_path = prefab_entity_path;
+        prefab.asset = param.prefab_asset;
+        prefab.root_entity = param.prefab_root_entity;
+    }
+}
+
+/// Parameters for [load_scene_prefabs_system].
+#[derive(Unique)]
+pub(crate) struct LoadScenePrefabsParam {
+    pub prefab_asset_and_entity_id_to_prefab_entity_id_with_path:
+        Vec<(AssetId, HashMap<EntityId, EntityIdWithPath>)>,
+}
+
+/// After loading a scene, we must run this system to update [Prefab] components for all prefabs in the scene.
+pub(crate) fn load_scene_prefabs_system(
+    mut param: UniqueViewMut<LoadScenePrefabsParam>,
+    parents: View<Parent>,
+    mut prefabs: ViewMut<Prefab>,
+) {
+    // for every prefab
+    for (prefab_asset, entity_id_to_prefab_entity_id_with_path) in
+        std::mem::take(&mut param.prefab_asset_and_entity_id_to_prefab_entity_id_with_path)
+    {
+        // no entity in this prefab, maybe this prefab was deleted
+        if entity_id_to_prefab_entity_id_with_path.is_empty() {
+            continue;
+        }
+
+        // find prefab root entity
+        let prefab_root_entity = (|| {
+            for &e in entity_id_to_prefab_entity_id_with_path.keys() {
+                let parent = parents.get(e).map(|p| **p).unwrap_or_default();
+                if !entity_id_to_prefab_entity_id_with_path.contains_key(&parent) {
+                    return e;
+                }
+            }
+            panic!("load_scene_prefabs_system: no root found for prefab: {prefab_asset:?}");
+        })();
+
+        // for every entity in this prefab
+        for (e, EntityIdWithPath(prefab_entity, prefab_entity_path)) in
+            entity_id_to_prefab_entity_id_with_path
+        {
+            // get the Prefab component for e
+            if !prefabs.contains(e) {
+                prefabs.add_component_unchecked(e, Prefab::default());
+            }
+            let mut prefab = (&mut prefabs).get(e).unwrap();
+
+            // update Prefab component values
+            prefab.entity_index = prefab_entity.index();
+            prefab.entity_path = prefab_entity_path;
+            prefab.asset = prefab_asset;
+            prefab.root_entity = prefab_root_entity;
         }
     }
 }

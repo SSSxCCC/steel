@@ -178,7 +178,7 @@ fn _main(event_loop: EventLoop<()>) {
 
                 let gui_editor = gui_editor.as_mut().unwrap();
                 let mut world_data = project.app().map(|e| {
-                    let mut world_data = WorldData::new();
+                    let mut world_data = WorldData::default();
                     e.command(Command::Save(&mut world_data));
                     world_data
                 });

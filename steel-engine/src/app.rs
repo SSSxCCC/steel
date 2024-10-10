@@ -1,13 +1,16 @@
 pub use steel_common::app::*;
 
 use crate::{
-    asset::AssetManager,
+    asset::{AssetManager, PrefabAssets},
     camera::{Camera, CameraInfo},
-    data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry},
+    data::{
+        ComponentRegistry, ComponentRegistryExt, CreatePrefabParam, EntitiesDataExt,
+        LoadPrefabParam, Prefab, UniqueRegistry,
+    },
     edit::Edit,
-    entityinfo::EntityInfo,
-    hierarchy::{Child, Hierarchy, Parent},
+    hierarchy::{Children, Hierarchy, Parent},
     input::Input,
+    name::Name,
     render::{
         canvas::{Canvas, GetEntityAtScreenParam},
         renderer2d::Renderer2D,
@@ -124,15 +127,17 @@ impl SteelApp {
             post_update_workload_editor: Some(Workload::new("post_update_editor")),
             draw_editor_workload: Some(Workload::new("draw_editor")),
         }
-        .register_component::<EntityInfo>()
+        .register_component::<Name>()
+        .register_component::<Prefab>()
         .register_component::<Parent>()
-        .register_component::<Child>()
+        .register_component::<Children>()
         .register_component::<Transform>()
         .register_component::<Camera>()
         .register_component::<Renderer2D>()
         .register_unique::<RenderManager>()
         .add_and_register_unique(Hierarchy::default())
         .add_unique(AssetManager::default())
+        .add_unique(PrefabAssets::default())
         .add_unique(CameraInfo::new())
         .add_unique(Canvas::new())
         .add_unique(Input::new())
@@ -400,6 +405,45 @@ impl App for SteelApp {
                     .unwrap()
                     .update_asset_path(asset_id, path);
             }
+            Command::GetPrefabData(asset_id, data) => {
+                *data = self.world.run(
+                    |mut prefab_assets: UniqueViewMut<PrefabAssets>,
+                     mut asset_manager: UniqueViewMut<AssetManager>,
+                     platform: UniqueView<Platform>| {
+                        prefab_assets.get_prefab_data(
+                            asset_id,
+                            asset_manager.as_mut(),
+                            platform.as_ref(),
+                        )
+                    },
+                );
+            }
+            Command::CreatePrefab(
+                prefab_root_entity,
+                prefab_asset,
+                prefab_root_entity_to_nested_prefabs_index,
+            ) => {
+                self.world.add_unique(CreatePrefabParam {
+                    prefab_root_entity,
+                    prefab_asset,
+                    prefab_root_entity_to_nested_prefabs_index,
+                });
+                self.world.run(crate::data::create_prefab_system);
+                self.world.remove_unique::<CreatePrefabParam>().unwrap();
+            }
+            Command::LoadPrefab(
+                prefab_root_entity,
+                prefab_asset,
+                entity_id_to_prefab_entity_id_with_path,
+            ) => {
+                self.world.add_unique(LoadPrefabParam {
+                    prefab_root_entity,
+                    prefab_asset,
+                    entity_id_to_prefab_entity_id_with_path,
+                });
+                self.world.run(crate::data::load_prefab_system);
+                self.world.remove_unique::<LoadPrefabParam>().unwrap();
+            }
         }
     }
 
@@ -413,10 +457,10 @@ impl App for SteelApp {
                     (unique_fn.load_from_data)(&mut self.world, world_data);
                 }
             }
-            CommandMut::Reload(world_data) => {
+            CommandMut::Reload(scene_data) => {
                 SceneManager::load(
                     &mut self.world,
-                    world_data,
+                    scene_data,
                     &self.component_registry,
                     &self.unique_registry,
                 );
@@ -426,7 +470,7 @@ impl App for SteelApp {
             }
             CommandMut::CreateEntity => {
                 self.world.add_entity((
-                    EntityInfo::new("New Entity"),
+                    Name::new("New Entity"),
                     Transform::default(),
                     Renderer2D::default(),
                 ));

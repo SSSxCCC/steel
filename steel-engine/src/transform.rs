@@ -1,4 +1,4 @@
-use crate::{edit::Edit, hierarchy::Child};
+use crate::{edit::Edit, hierarchy::Parent};
 use glam::{Affine2, Affine3A, Quat, Vec2, Vec3, Vec3Swizzles};
 use shipyard::{Component, EntityId, Get};
 use std::collections::HashMap;
@@ -29,25 +29,25 @@ impl Transform {
     /// Returns None if eid and ancestors do not have any Transform component.
     /// # Example
     /// ```rust
-    /// fn my_system(entities: EntitiesView, transforms: View<Transform>, children: View<Child>) {
+    /// fn my_system(entities: EntitiesView, transforms: View<Transform>, parents: View<Parent>) {
     ///     let mut model_cache = Some(HashMap::new());
     ///     let mut scale_cache = Some(HashMap::new());
     ///     for eid in entities.iter() {
     ///         // Affine3A::default() returns Affine3A::IDENTITY
-    ///         let model = Transform::entity_final_model(eid, &children, &transforms, &mut model_cache, &mut scale_cache).unwrap_or_default();
+    ///         let model = Transform::entity_final_model(eid, &parents, &transforms, &mut model_cache, &mut scale_cache).unwrap_or_default();
     ///     }
     /// }
     /// ```
     pub fn entity_final_model<'a>(
         eid: EntityId,
-        children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+        parents: impl Get<Out = &'a Parent> + Copy, // &View<Parent> or &ViewMut<Parent>
         transforms: impl Get<Out = &'a Transform> + Copy, // &View<Transform> or &ViewMut<Transform>
         model_cache: &mut Option<HashMap<EntityId, Option<Affine3A>>>,
         scale_cache: &mut Option<HashMap<EntityId, Option<Vec3>>>,
     ) -> Option<Affine3A> {
         if let (Some(final_scale), Some(final_model_without_scale)) = (
-            Self::entity_final_scale(eid, children, transforms, scale_cache),
-            Self::entity_final_model_without_scale(eid, children, transforms, model_cache),
+            Self::entity_final_scale(eid, parents, transforms, scale_cache),
+            Self::entity_final_model_without_scale(eid, parents, transforms, model_cache),
         ) {
             let final_scale = Affine3A::from_scale(final_scale);
             Some(final_model_without_scale * final_scale)
@@ -61,7 +61,7 @@ impl Transform {
     /// Returns None if eid and ancestors do not have any Transform component.
     pub fn entity_final_model_without_scale<'a>(
         eid: EntityId,
-        children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+        parents: impl Get<Out = &'a Parent> + Copy, // &View<Parent> or &ViewMut<Parent>
         transforms: impl Get<Out = &'a Transform> + Copy, // &View<Transform> or &ViewMut<Transform>
         cache: &mut Option<HashMap<EntityId, Option<Affine3A>>>,
     ) -> Option<Affine3A> {
@@ -74,11 +74,9 @@ impl Transform {
                 }
             }
 
-            let child = children
-                .get(eid)
-                .expect(format!("Missing Child component in entity: {eid:?}").as_str());
+            let parent = parents.get(eid).map(|p| **p).unwrap_or_default();
             let final_model = if let Some(parent_final_model_without_scale) =
-                Self::entity_final_model_without_scale(child.parent(), children, transforms, cache)
+                Self::entity_final_model_without_scale(parent, parents, transforms, cache)
             {
                 if let Ok(transform) = transforms.get(eid) {
                     Some(parent_final_model_without_scale * transform.model_without_scale())
@@ -104,7 +102,7 @@ impl Transform {
     /// Returns None if eid and ancestors do not have any Transform component.
     pub fn entity_final_scale<'a>(
         eid: EntityId,
-        children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+        parents: impl Get<Out = &'a Parent> + Copy, // &View<Parent> or &ViewMut<Parent>
         transforms: impl Get<Out = &'a Transform> + Copy, // &View<Transform> or &ViewMut<Transform>
         cache: &mut Option<HashMap<EntityId, Option<Vec3>>>,
     ) -> Option<Vec3> {
@@ -117,11 +115,9 @@ impl Transform {
                 }
             }
 
-            let child = children
-                .get(eid)
-                .expect(format!("Missing Child component in entity: {eid:?}").as_str());
+            let parent = parents.get(eid).map(|p| **p).unwrap_or_default();
             let final_scale = if let Some(parent_final_scale) =
-                Self::entity_final_scale(child.parent(), children, transforms, cache)
+                Self::entity_final_scale(parent, parents, transforms, cache)
             {
                 if let Ok(transform) = transforms.get(eid) {
                     Some(parent_final_scale * transform.scale)
@@ -161,25 +157,25 @@ impl Transform {
     /// Returns None if eid and ancestors do not have any Transform component.
     /// # Example
     /// ```rust
-    /// fn my_system(entities: EntitiesView, transforms: View<Transform>, children: View<Child>) {
+    /// fn my_system(entities: EntitiesView, transforms: View<Transform>, parents: View<Parent>) {
     ///     let mut model_cache = Some(HashMap::new());
     ///     let mut scale_cache = Some(HashMap::new());
     ///     for eid in entities.iter() {
     ///         // Affine2::default() returns Affine2::IDENTITY
-    ///         let model = Transform::entity_final_model_2d(eid, &children, &transforms, &mut model_cache, &mut scale_cache).unwrap_or_default();
+    ///         let model = Transform::entity_final_model_2d(eid, &parents, &transforms, &mut model_cache, &mut scale_cache).unwrap_or_default();
     ///     }
     /// }
     /// ```
     pub fn entity_final_model_2d<'a>(
         eid: EntityId,
-        children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+        parents: impl Get<Out = &'a Parent> + Copy, // &View<Parent> or &ViewMut<Parent>
         transforms: impl Get<Out = &'a Transform> + Copy, // &View<Transform> or &ViewMut<Transform>
         model_cache: &mut Option<HashMap<EntityId, Option<Affine2>>>,
         scale_cache: &mut Option<HashMap<EntityId, Option<Vec2>>>,
     ) -> Option<Affine2> {
         if let (Some(final_scale), Some(final_model_without_scale)) = (
-            Self::entity_final_scale_2d(eid, children, transforms, scale_cache),
-            Self::entity_final_model_without_scale_2d(eid, children, transforms, model_cache),
+            Self::entity_final_scale_2d(eid, parents, transforms, scale_cache),
+            Self::entity_final_model_without_scale_2d(eid, parents, transforms, model_cache),
         ) {
             let final_scale = Affine2::from_scale(final_scale);
             Some(final_model_without_scale * final_scale)
@@ -193,7 +189,7 @@ impl Transform {
     /// Returns None if eid and ancestors do not have any Transform component.
     pub fn entity_final_model_without_scale_2d<'a>(
         eid: EntityId,
-        children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+        parents: impl Get<Out = &'a Parent> + Copy, // &View<Parent> or &ViewMut<Parent>
         transforms: impl Get<Out = &'a Transform> + Copy, // &View<Transform> or &ViewMut<Transform>
         cache: &mut Option<HashMap<EntityId, Option<Affine2>>>,
     ) -> Option<Affine2> {
@@ -206,16 +202,10 @@ impl Transform {
                 }
             }
 
-            let child = children
-                .get(eid)
-                .expect(format!("Missing Child component in entity: {eid:?}").as_str());
+            let parent = parents.get(eid).map(|p| **p).unwrap_or_default();
             let final_model = if let Some(parent_final_model_without_scale) =
-                Self::entity_final_model_without_scale_2d(
-                    child.parent(),
-                    children,
-                    transforms,
-                    cache,
-                ) {
+                Self::entity_final_model_without_scale_2d(parent, parents, transforms, cache)
+            {
                 if let Ok(transform) = transforms.get(eid) {
                     Some(parent_final_model_without_scale * transform.model_without_scale_2d())
                 } else {
@@ -240,7 +230,7 @@ impl Transform {
     /// Returns None if eid and ancestors do not have any Transform component.
     pub fn entity_final_scale_2d<'a>(
         eid: EntityId,
-        children: impl Get<Out = &'a Child> + Copy, // &View<Child> or &ViewMut<Child>
+        parents: impl Get<Out = &'a Parent> + Copy, // &View<Parent> or &ViewMut<Parent>
         transforms: impl Get<Out = &'a Transform> + Copy,
         cache: &mut Option<HashMap<EntityId, Option<Vec2>>>,
     ) -> Option<Vec2> {
@@ -253,11 +243,9 @@ impl Transform {
                 }
             }
 
-            let child = children
-                .get(eid)
-                .expect(format!("Missing Child component in entity: {eid:?}").as_str());
+            let parent = parents.get(eid).map(|p| **p).unwrap_or_default();
             let final_scale = if let Some(parent_final_scale) =
-                Self::entity_final_scale_2d(child.parent(), children, transforms, cache)
+                Self::entity_final_scale_2d(parent, parents, transforms, cache)
             {
                 if let Ok(transform) = transforms.get(eid) {
                     Some(parent_final_scale * transform.scale.xy())

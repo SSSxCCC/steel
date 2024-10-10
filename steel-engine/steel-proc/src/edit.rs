@@ -1,7 +1,7 @@
-use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro2::{Ident, TokenStream};
+use quote::{quote, ToTokens};
 use std::{iter::zip, str::FromStr};
-use syn;
+use syn::{self, Index};
 
 pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
@@ -11,28 +11,33 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
 
     let fields = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
-            syn::Fields::Named(fields) => (&fields.named).iter().collect::<Vec<_>>(),
-            syn::Fields::Unnamed(_) => todo!(),
+            syn::Fields::Named(fields) => fields.named.iter().collect::<Vec<_>>(),
+            syn::Fields::Unnamed(fields) => fields.unnamed.iter().collect::<Vec<_>>(),
             syn::Fields::Unit => Vec::new(),
         },
         syn::Data::Enum(_) => panic!("Not yet supported Edit derive macro in Enum"),
         syn::Data::Union(_) => panic!("Not yet supported Edit derive macro in Union"),
     };
-    let (field_idents, (value_types, (value_names, value_limits))): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = fields.into_iter().filter_map(|field| {
-        let field_ident = field.ident.as_ref().unwrap();
+    let (field_accessors, (value_types, (value_names, value_limits))): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = fields.into_iter().enumerate().filter_map(|(i, field)| {
+        let field_accessor = match &field.ident {
+            Some(ident) => FieldAccessor::Ident(ident.clone()),
+            None => FieldAccessor::Index(Index::from(i)),
+        };
 
         let value_type = match &field.ty {
             syn::Type::Path(type_path) => {
                 let type_last_segment = type_path.path.segments.last()
-                    .expect(format!("No type path segment for field {field_ident:?}").as_str());
+                    .expect(format!("No type path segment for field {field_accessor:?}").as_str());
                 let type_last_ident = &type_last_segment.ident;
                 match type_last_ident.to_string().as_str() {
                     "bool" => quote! { Value::Bool },
                     "i32" => quote! { Value::Int32 },
+                    "i64" => quote! { Value::Int64 },
                     "u32" => quote! { Value::UInt32 },
+                    "u64" => quote! { Value::UInt64 },
                     "f32" => quote! { Value::Float32 },
+                    "f64" => quote! { Value::Float64 },
                     "String" => quote! { Value::String },
-                    "EntityId" => quote! { Value::Entity },
                     "Vec2" => quote! { Value::Vec2 },
                     "Vec3" => quote! { Value::Vec3 },
                     "Vec4" => quote! { Value::Vec4 },
@@ -42,6 +47,7 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
                     "UVec2" => quote! { Value::UVec2 },
                     "UVec3" => quote! { Value::UVec3 },
                     "UVec4" => quote! { Value::UVec4 },
+                    "EntityId" => quote! { Value::Entity },
                     "AssetId" => quote! { Value::Asset },
                     "Vec" => {
                         let generic_arg = match &type_last_segment.arguments {
@@ -51,9 +57,18 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
                         match generic_arg {
                             syn::GenericArgument::Type(syn::Type::Path(generic_path)) => {
                                 let generic_type_last_ident = &generic_path.path.segments.last()
-                                    .expect(format!("No type path segment for field {field_ident:?}").as_str()).ident;
+                                    .expect(format!("No type path segment for field {field_accessor:?}").as_str()).ident;
                                 match generic_type_last_ident.to_string().as_str() {
+                                    "bool" => quote! { Value::VecBool },
+                                    "i32" => quote! { Value::VecInt32 },
+                                    "i64" => quote! { Value::VecInt64 },
+                                    "u32" => quote! { Value::VecUInt32 },
+                                    "u64" => quote! { Value::VecUInt64 },
+                                    "f32" => quote! { Value::VecFloat32 },
+                                    "f64" => quote! { Value::VecFloat64 },
+                                    "String" => quote! { Value::VecString },
                                     "EntityId" => quote! { Value::VecEntity },
+                                    "AssetId" => quote! { Value::VecAsset },
                                     _ => return None,
                                 }
                             }
@@ -66,7 +81,7 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
             _ => return None,
         };
 
-        let mut value_name = field_ident.to_string();
+        let mut value_name = field_accessor.to_string();
         let mut value_limit = None;
         field.attrs.iter().for_each(|attr| {
             if attr.path().is_ident("edit") {
@@ -97,11 +112,11 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
             }
         });
 
-        Some((field_ident, (value_type, (value_name, value_limit))))
+        Some((field_accessor, (value_type, (value_name, value_limit))))
     }).unzip();
 
-    let insert_values = zip(&value_types, &field_idents)
-        .map(|(value_type, field_ident)| quote! { #value_type (self.#field_ident.clone()) })
+    let insert_values = zip(&value_types, &field_accessors)
+        .map(|(value_type, field_accessor)| quote! { #value_type (self.#field_accessor.clone()) })
         .collect::<Vec<_>>();
     let insert_tokens = zip(&value_names, zip(insert_values, &value_limits))
         .map(|(value_name, (insert_value, value_limit))| {
@@ -118,9 +133,9 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
         }
     };
 
-    let set_datas = zip(value_limits, zip(value_types, zip(value_names, field_idents)))
+    let set_datas = zip(value_limits, zip(value_types, zip(value_names, field_accessors)))
         .filter(|(value_limit, _)| !value_limit.as_ref().is_some_and(|limit| limit.to_string().contains("ReadOnly")))
-        .map(|(_, (value_type, (value_name, field_ident)))| quote! { if let Some(#value_type (v)) = data.get(#value_name) { self.#field_ident = v.clone() } })
+        .map(|(_, (value_type, (value_name, field_accessor)))| quote! { if let Some(#value_type (v)) = data.get(#value_name) { self.#field_accessor = v.clone() } })
         .collect::<Vec<_>>();
     let set_data_fn = quote! {
         fn set_data(&mut self, data: &Data) {
@@ -133,6 +148,30 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
             #name_fn
             #get_data_fn
             #set_data_fn
+        }
+    }
+}
+
+#[derive(Debug)]
+enum FieldAccessor {
+    Ident(Ident),
+    Index(Index),
+}
+
+impl ToString for FieldAccessor {
+    fn to_string(&self) -> String {
+        match self {
+            FieldAccessor::Ident(ident) => ident.to_string(),
+            FieldAccessor::Index(index) => format!("unnamed-{}", index.index),
+        }
+    }
+}
+
+impl ToTokens for FieldAccessor {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            FieldAccessor::Ident(ident) => ident.to_tokens(tokens),
+            FieldAccessor::Index(index) => index.to_tokens(tokens),
         }
     }
 }

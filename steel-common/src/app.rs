@@ -1,6 +1,6 @@
 use crate::{
     asset::AssetId,
-    data::{EntitiesData, WorldData},
+    data::{EntitiesData, EntityIdWithPath, PrefabData, SceneData, WorldData},
     platform::Platform,
 };
 use glam::{UVec2, Vec3};
@@ -87,12 +87,18 @@ pub enum Command<'a> {
     DeleteAsset(AssetId),
     DeleteAssetDir(&'a Path),
     UpdateAssetPath(AssetId, PathBuf),
+
+    GetPrefabData(AssetId, &'a mut Option<Arc<PrefabData>>),
+    /// prefab_root_entity, prefab_asset, prefab_root_entity_to_nested_prefabs_index
+    CreatePrefab(EntityId, AssetId, HashMap<EntityId, u64>),
+    /// prefab_root_entity, prefab_asset, entity_id_to_prefab_entity_id_with_path
+    LoadPrefab(EntityId, AssetId, HashMap<EntityId, EntityIdWithPath>),
 }
 
 /// CommandMut is sent by editor through [App::command] method to modify the game world.
 pub enum CommandMut<'a> {
     Load(&'a WorldData),
-    Reload(&'a WorldData),
+    Reload(&'a SceneData),
     SetCurrentScene(Option<AssetId>),
 
     CreateEntity,

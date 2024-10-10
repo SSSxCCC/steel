@@ -9,7 +9,7 @@ First click the plus button on the Entities tab to create a new entity. Select t
 ![image](../images/create-new-entity.png)
 
 The newly created entity has 3 components:
-* EntityInfo: defines the name of this entity;
+* Name: defines the name of this entity;
 * Transform: defines the position, size and scaling of this entity;
 * Renderer2D: Draw a 2D image, the default shape is a rectangle.
 

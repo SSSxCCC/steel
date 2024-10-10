@@ -7,16 +7,20 @@ use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
 use regex::Regex;
+use shipyard::EntityId;
 use std::{
     error::Error,
     fs,
     path::{Path, PathBuf},
-    sync::mpsc::{Receiver, TryRecvError},
+    sync::{
+        mpsc::{Receiver, TryRecvError},
+        Arc,
+    },
 };
 use steel_common::{
     app::{App, Command, CommandMut, InitInfo},
     asset::{AssetId, AssetIdType, AssetInfo},
-    data::WorldData,
+    data::{PrefabData, SceneData, WorldData},
     platform::Platform,
 };
 use vulkano_util::context::VulkanoContext;
@@ -26,10 +30,10 @@ struct ProjectCompiledState {
     #[allow(unused)]
     library: Library, // Library must be destroyed after App
 
-    data: WorldData,
-    running: bool,
     /// The asset id of current opened scene
     scene: Option<AssetId>,
+    scene_data: SceneData,
+    running: bool,
 
     /// Watch for file changes in asset folder.
     #[allow(unused)]
@@ -39,6 +43,26 @@ struct ProjectCompiledState {
     /// Last EventKind::Modify(ModifyKind::Name(RenameMode::From)),
     /// to be used with upcoming EventKind::Modify(ModifyKind::Name(RenameMode::To)).
     last_rename_from_event: Option<Event>,
+}
+
+impl ProjectCompiledState {
+    fn save_scene(&self, prefab_data_override: Option<(EntityId, Arc<PrefabData>)>) -> SceneData {
+        let mut world_data = WorldData::default();
+        self.app.command(Command::Save(&mut world_data));
+        let get_prefab_data_fn = |prefab_asset: AssetId| {
+            let mut prefab_data = None;
+            self.app
+                .command(Command::GetPrefabData(prefab_asset, &mut prefab_data));
+            prefab_data
+        };
+        let mut scene_data = SceneData::new_with_prefab_data_override(
+            &world_data,
+            get_prefab_data_fn,
+            prefab_data_override,
+        );
+        scene_data.cut();
+        scene_data
+    }
 }
 
 struct ProjectState {
@@ -164,10 +188,10 @@ impl Project {
     ) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
             // save scene data before unloading library
-            let mut data = WorldData::new();
+            let mut scene_data = SceneData::default();
             let mut scene = None;
             if let Some(compiled) = &mut state.compiled {
-                compiled.app.command(Command::Save(&mut data));
+                scene_data = compiled.save_scene(None);
                 scene = compiled.scene.take();
             }
 
@@ -200,7 +224,7 @@ impl Project {
             });
 
             // restore game world from scene data
-            app.command_mut(CommandMut::Reload(&data));
+            app.command_mut(CommandMut::Reload(&scene_data));
             app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
 
             // init a watcher to monitor file changes for asset system
@@ -228,9 +252,9 @@ impl Project {
             state.compiled = Some(ProjectCompiledState {
                 app,
                 library,
-                data,
-                running: false,
                 scene,
+                scene_data,
+                running: false,
                 watcher,
                 receiver,
                 last_rename_from_event: None,
@@ -808,15 +832,17 @@ impl Project {
         self.compiled_ref().is_some_and(|compiled| compiled.running)
     }
 
-    pub fn save_to_memory(&mut self) {
+    pub fn save_to_memory(&mut self, prefab_data_override: Option<(EntityId, Arc<PrefabData>)>) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command(Command::Save(&mut compiled.data));
+            compiled.scene_data = compiled.save_scene(prefab_data_override);
         }
     }
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command_mut(CommandMut::Reload(&compiled.data));
+            compiled
+                .app
+                .command_mut(CommandMut::Reload(&compiled.scene_data));
             compiled
                 .app
                 .command_mut(CommandMut::SetCurrentScene(compiled.scene.clone()));
@@ -887,18 +913,17 @@ impl Project {
         }
     }
 
-    /// Save current world_data to file, scene is the save file path,
-    /// which is relative to the asset directory of opened project
+    /// Convert current [WorldData] to [SceneData] and save to file, scene is the
+    /// save file path, which is relative to the asset directory of opened project.
     pub fn save_scene(&mut self, scene: impl Into<PathBuf>) {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command(Command::Save(&mut compiled.data));
-            let world_data = compiled.data.cut();
+            compiled.scene_data = compiled.save_scene(None);
             let asset_dir =
                 asset_dir.expect("self.asset_dir() must be some when self.compiled_mut() is some");
             let scene = scene.into();
             let scene_abs = asset_dir.join(&scene);
-            match Self::_save_to_file(&world_data, &scene_abs) {
+            match crate::utils::save_to_file(&compiled.scene_data, &scene_abs) {
                 Ok(_) => {
                     match Self::get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
                         Ok(asset_info) => {
@@ -923,14 +948,8 @@ impl Project {
         }
     }
 
-    fn _save_to_file(data: &WorldData, path: &PathBuf) -> Result<(), Box<dyn Error>> {
-        let s = serde_json::to_string_pretty(data)?;
-        fs::write(path, s)?;
-        Ok(())
-    }
-
-    /// Load world_data from file, scene is the load file path,
-    /// which is relative to the asset directory of opened project
+    /// Load [SceneData] from file and convert to [WorldData], scene is the load file path,
+    /// which is relative to the asset directory of opened project.
     pub fn load_scene(&mut self, scene: impl Into<PathBuf>) {
         let asset_dir = self.asset_dir();
         if let Some(compiled) = self.compiled_mut() {
@@ -938,10 +957,12 @@ impl Project {
                 asset_dir.expect("self.asset_dir() must be some if self.compiled_mut() is some");
             let scene = scene.into();
             let scene_abs = asset_dir.join(&scene);
-            match Self::_load_from_file(&scene_abs) {
-                Ok(data) => {
-                    compiled.data = data;
-                    compiled.app.command_mut(CommandMut::Reload(&compiled.data));
+            match crate::utils::load_from_file::<SceneData>(&scene_abs) {
+                Ok(scene_data) => {
+                    compiled.scene_data = scene_data;
+                    compiled
+                        .app
+                        .command_mut(CommandMut::Reload(&compiled.scene_data));
                     match Self::get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
                         Ok(asset_info) => {
                             compiled
@@ -965,16 +986,14 @@ impl Project {
         }
     }
 
-    fn _load_from_file(path: &PathBuf) -> Result<WorldData, Box<dyn Error>> {
-        let s = fs::read_to_string(path)?;
-        Ok(serde_json::from_str::<WorldData>(&s)?)
-    }
-
     /// Get the asset info of file in asset_path.
     /// * If asset info file already exists:
     /// Read asset info file to get AssetInfo, and insert asset id to AssetManager if always_insert is true.
     /// * If asset info file not exists:
     /// Create a new AssetInfo, write AssetInfo into asset info file, and insert asset id to AssetManager.
+    ///
+    /// If you call this function to create asset info for newly created asset file, you can set always_insert to false,
+    /// because we will receive a file create event and call this function with always_insert as true in the next frame.
     pub fn get_asset_info_and_insert(
         asset_dir: impl AsRef<Path>,
         asset_path: impl AsRef<Path>,
@@ -1034,6 +1053,7 @@ impl Project {
     }
 }
 
+/// The error happened in project management.
 #[derive(Debug)]
 struct ProjectError {
     message: String,

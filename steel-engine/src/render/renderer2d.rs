@@ -1,5 +1,6 @@
 use crate::{
-    edit::Edit, hierarchy::Child, render::canvas::Canvas, shape::ShapeWrapper, transform::Transform,
+    edit::Edit, hierarchy::Parent, render::canvas::Canvas, shape::ShapeWrapper,
+    transform::Transform,
 };
 use glam::{Affine3A, Vec3, Vec4};
 use parry2d::shape::{ShapeType, SharedShape};
@@ -46,12 +47,12 @@ impl Edit for Renderer2D {
 pub fn renderer2d_to_canvas_system(
     renderer2d: View<Renderer2D>,
     transforms: View<Transform>,
-    children: View<Child>,
+    children: View<Parent>,
     mut canvas: UniqueViewMut<Canvas>,
 ) {
     let mut model_cache = Some(HashMap::new());
     let mut scale_cache = Some(HashMap::new());
-    for (eid, (renderer2d, _, _)) in (&renderer2d, &transforms, &children).iter().with_id() {
+    for (eid, (renderer2d, _)) in (&renderer2d, &transforms).iter().with_id() {
         let scale =
             Transform::entity_final_scale(eid, &children, &transforms, &mut scale_cache).unwrap();
         let model_without_scale = Transform::entity_final_model_without_scale(

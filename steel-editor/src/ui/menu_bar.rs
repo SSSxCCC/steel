@@ -113,7 +113,7 @@ impl MenuBar {
                                     log::info!("Menu->Edit->Duplicate");
                                     DataWindow::duplicate_entity(
                                         data_window.selected_entity(),
-                                        world_data,
+                                        &world_data.entities,
                                         project.app().unwrap(),
                                     );
                                     ui.close_menu();
@@ -126,12 +126,32 @@ impl MenuBar {
                                     );
                                     ui.close_menu();
                                 }
+                                if world_data
+                                    .entities
+                                    .get(&data_window.selected_entity())
+                                    .and_then(|entity_data| entity_data.prefab_asset())
+                                    .is_some()
+                                {
+                                    if ui.button(texts.get("Save Prefab")).clicked() {
+                                        log::info!("Menu->Edit->Save Prefab");
+                                        let asset_dir = project.asset_dir().unwrap();
+                                        DataWindow::save_prefab(
+                                            data_window.selected_entity(),
+                                            &world_data.entities,
+                                            project,
+                                            asset_dir,
+                                        );
+                                        ui.close_menu();
+                                    }
+                                }
                                 if ui.button(texts.get("Save As Prefab")).clicked() {
                                     log::info!("Menu->Edit->Save As Prefab");
+                                    let asset_dir = project.asset_dir().unwrap();
                                     DataWindow::save_as_prefab(
                                         data_window.selected_entity(),
-                                        world_data,
-                                        project.asset_dir().unwrap(),
+                                        &world_data.entities,
+                                        project.app().unwrap(),
+                                        asset_dir,
                                     );
                                     ui.close_menu();
                                 }
@@ -233,7 +253,7 @@ impl MenuBar {
                         |project: &mut Project,
                          switch_to_game_window_on_start: bool,
                          dock_state: &mut DockState<String>| {
-                            project.save_to_memory();
+                            project.save_to_memory(None);
                             project.app().unwrap().command(Command::ResetTime);
                             if switch_to_game_window_on_start {
                                 if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {

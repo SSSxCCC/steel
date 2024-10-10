@@ -111,17 +111,17 @@ impl Editor {
             let asset_dir = project.asset_dir();
 
             if !self.editor_state.use_dock {
-                if let Some(world_data) = world_data {
-                    if let Some(app) = project.app() {
+                if project.is_compiled() {
+                    if let Some(world_data) = world_data {
                         self.data_window.entity_component_windows(
                             &ctx,
                             world_data,
-                            app,
+                            project,
                             asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
                             &self.texts,
                         );
                         self.data_window
-                            .unique_windows(&ctx, world_data, app, asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"), &self.texts);
+                            .unique_windows(&ctx, world_data, project.app().unwrap(), asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"), &self.texts);
                     }
                 }
             }
@@ -145,12 +145,12 @@ impl Editor {
                                     }
                                 }
                                 "Entities" => {
-                                    if let Some(world_data) = world_data {
-                                        if let Some(app) = project.app() {
+                                    if project.is_compiled() {
+                                        if let Some(world_data) = world_data {
                                             self.data_window.entities_view(
                                                 ui,
                                                 world_data,
-                                                app,
+                                                project,
                                                 asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
                                                 &self.texts,
                                             );
@@ -187,7 +187,7 @@ impl Editor {
                                                 .uniques
                                                 .get_mut(self.data_window.selected_unique())
                                             {
-                                                DataWindow::data_view(
+                                                self.data_window.data_view(
                                                     ui,
                                                     self.data_window.selected_unique(),
                                                     unique_data,

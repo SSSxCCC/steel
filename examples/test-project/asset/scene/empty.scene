@@ -1,6 +1,29 @@
 {
-  "entities": [],
+  "entities": {
+    "entities": [],
+    "nested_prefabs": [],
+    "delete": []
+  },
   "uniques": {
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": []
+        }
+      }
+    },
     "Physics2DManager": {
       "values": {
         "gravity": {
@@ -53,24 +76,16 @@
         }
       }
     },
-    "RenderManager": {
+    "MyUnique": {
       "values": {
-        "clear_color": {
-          "Vec4": [
-            0.0,
-            0.0,
-            0.0,
-            0.0
-          ]
-        }
-      }
-    },
-    "Hierarchy": {
-      "values": {
-        "roots": {
-          "VecEntity": []
+        "scene1": {
+          "Asset": 529652184
+        },
+        "scene2": {
+          "Asset": 1482858380
         }
       }
     }
-  }
+  },
+  "unique_id_paths": {}
 }

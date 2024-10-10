@@ -71,3 +71,35 @@ impl LocalData {
         }
     }
 }
+
+/// The general error happened in steel editor.
+#[derive(Debug)]
+pub struct EditorError {
+    pub message: String,
+}
+
+impl EditorError {
+    pub fn new(message: impl Into<String>) -> EditorError {
+        EditorError {
+            message: message.into(),
+        }
+    }
+
+    pub fn boxed(self) -> Box<dyn Error> {
+        Box::new(self)
+    }
+}
+
+impl std::fmt::Display for EditorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EditorError({})", self.message)
+    }
+}
+
+impl Error for EditorError {}
+
+/// Helper function to create an Err(Box\<dyn Error\>) from a string.
+/// The boxed error type is [EditorError].
+pub fn err<T>(message: impl Into<String>) -> Result<T, Box<dyn Error>> {
+    Err(EditorError::new(message).boxed())
+}

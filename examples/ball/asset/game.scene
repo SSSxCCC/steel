@@ -1,631 +1,655 @@
 {
-  "entities": [
-    [
-      {
-        "index": 0,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Ball"
-              }
-            }
+  "entities": {
+    "entities": [
+      [
+        [
+          {
+            "index": 0,
+            "gen": 0
           },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Ball"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      10.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Renderer2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 0
+                  },
+                  "radius": {
+                    "Float32": 0.5
+                  },
+                  "color": {
+                    "Vec4": [
+                      1.0,
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "RigidBody2D": {
+                "values": {
+                  "body_type": {
+                    "Int32": 0
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 0
+                  },
+                  "radius": {
+                    "Float32": 0.5
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
+              },
+              "Ball": {
+                "values": {
+                  "start_velocity": {
+                    "Vec2": [
+                      8.0,
+                      16.0
+                    ]
+                  }
                 }
               }
             }
           },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  10.0,
-                  0.0
-                ]
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 1,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Board"
+                  }
+                }
               },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      5.0,
+                      0.2,
+                      1.0
+                    ]
+                  }
+                }
               },
-              "scale": {
-                "Vec3": [
-                  1.0,
-                  1.0,
-                  1.0
-                ]
+              "Renderer2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "color": {
+                    "Vec4": [
+                      1.0,
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "RigidBody2D": {
+                "values": {
+                  "body_type": {
+                    "Int32": 3
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
+              },
+              "Player": {
+                "values": {
+                  "move_speed": {
+                    "Float32": 10.0
+                  }
+                }
               }
             }
           },
-          "RigidBody2D": {
-            "values": {
-              "body_type": {
-                "Int32": 0
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 2,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Left Wall"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      -12.0,
+                      5.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      1.0,
+                      20.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Renderer2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "color": {
+                    "Vec4": [
+                      1.0,
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
               }
             }
           },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 0
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 3,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Right Wall"
+                  }
+                }
               },
-              "radius": {
-                "Float32": 0.5
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      12.0,
+                      5.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      1.0,
+                      20.0,
+                      1.0
+                    ]
+                  }
+                }
               },
-              "restitution": {
-                "Float32": 1.0
+              "Renderer2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "color": {
+                    "Vec4": [
+                      1.0,
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
               },
-              "sensor": {
-                "Bool": false
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
               }
             }
           },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 0
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 4,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Top Wall"
+                  }
+                }
               },
-              "radius": {
-                "Float32": 0.5
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      15.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      25.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
               },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  1.0,
-                  1.0,
-                  1.0
-                ]
+              "Renderer2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "color": {
+                    "Vec4": [
+                      1.0,
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
               }
             }
           },
-          "Ball": {
-            "values": {
-              "start_velocity": {
-                "Vec2": [
-                  8.0,
-                  16.0
-                ]
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 5,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Camera"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      5.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Camera": {
+                "values": {
+                  "spec": {
+                    "Int32": 2
+                  },
+                  "min_width": {
+                    "Float32": 25.0
+                  },
+                  "min_height": {
+                    "Float32": 20.0
+                  }
+                }
               }
             }
-          }
-        }
-      }
+          },
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 6,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Border"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      5.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      24.0,
+                      20.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
+                      1.0,
+                      1.0
+                    ]
+                  },
+                  "restitution": {
+                    "Float32": 0.0
+                  },
+                  "sensor": {
+                    "Bool": true
+                  }
+                }
+              },
+              "Border": {
+                "values": {}
+              }
+            }
+          },
+          {}
+        ]
+      ]
     ],
-    [
-      {
-        "index": 1,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Board"
-              }
-            }
-          },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
-                }
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  5.0,
-                  0.2,
-                  1.0
-                ]
-              }
-            }
-          },
-          "RigidBody2D": {
-            "values": {
-              "body_type": {
-                "Int32": 3
-              }
-            }
-          },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 1.0
-              },
-              "sensor": {
-                "Bool": false
-              }
-            }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Player": {
-            "values": {
-              "move_speed": {
-                "Float32": 10.0
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 2,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Left Wall"
-              }
-            }
-          },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
-                }
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  -12.0,
-                  5.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  1.0,
-                  20.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 1.0
-              },
-              "sensor": {
-                "Bool": false
-              }
-            }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 3,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Right Wall"
-              }
-            }
-          },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
-                }
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  12.0,
-                  5.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  1.0,
-                  20.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 1.0
-              },
-              "sensor": {
-                "Bool": false
-              }
-            }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 4,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Top Wall"
-              }
-            }
-          },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
-                }
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  15.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  25.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 1.0
-              },
-              "sensor": {
-                "Bool": false
-              }
-            }
-          },
-          "Renderer2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "color": {
-                "Vec4": [
-                  1.0,
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 5,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Camera"
-              }
-            }
-          },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
-                }
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  5.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  1.0,
-                  1.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Camera": {
-            "values": {
-              "spec": {
-                "Int32": 2
-              },
-              "min_width": {
-                "Float32": 25.0
-              },
-              "min_height": {
-                "Float32": 20.0
-              }
-            }
-          }
-        }
-      }
-    ],
-    [
-      {
-        "index": 6,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Border"
-              }
-            }
-          },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
-                }
-              }
-            }
-          },
-          "Transform": {
-            "values": {
-              "position": {
-                "Vec3": [
-                  0.0,
-                  5.0,
-                  0.0
-                ]
-              },
-              "rotation": {
-                "Vec3": [
-                  0.0,
-                  0.0,
-                  0.0
-                ]
-              },
-              "scale": {
-                "Vec3": [
-                  24.0,
-                  20.0,
-                  1.0
-                ]
-              }
-            }
-          },
-          "Collider2D": {
-            "values": {
-              "shape_type": {
-                "Int32": 1
-              },
-              "size": {
-                "Vec2": [
-                  1.0,
-                  1.0
-                ]
-              },
-              "restitution": {
-                "Float32": 0.0
-              },
-              "sensor": {
-                "Bool": true
-              }
-            }
-          },
-          "Border": {
-            "values": {}
-          }
-        }
-      }
-    ]
-  ],
+    "nested_prefabs": [],
+    "delete": []
+  },
   "uniques": {
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 0,
+              "gen": 0
+            },
+            {
+              "index": 1,
+              "gen": 0
+            },
+            {
+              "index": 2,
+              "gen": 0
+            },
+            {
+              "index": 3,
+              "gen": 0
+            },
+            {
+              "index": 4,
+              "gen": 0
+            },
+            {
+              "index": 5,
+              "gen": 0
+            },
+            {
+              "index": 6,
+              "gen": 0
+            }
+          ]
+        }
+      }
+    },
     "Physics2DManager": {
       "values": {
         "gravity": {
@@ -677,52 +701,19 @@
           "Int32": 1
         }
       }
-    },
-    "RenderManager": {
-      "values": {
-        "clear_color": {
-          "Vec4": [
-            0.0,
-            0.0,
-            0.0,
-            0.0
-          ]
-        }
-      }
-    },
+    }
+  },
+  "unique_id_paths": {
     "Hierarchy": {
-      "values": {
-        "roots": {
-          "VecEntity": [
-            {
-              "index": 0,
-              "gen": 0
-            },
-            {
-              "index": 1,
-              "gen": 0
-            },
-            {
-              "index": 2,
-              "gen": 0
-            },
-            {
-              "index": 3,
-              "gen": 0
-            },
-            {
-              "index": 4,
-              "gen": 0
-            },
-            {
-              "index": 5,
-              "gen": 0
-            },
-            {
-              "index": 6,
-              "gen": 0
-            }
-          ]
+      "roots": {
+        "EntityVec": {
+          "0": [],
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": [],
+          "6": []
         }
       }
     }

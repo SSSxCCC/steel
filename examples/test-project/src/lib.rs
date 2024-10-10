@@ -16,6 +16,7 @@ pub fn create() -> Box<dyn App> {
         .add_plugin(Physics2DPlugin)
         .add_and_register_unique(MyUnique::default())
         .register_component::<TestComponent>()
+        .register_component::<TagComponent>()
         .add_system(Schedule::PostUpdate, test_system)
         .boxed()
 }
@@ -63,3 +64,6 @@ fn test_system(
         }
     });
 }
+
+#[derive(Component, Edit, Default)]
+struct TagComponent;
