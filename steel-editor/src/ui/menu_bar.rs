@@ -319,17 +319,6 @@ impl MenuBar {
                         ctx.pixels_per_point()
                     ));
                     egui::gui_zoom::zoom_menu_buttons(ui);
-                    if ui
-                        .button(texts.get(if editor_state.use_dock {
-                            "Disable Dock"
-                        } else {
-                            "Enable Dock"
-                        }))
-                        .clicked()
-                    {
-                        editor_state.use_dock = !editor_state.use_dock;
-                        ui.close_menu();
-                    }
                     ui.menu_button(texts.get("Language"), |ui| {
                         if ui.button(texts.get("en-US")).clicked() {
                             texts.language = Language::Eng;

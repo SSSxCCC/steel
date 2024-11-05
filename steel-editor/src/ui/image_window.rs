@@ -1,4 +1,3 @@
-use crate::locale::Texts;
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2};
 use std::sync::Arc;
@@ -18,7 +17,6 @@ pub struct ImageWindow {
     pixel: UVec2,
     size: Vec2,
     position: Vec2,
-    layer: Option<usize>, // Warning: the value of layer is undefined if !project.is_compiled()
 }
 
 impl ImageWindow {
@@ -31,24 +29,7 @@ impl ImageWindow {
             pixel: UVec2::ZERO,
             size: Vec2::ZERO,
             position: Vec2::ZERO,
-            layer: None,
         }
-    }
-
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        gui: &mut Gui,
-        context: &VulkanoContext,
-        renderer: &VulkanoWindowRenderer,
-        texts: &Texts,
-    ) {
-        egui::Window::new(texts.get(self.title.as_str()))
-            .movable(
-                ctx.input(|input| input.pointer.hover_pos())
-                    .is_some_and(|hover_pos| hover_pos.y < self.position.y),
-            )
-            .show(&ctx, |ui| self.ui(ui, gui, context, renderer));
     }
 
     pub fn ui(
@@ -104,12 +85,6 @@ impl ImageWindow {
             available_size,
         )));
         (self.position.x, self.position.y) = (r.rect.left(), r.rect.top());
-        self.layer = ui.ctx().memory(|mem| {
-            match mem.focus() {
-                Some(_) => None, // We should not have focus if any widget has keyboard focus
-                None => mem.layer_ids().position(|layer_id| layer_id == r.layer_id),
-            }
-        });
     }
 
     pub fn close(&mut self, gui: Option<&mut Gui>) {
@@ -142,13 +117,5 @@ impl ImageWindow {
     /// Get the window position which is scaled by window scale factor
     pub fn position(&self) -> Vec2 {
         self.position
-    }
-
-    pub fn layer(&self) -> Option<usize> {
-        self.layer
-    }
-
-    pub fn set_layer(&mut self, layer: Option<usize>) {
-        self.layer = layer;
     }
 }

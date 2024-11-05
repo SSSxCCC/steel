@@ -96,119 +96,92 @@ impl Editor {
 
             if project.is_compiled() {
                 self.update_editor_window(&ctx, project, world_data, input, editor_camera);
-                self.scene_window.set_layer(None);
-                self.game_window.set_layer(None);
-                if !self.editor_state.use_dock {
-                    self.scene_window
-                        .show(&ctx, gui, context, renderer, &self.texts);
-                    self.game_window
-                        .show(&ctx, gui, context, renderer, &self.texts);
-                }
             } else if project.is_open() {
                 Self::compile_error_dialog(&ctx, &self.texts);
             }
 
             let asset_dir = project.asset_dir();
-
-            if !self.editor_state.use_dock {
-                if project.is_compiled() {
-                    if let Some(world_data) = world_data {
-                        self.data_window.entity_component_windows(
-                            &ctx,
-                            world_data,
-                            project,
-                            asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
-                            &self.texts,
-                        );
-                        self.data_window
-                            .unique_windows(&ctx, world_data, project.app().unwrap(), asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"), &self.texts);
-                    }
-                }
-            }
-
-            if self.editor_state.use_dock {
-                DockArea::new(&mut self.dock_state)
-                    .style(egui_dock::Style::from_egui(gui.egui_ctx.style().as_ref()))
-                    .show(
-                        &ctx,
-                        &mut MyTabViewer {
-                            texts: &self.texts,
-                            add_contents: Box::new(|ui, tab| match tab.as_str() {
-                                "Scene" => {
-                                    if project.is_compiled() {
-                                        self.scene_window.ui(ui, gui, context, renderer);
+            DockArea::new(&mut self.dock_state)
+                .style(egui_dock::Style::from_egui(gui.egui_ctx.style().as_ref()))
+                .show(
+                    &ctx,
+                    &mut MyTabViewer {
+                        texts: &self.texts,
+                        add_contents: Box::new(|ui, tab| match tab.as_str() {
+                            "Scene" => {
+                                if project.is_compiled() {
+                                    self.scene_window.ui(ui, gui, context, renderer);
+                                }
+                            }
+                            "Game" => {
+                                if project.is_compiled() {
+                                    self.game_window.ui(ui, gui, context, renderer);
+                                }
+                            }
+                            "Entities" => {
+                                if project.is_compiled() {
+                                    if let Some(world_data) = world_data {
+                                        self.data_window.entities_view(
+                                            ui,
+                                            world_data,
+                                            project,
+                                            asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
+                                            &self.texts,
+                                        );
                                     }
                                 }
-                                "Game" => {
-                                    if project.is_compiled() {
-                                        self.game_window.ui(ui, gui, context, renderer);
-                                    }
-                                }
-                                "Entities" => {
-                                    if project.is_compiled() {
-                                        if let Some(world_data) = world_data {
-                                            self.data_window.entities_view(
+                            }
+                            "Entity" => {
+                                if let Some(world_data) = world_data {
+                                    if let Some(app) = project.app() {
+                                        if let Some(entity_data) = world_data
+                                            .entities
+                                            .get_mut(&self.data_window.selected_entity())
+                                        {
+                                            self.data_window.entity_view(
                                                 ui,
-                                                world_data,
-                                                project,
+                                                entity_data,
+                                                app,
                                                 asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
                                                 &self.texts,
                                             );
                                         }
                                     }
                                 }
-                                "Entity" => {
-                                    if let Some(world_data) = world_data {
-                                        if let Some(app) = project.app() {
-                                            if let Some(entity_data) = world_data
-                                                .entities
-                                                .get_mut(&self.data_window.selected_entity())
-                                            {
-                                                self.data_window.entity_view(
-                                                    ui,
-                                                    entity_data,
-                                                    app,
-                                                    asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
-                                                    &self.texts,
-                                                );
-                                            }
+                            }
+                            "Uniques" => {
+                                if let Some(world_data) = world_data {
+                                    self.data_window.uniques_view(ui, world_data);
+                                }
+                            }
+                            "Unique" => {
+                                if let Some(world_data) = world_data {
+                                    if let Some(app) = project.app() {
+                                        if let Some(unique_data) = world_data
+                                            .uniques
+                                            .get_mut(self.data_window.selected_unique())
+                                        {
+                                            self.data_window.data_view(
+                                                ui,
+                                                self.data_window.selected_unique(),
+                                                unique_data,
+                                                app,
+                                                asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
+                                                &self.texts,
+                                            );
                                         }
                                     }
                                 }
-                                "Uniques" => {
-                                    if let Some(world_data) = world_data {
-                                        self.data_window.uniques_view(ui, world_data);
-                                    }
-                                }
-                                "Unique" => {
-                                    if let Some(world_data) = world_data {
-                                        if let Some(app) = project.app() {
-                                            if let Some(unique_data) = world_data
-                                                .uniques
-                                                .get_mut(self.data_window.selected_unique())
-                                            {
-                                                self.data_window.data_view(
-                                                    ui,
-                                                    self.data_window.selected_unique(),
-                                                    unique_data,
-                                                    app,
-                                                    asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
-                                                    &self.texts,
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => (),
-                            }),
-                        },
-                    ); // DockArea shows inside egui::CentralPanel
+                            }
+                            _ => (),
+                        }),
+                    },
+                ); // DockArea shows inside egui::CentralPanel
 
-                self.editor_state.focused_tab = self
-                    .dock_state
-                    .find_active_focused()
-                    .map(|(_, tab)| tab.clone());
-            }
+            self.editor_state.focused_tab = self
+                .dock_state
+                .find_active_focused()
+                .map(|(_, tab)| tab.clone());
         });
     }
 
@@ -323,30 +296,18 @@ impl Editor {
     }
 
     fn scene_focus(&self) -> bool {
-        if self.editor_state.use_dock {
-            self.editor_state
-                .focused_tab
-                .as_ref()
-                .is_some_and(|tab| tab == "Scene")
-        } else {
-            self.scene_window
-                .layer()
-                .is_some_and(|this| !self.game_window.layer().is_some_and(|other| other > this))
-        }
+        self.editor_state
+            .focused_tab
+            .as_ref()
+            .is_some_and(|tab| tab == "Scene")
     }
 
     #[allow(unused)]
     fn game_focus(&self) -> bool {
-        if self.editor_state.use_dock {
-            self.editor_state
-                .focused_tab
-                .as_ref()
-                .is_some_and(|tab| tab == "Game")
-        } else {
-            self.game_window
-                .layer()
-                .is_some_and(|this| !self.scene_window.layer().is_some_and(|other| other > this))
-        }
+        self.editor_state
+            .focused_tab
+            .as_ref()
+            .is_some_and(|tab| tab == "Game")
     }
 
     pub fn suspend(&mut self) {
@@ -364,7 +325,6 @@ impl Editor {
 }
 
 struct EditorState {
-    use_dock: bool,
     focused_tab: Option<String>,
     project_path: PathBuf,
     pressed_entity: EntityId,
@@ -373,7 +333,6 @@ struct EditorState {
 impl EditorState {
     fn new(local_data: &LocalData) -> Self {
         EditorState {
-            use_dock: true,
             focused_tab: None,
             project_path: local_data.last_open_project_path.clone(),
             pressed_entity: EntityId::dead(),
