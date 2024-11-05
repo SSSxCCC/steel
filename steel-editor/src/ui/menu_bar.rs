@@ -14,6 +14,7 @@ use vulkano_util::context::VulkanoContext;
 
 pub struct MenuBar {
     show_open_project_dialog: bool,
+    show_asset_system_introduction_dialog: bool,
     switch_to_game_window_on_start: bool,
     fps_counter: FpsCounter,
 }
@@ -22,6 +23,7 @@ impl MenuBar {
     pub fn new() -> Self {
         MenuBar {
             show_open_project_dialog: false,
+            show_asset_system_introduction_dialog: false,
             switch_to_game_window_on_start: false,
             fps_counter: FpsCounter::new(),
         }
@@ -55,6 +57,8 @@ impl MenuBar {
             local_data,
             texts,
         );
+
+        self.asset_system_introduction_dialog(ctx, texts);
 
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -98,93 +102,161 @@ impl MenuBar {
                     }
                 });
 
-                if let Some(app) = project.app() {
+                ui.add_enabled_ui(project.is_compiled(), |ui| {
                     ui.menu_button(texts.get("Edit"), |ui| {
-                        ui.add_enabled_ui(data_window.selected_entity() != EntityId::dead(), |ui| {
-                            if ui.button(texts.get("Duplicate")).clicked() {
-                                log::info!("Menu->Edit->Duplicate");
-                                if let Some(world_data) = world_data {
-                                    DataWindow::duplicate_entity(data_window.selected_entity(), world_data, app);
-                                } else {
-                                    log::warn!("Failed to duplicate entity, due to world_data is None!");
+                        ui.add_enabled_ui(
+                            data_window.selected_entity() != EntityId::dead()
+                                && world_data.is_some(),
+                            |ui| {
+                                let world_data = world_data.as_ref().unwrap();
+                                if ui.button(texts.get("Duplicate")).clicked() {
+                                    log::info!("Menu->Edit->Duplicate");
+                                    DataWindow::duplicate_entity(
+                                        data_window.selected_entity(),
+                                        &world_data.entities,
+                                        project.app().unwrap(),
+                                    );
+                                    ui.close_menu();
                                 }
+                                if ui.button(texts.get("Delete")).clicked() {
+                                    log::info!("Menu->Edit->Delete");
+                                    data_window.delete_entity(
+                                        data_window.selected_entity(),
+                                        project.app().unwrap(),
+                                    );
+                                    ui.close_menu();
+                                }
+                                if world_data
+                                    .entities
+                                    .get(&data_window.selected_entity())
+                                    .and_then(|entity_data| entity_data.prefab_asset())
+                                    .is_some()
+                                {
+                                    if ui.button(texts.get("Save Prefab")).clicked() {
+                                        log::info!("Menu->Edit->Save Prefab");
+                                        let asset_dir = project.asset_dir().unwrap();
+                                        DataWindow::save_prefab(
+                                            data_window.selected_entity(),
+                                            &world_data.entities,
+                                            project,
+                                            asset_dir,
+                                        );
+                                        ui.close_menu();
+                                    }
+                                }
+                                if ui.button(texts.get("Save As Prefab")).clicked() {
+                                    log::info!("Menu->Edit->Save As Prefab");
+                                    let asset_dir = project.asset_dir().unwrap();
+                                    DataWindow::save_as_prefab(
+                                        data_window.selected_entity(),
+                                        &world_data.entities,
+                                        project.app().unwrap(),
+                                        asset_dir,
+                                    );
+                                    ui.close_menu();
+                                }
+                            },
+                        );
+                        ui.menu_button(texts.get("Create"), |ui| {
+                            if ui.button(texts.get("New Entity")).clicked() {
+                                log::info!("Menu->Edit->Create->New Entity");
+                                DataWindow::create_new_entity(project.app().unwrap());
                                 ui.close_menu();
                             }
-                            if ui.button(texts.get("Delete")).clicked() {
-                                log::info!("Menu->Edit->Delete");
-                                data_window.delete_entity(data_window.selected_entity(), app);
+                            if ui.button(texts.get("From Prefab")).clicked() {
+                                log::info!("Menu->Edit->Create->From Prefab");
+                                let asset_dir = project.asset_dir().unwrap();
+                                DataWindow::create_entities_from_prefab(
+                                    project.app().unwrap(),
+                                    asset_dir,
+                                );
                                 ui.close_menu();
                             }
                         });
                     });
-                }
 
-                ui.add_enabled_ui(project.is_compiled() && !project.is_running(), |ui| {
-                    ui.menu_button(texts.get("Scene"), |ui| {
-                        if let Some(scene_path) = project.scene_relative_path() {
-                            if ui.button(format!("{} ({})", texts.get("Save"), scene_path.display())).clicked() {
-                                log::info!("Menu->Scene->Save");
-                                project.save_scene(scene_path);
+                    ui.add_enabled_ui(!project.is_running(), |ui| {
+                        ui.menu_button(texts.get("Scene"), |ui| {
+                            if let Some(scene_path) = project.scene_relative_path() {
+                                if ui
+                                    .button(format!(
+                                        "{} ({})",
+                                        texts.get("Save"),
+                                        scene_path.display()
+                                    ))
+                                    .clicked()
+                                {
+                                    log::info!("Menu->Scene->Save");
+                                    project.save_scene(scene_path);
+                                    ui.close_menu();
+                                }
+                            }
+                            let starting_dir =
+                                if let Some(scene_path) = project.scene_absolute_path() {
+                                    scene_path.parent().map(|p| p.to_path_buf()).expect(
+                                        "scene file should be at least in the asset directory",
+                                    )
+                                } else {
+                                    project.asset_dir().expect(
+                                    "project.asset_dir() must be some when project.is_compiled()",
+                                )
+                                };
+                            if ui.button(texts.get("Save As")).clicked() {
+                                log::info!("Menu->Scene->Save As");
+                                let file = rfd::FileDialog::new()
+                                    .set_directory(&starting_dir)
+                                    .save_file();
+                                log::info!("Close FileDialog, file={file:?}");
+                                if let Some(mut file) = file {
+                                    file.set_extension("scene");
+                                    let file = project.convert_to_scene_relative_path(&file);
+                                    log::info!(
+                                        "After convert_to_scene_relative_path, file={file:?}"
+                                    );
+                                    if let Some(file) = file {
+                                        project.save_scene(file);
+                                    }
+                                }
                                 ui.close_menu();
                             }
-                        }
-                        let starting_dir = if let Some(scene_path) = project.scene_absolute_path() {
-                            scene_path.parent().map(|p| p.to_path_buf()).expect("scene file should be at least in the asset directory")
-                        } else {
-                            project.asset_dir().expect("project.asset_dir() must be some when project.is_compiled()")
-                        };
-                        if ui.button(texts.get("Save As")).clicked() {
-                            log::info!("Menu->Scene->Save As");
-                            let file = rfd::FileDialog::new()
-                                .set_directory(&starting_dir)
-                                .save_file();
-                            log::info!("Close FileDialog, file={file:?}");
-                            if let Some(mut file) = file {
-                                file.set_extension("scene");
-                                let file = project.convert_to_scene_relative_path(&file);
-                                log::info!("After convert_to_scene_relative_path, file={file:?}");
+                            if ui.button(texts.get("Load")).clicked() {
+                                log::info!("Menu->Scene->Load");
+                                let file = rfd::FileDialog::new()
+                                    .set_directory(starting_dir)
+                                    .pick_file();
+                                log::info!("Close FileDialog, file={file:?}");
                                 if let Some(file) = file {
-                                    project.save_scene(file);
+                                    let file = project.convert_to_scene_relative_path(&file);
+                                    log::info!(
+                                        "After convert_to_scene_relative_path, file={file:?}"
+                                    );
+                                    if let Some(file) = file {
+                                        project.load_scene(file);
+                                        // We set world_data to None to prevent app from loading outdated world_data later this frame.
+                                        // But this will cause a splash screen problem due to the disappearance of the windows showing world_data for one frame.
+                                        // TODO: find a way to avoid this splash screen problem.
+                                        *world_data = None;
+                                    }
                                 }
+                                ui.close_menu();
                             }
-                            ui.close_menu();
-                        }
-                        if ui.button(texts.get("Load")).clicked() {
-                            log::info!("Menu->Scene->Load");
-                            let file = rfd::FileDialog::new()
-                                .set_directory(starting_dir)
-                                .pick_file();
-                            log::info!("Close FileDialog, file={file:?}");
-                            if let Some(file) = file {
-                                let file = project.convert_to_scene_relative_path(&file);
-                                log::info!("After convert_to_scene_relative_path, file={file:?}");
-                                if let Some(file) = file {
-                                    project.load_scene(file);
-                                    // We set world_data to None to prevent app from loading outdated world_data later this frame.
-                                    // But this will cause a splash screen problem due to the disappearance of the windows showing world_data for one frame.
-                                    // TODO: find a way to avoid this splash screen problem.
-                                    *world_data = None;
-                                }
+                            if ui.button(texts.get("New")).clicked() {
+                                log::info!("Menu->Scene->New");
+                                project.new_scene();
+                                ui.close_menu();
                             }
-                            ui.close_menu();
-                        }
-                        if ui.button(texts.get("New")).clicked() {
-                            log::info!("Menu->Scene->New");
-                            project.new_scene();
-                            ui.close_menu();
-                        }
+                        });
                     });
-                });
 
-                if project.is_compiled() {
                     // start running function
                     let start_running_fn =
-                        |project: &mut Project, switch_to_game_window_on_start: bool, dock_state: &mut DockState<String>| {
-                            project.save_to_memory();
+                        |project: &mut Project,
+                         switch_to_game_window_on_start: bool,
+                         dock_state: &mut DockState<String>| {
+                            project.save_to_memory(None);
                             project.app().unwrap().command(Command::ResetTime);
                             if switch_to_game_window_on_start {
-                                if let Some(tab) =
-                                        dock_state.find_tab(&"Game".to_string()) {
+                                if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {
                                     dock_state.set_active_tab(tab);
                                 }
                             }
@@ -207,20 +279,54 @@ impl MenuBar {
                         } else {
                             if ui.button(format!("{} (F5)", texts.get("Start"))).clicked() {
                                 log::info!("Menu->Run->Start");
-                                start_running_fn(project, self.switch_to_game_window_on_start, dock_state);
+                                start_running_fn(
+                                    project,
+                                    self.switch_to_game_window_on_start,
+                                    dock_state,
+                                );
                                 ui.close_menu();
                             }
                         }
 
-                        ui.checkbox(&mut self.switch_to_game_window_on_start,
-                            texts.get("Switch to Game Window on Start"));
+                        ui.checkbox(
+                            &mut self.switch_to_game_window_on_start,
+                            texts.get("Switch to Game Window on Start"),
+                        );
                     });
-                }
+                });
+
+                ui.add_enabled_ui(project.is_open(), |ui| {
+                    ui.menu_button(texts.get("Asset"), |ui| {
+                        if ui.button(texts.get("Open")).clicked() {
+                            log::info!("Menu->Asset->Open");
+                            if let Err(e) = open::that(project.asset_dir().unwrap()) {
+                                log::error!("Failed to open asset folder: {e:?}");
+                            }
+                            ui.close_menu();
+                        }
+                        if ui.button(texts.get("Introduction")).clicked() {
+                            log::info!("Menu->Asset->Introduction");
+                            self.show_asset_system_introduction_dialog = true;
+                            ui.close_menu();
+                        }
+                    });
+                });
 
                 ui.menu_button(texts.get("Ui"), |ui| {
-                    ui.label(format!("{}{}", texts.get("Current Scale: "), ctx.pixels_per_point()));
+                    ui.label(format!(
+                        "{}{}",
+                        texts.get("Current Scale: "),
+                        ctx.pixels_per_point()
+                    ));
                     egui::gui_zoom::zoom_menu_buttons(ui);
-                    if ui.button(texts.get(if editor_state.use_dock { "Disable Dock" } else { "Enable Dock" })).clicked() {
+                    if ui
+                        .button(texts.get(if editor_state.use_dock {
+                            "Disable Dock"
+                        } else {
+                            "Enable Dock"
+                        }))
+                        .clicked()
+                    {
                         editor_state.use_dock = !editor_state.use_dock;
                         ui.close_menu();
                     }
@@ -299,6 +405,14 @@ impl MenuBar {
                 }
             });
         self.show_open_project_dialog &= show;
+    }
+
+    fn asset_system_introduction_dialog(&mut self, ctx: &egui::Context, texts: &Texts) {
+        egui::Window::new(texts.get("Asset System Introduction"))
+            .open(&mut self.show_asset_system_introduction_dialog)
+            .show(ctx, |ui| {
+                ui.label(texts.get("Asset Introduction"));
+            });
     }
 }
 

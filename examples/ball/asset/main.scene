@@ -1,37 +1,61 @@
 {
-  "entities": [
-    [
-      {
-        "index": 0,
-        "gen": 0
-      },
-      {
-        "components": {
-          "EntityInfo": {
-            "values": {
-              "name": {
-                "String": "Main Menu"
-              }
-            }
+  "entities": {
+    "entities": [
+      [
+        [
+          {
+            "index": 0,
+            "gen": 0
           },
-          "Child": {
-            "values": {
-              "parent": {
-                "Entity": {
-                  "index": 281474976710654,
-                  "gen": 65535
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Main Menu"
+                  }
                 }
+              },
+              "MainMenu": {
+                "values": {}
               }
             }
           },
-          "MainMenu": {
-            "values": {}
-          }
+          {}
+        ]
+      ]
+    ],
+    "nested_prefabs": [],
+    "delete": []
+  },
+  "uniques": {
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
         }
       }
-    ]
-  ],
-  "uniques": {
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 0,
+              "gen": 0
+            }
+          ]
+        }
+      }
+    },
     "Physics2DManager": {
       "values": {
         "gravity": {
@@ -83,28 +107,13 @@
           "Int32": 1
         }
       }
-    },
-    "RenderManager": {
-      "values": {
-        "clear_color": {
-          "Vec4": [
-            0.0,
-            0.0,
-            0.0,
-            0.0
-          ]
-        }
-      }
-    },
+    }
+  },
+  "unique_id_paths": {
     "Hierarchy": {
-      "values": {
-        "roots": {
-          "VecEntity": [
-            {
-              "index": 0,
-              "gen": 0
-            }
-          ]
+      "roots": {
+        "EntityVec": {
+          "0": []
         }
       }
     }

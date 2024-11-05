@@ -1,12 +1,13 @@
 //! The [steel game engine](https://github.com/SSSxCCC/steel) core library.
 
 pub mod app;
+pub mod asset;
 pub mod camera;
 pub mod data;
 pub mod edit;
-pub mod entityinfo;
 pub mod hierarchy;
 pub mod input;
+pub mod name;
 pub mod physics2d;
 pub mod platform;
 pub mod render;

@@ -2,9 +2,10 @@
 
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::UVec2;
-use std::path::PathBuf;
+use std::{error::Error, path::Path};
 use steel_common::{
     app::{Command, DrawInfo, InitInfo, UpdateInfo},
+    asset::{AssetId, AssetInfo},
     platform::Platform,
 };
 use vulkano_util::{
@@ -58,13 +59,41 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     // egui
     let mut gui = None;
 
-    // engine
-    let mut engine = steel::create();
-    engine.init(InitInfo {
+    // app
+    let mut app = steel::create();
+
+    // insert all assets into AssetManager
+    let insert_asset_fn = |asset_info_file: &Path| -> Result<(), Box<dyn Error>> {
+        let asset_info_string = platform.read_asset_to_string(asset_info_file)?;
+        let asset_id = serde_json::from_str::<AssetInfo>(&asset_info_string)?.id;
+        let asest_file_path = AssetInfo::asset_info_path_to_asset_path(asset_info_file);
+        log::debug!(
+            "Insert asset \"{}\", id: {asset_id:?}",
+            asest_file_path.display()
+        );
+        app.command(Command::InsertAsset(asset_id, asest_file_path));
+        Ok(())
+    };
+    platform
+        .list_asset_files()
+        .unwrap()
+        .into_iter()
+        .filter(|f| f.extension().is_some_and(|e| e == "asset"))
+        .for_each(|asset_info_file| {
+            if let Err(e) = insert_asset_fn(&asset_info_file) {
+                log::warn!(
+                    "Failed to insert asset: {}, error: {e}",
+                    asset_info_file.display()
+                );
+            }
+        });
+
+    // call App::init
+    app.init(InitInfo {
         platform,
         context: &context,
-        scene: Some(PathBuf::from("scene_path")),
-    }); // scene path will be modified to init scene path temporily while compiling
+        scene: Some(AssetId::new("init_scene".parse().unwrap())),
+    }); // init scene will be modified to init scene asset id temporily while compiling
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -118,7 +147,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             }
         }
         Event::RedrawRequested(_) => {
-            engine.command(Command::UpdateInput(&events));
+            app.command(Command::UpdateInput(&events));
             events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let window_size = renderer.window().inner_size();
@@ -130,12 +159,12 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 let gui = gui.as_mut().unwrap();
                 gui.begin_frame();
 
-                engine.update(UpdateInfo {
+                app.update(UpdateInfo {
                     update: true,
                     ctx: &gui.egui_ctx,
                 });
 
-                gpu_future = engine.draw(DrawInfo {
+                gpu_future = app.draw(DrawInfo {
                     before_future: gpu_future,
                     context: &context,
                     renderer: &renderer,

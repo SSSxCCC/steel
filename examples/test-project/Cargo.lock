@@ -26,17 +26,6 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.7.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a824f2aa7e75a0c98c5a504fceb80649e9c35265d44525b5f94de4771a395cd"
-dependencies = [
- "getrandom",
- "once_cell",
- "version_check",
-]
-
-[[package]]
-name = "ahash"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
@@ -463,7 +452,7 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c55bcb864b764eb889515a38b8924757657a250738ad15126637ee2df291ee6b"
 dependencies = [
- "ahash 0.8.6",
+ "ahash",
  "epaint",
  "log",
  "nohash-hasher",
@@ -491,7 +480,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48a5dbd77e5fe240eb800263b415e03c71fd3062f7650b0412ee216c731a35be"
 dependencies = [
- "ahash 0.8.6",
+ "ahash",
  "egui",
  "egui-winit",
  "image",
@@ -522,7 +511,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d1b9e000d21bab9b535ce78f9f7745be28b3f777f6c7223936561c5c7fefab8"
 dependencies = [
  "ab_glyph",
- "ahash 0.8.6",
+ "ahash",
  "bytemuck",
  "ecolor",
  "emath",
@@ -686,22 +675,13 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
-dependencies = [
- "ahash 0.7.7",
- "serde",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
 dependencies = [
- "ahash 0.8.6",
+ "ahash",
  "allocator-api2",
+ "serde",
 ]
 
 [[package]]
@@ -755,7 +735,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "824b2ae422412366ba479e8111fd301f7b5faece8149317bb81925979a53f520"
 dependencies = [
  "equivalent",
- "hashbrown 0.14.3",
+ "hashbrown",
  "serde",
 ]
 
@@ -1632,26 +1612,27 @@ dependencies = [
 
 [[package]]
 name = "shipyard"
-version = "0.6.5"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace89f5a47029be049c7f47d166cd2c7a30d74e127f4baa2d8885e5d3b486035"
+checksum = "86f4cd1f315ecb0d0ec551263aa99eeb8d6625dfb5b6cf49c9406eb882050938"
 dependencies = [
- "hashbrown 0.12.3",
+ "hashbrown",
  "lock_api",
  "rayon",
  "serde",
  "shipyard_proc",
+ "siphasher",
 ]
 
 [[package]]
 name = "shipyard_proc"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3eb847f4b9582e468198b5cfb5731b65cc67fe5e535acc9cbf3c11703d15f08c"
+checksum = "7515c11aebbea0b9d85e1a1724792c658c701913761e23d62a8e732c0389d0a9"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1672,6 +1653,12 @@ name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
+
+[[package]]
+name = "siphasher"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
 name = "slab"
@@ -1732,7 +1719,7 @@ version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87a3ef2efbc408c9051c1a27ce7edff430d74531d31a480b7ca4f618072c2670"
 dependencies = [
- "hashbrown 0.14.3",
+ "hashbrown",
  "num-traits",
  "robust",
  "smallvec",
@@ -1749,14 +1736,16 @@ dependencies = [
 
 [[package]]
 name = "steel-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "egui",
  "egui_winit_vulkano",
  "glam",
  "indexmap",
+ "jni",
  "log",
  "nalgebra",
+ "ndk",
  "parry2d",
  "rapier2d",
  "rayon",
@@ -1772,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "steel-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "egui",
  "egui_winit_vulkano",
@@ -1788,6 +1777,7 @@ dependencies = [
  "shipyard",
  "steel-common",
  "steel-proc",
+ "steel-shader",
  "vulkano",
  "vulkano-shaders",
  "vulkano-util",
@@ -1797,7 +1787,7 @@ dependencies = [
 
 [[package]]
 name = "steel-proc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1806,7 +1796,7 @@ dependencies = [
 
 [[package]]
 name = "steel-project"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "egui",
  "egui_winit_vulkano",
@@ -1827,6 +1817,10 @@ dependencies = [
  "winit",
  "winit_input_helper",
 ]
+
+[[package]]
+name = "steel-shader"
+version = "0.1.0"
 
 [[package]]
 name = "str-buf"
@@ -2031,7 +2025,7 @@ version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70f4278f76307b3c388679234b397b4f90de29cdba53873c26b624ed82653d75"
 dependencies = [
- "ahash 0.8.6",
+ "ahash",
  "ash",
  "bytemuck",
  "core-graphics-types",
@@ -2073,7 +2067,7 @@ version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d1f63401297565d74afb96e9add12587d8e46235140cee325a8eb6ba4602f4ee"
 dependencies = [
- "ahash 0.8.6",
+ "ahash",
  "heck",
  "proc-macro2",
  "quote",
@@ -2088,7 +2082,7 @@ version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff1f96a4055a8362c8fa77a17c01da184c6412961cd9572110533ff89e6669a7"
 dependencies = [
- "ahash 0.8.6",
+ "ahash",
  "vulkano",
  "winit",
 ]

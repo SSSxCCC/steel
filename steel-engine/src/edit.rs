@@ -57,6 +57,9 @@ use steel_common::data::Data;
 ///     }
 /// }
 /// ```
+/// Value names that starts with "unnamed-" will not display in the editor. So you can use
+/// "unnamed-0" and "unnamed-1" as tuple struct field names when manually impl Edit.
+/// Edit derive macro uses "unnamed-i" as value name for tuple struct fields.
 pub trait Edit {
     /// The name of this component or unique.
     fn name() -> &'static str;
@@ -73,7 +76,7 @@ pub trait Edit {
         let _ = data; // disable unused variable warning
     }
 
-    /// Modify self according to a Data struct. This function is called during Edit::from_data.
+    /// Modify self according to a Data struct. This function is usually called during scene loading.
     /// By default, this calls Edit::set_data so that you do not need to implement this for the
     /// component/unique which has the same behaviour between scene loading and editor modify.
     fn load_data(&mut self, data: &Data) {

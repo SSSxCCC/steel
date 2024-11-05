@@ -1,7 +1,7 @@
 use crate::{
     app::{Plugin, Schedule, SteelApp},
     edit::Edit,
-    hierarchy::Child,
+    hierarchy::Parent,
     render::canvas::Canvas,
     shape::ShapeWrapper,
     time::Time,
@@ -392,7 +392,7 @@ pub fn physics2d_maintain_system(
     mut rb2d: ViewMut<RigidBody2D>,
     mut col2d: ViewMut<Collider2D>,
     mut transforms: ViewMut<Transform>,
-    children: View<Child>,
+    parents: View<Parent>,
 ) {
     let physics2d_manager = physics2d_manager.as_mut();
 
@@ -446,7 +446,7 @@ pub fn physics2d_maintain_system(
             }
             let model_without_scale = Transform::entity_final_model_without_scale_2d(
                 e,
-                &children,
+                &parents,
                 &transforms,
                 &mut model_cache,
             )
@@ -476,7 +476,7 @@ pub fn physics2d_maintain_system(
             transforms.add_component_unchecked(e, Transform::default());
         }
         let scale =
-            Transform::entity_final_scale_2d(e, &children, &transforms, &mut scale_cache).unwrap();
+            Transform::entity_final_scale_2d(e, &parents, &transforms, &mut scale_cache).unwrap();
         let shape = col2d.scaled_shape(scale);
 
         if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
@@ -498,7 +498,7 @@ pub fn physics2d_maintain_system(
             } else {
                 let model_without_scale = Transform::entity_final_model_without_scale_2d(
                     e,
-                    &children,
+                    &parents,
                     &transforms,
                     &mut model_cache,
                 )
@@ -516,7 +516,7 @@ pub fn physics2d_maintain_system(
     physics2d_update_from_transform(
         physics2d_manager,
         &transforms,
-        &children,
+        &parents,
         &mut rb2d,
         &mut col2d,
     );
@@ -531,16 +531,16 @@ pub fn physics2d_maintain_system(
 fn physics2d_update_from_transform(
     physics2d_manager: &mut Physics2DManager,
     transforms: &ViewMut<Transform>,
-    children: &View<Child>,
+    parents: &View<Parent>,
     rb2d: &mut ViewMut<RigidBody2D>,
     col2d: &mut ViewMut<Collider2D>,
 ) {
     let mut model_cache = Some(HashMap::new());
-    for (e, (mut rb2d, _, _)) in (rb2d, transforms, children).iter().with_id() {
+    for (e, (mut rb2d, _)) in (rb2d, transforms).iter().with_id() {
         // we can safely unwrap here because we know that this entity has a Transform component
         let model_without_scale = Transform::entity_final_model_without_scale_2d(
             e,
-            children,
+            parents,
             transforms,
             &mut model_cache,
         )
@@ -555,18 +555,18 @@ fn physics2d_update_from_transform(
     }
 
     let mut scale_cache = Some(HashMap::new());
-    for (e, (mut col2d, _, _)) in (col2d, transforms, children).iter().with_id() {
+    for (e, (mut col2d, _)) in (col2d, transforms).iter().with_id() {
         // we can safely unwrap here because we know that this entity has a Transform component
         let model_without_scale = Transform::entity_final_model_without_scale_2d(
             e,
-            children,
+            parents,
             transforms,
             &mut model_cache,
         )
         .unwrap();
         let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
         let scale =
-            Transform::entity_final_scale_2d(e, children, transforms, &mut scale_cache).unwrap();
+            Transform::entity_final_scale_2d(e, parents, transforms, &mut scale_cache).unwrap();
         if col2d.update_last_transform(position, rotation, scale) {
             if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
                 collider.set_shape(col2d.scaled_shape(scale));
@@ -584,17 +584,21 @@ pub fn physics2d_update_system(
     mut rb2d: ViewMut<RigidBody2D>,
     mut col2d: ViewMut<Collider2D>,
     mut transforms: ViewMut<Transform>,
-    children: View<Child>,
+    parents: View<Parent>,
 ) {
     let physics2d_manager = physics2d_manager.as_mut();
 
     // dynamically change integration_parameters.dt according to time.delta()
-    physics2d_manager.integration_parameters.dt = time.delta();
+    physics2d_manager.integration_parameters.dt = if time.delta() < 0.1 {
+        time.delta()
+    } else {
+        0.1
+    };
 
     physics2d_update_from_transform(
         physics2d_manager,
         &transforms,
-        &children,
+        &parents,
         &mut rb2d,
         &mut col2d,
     );
@@ -603,7 +607,7 @@ pub fn physics2d_update_system(
 
     let mut model_cache = Some(HashMap::new());
     let mut final_position_and_rotation = HashMap::new();
-    for (e, (rb2d, _)) in (&rb2d, &children).iter().with_id() {
+    for (e, rb2d) in rb2d.iter().with_id() {
         // get new final_position and final_rotation from rigid_body and cache them
         let rigid_body = &physics2d_manager.rigid_body_set[rb2d.handle];
         let final_position: Vec2 = (*rigid_body.translation()).into();
@@ -619,11 +623,12 @@ pub fn physics2d_update_system(
             .insert(e, Some(final_model_without_scale));
     }
 
-    for (e, (_, child)) in (&rb2d, &children).iter().with_id() {
+    for (e, _) in rb2d.iter().with_id() {
         // get parent_final_model_without_scale by using cache
+        let parent = parents.get(e).map(|p| **p).unwrap_or_default();
         let parent_final_model_without_scale = Transform::entity_final_model_without_scale_2d(
-            child.parent(),
-            &children,
+            parent,
+            &parents,
             &transforms,
             &mut model_cache,
         );
@@ -663,10 +668,10 @@ pub fn physics2d_update_system(
     // we must use a new model_cache here, or physics2d_update_from_transform will
     // modify rigid bodies and colliders due to the imprecision of floating point numbers
     let mut model_cache = Some(HashMap::new());
-    for (e, (mut rb2d, _, _)) in (&mut rb2d, &children, &transforms).iter().with_id() {
+    for (e, (mut rb2d, _)) in (&mut rb2d, &transforms).iter().with_id() {
         let model_without_scale = Transform::entity_final_model_without_scale_2d(
             e,
-            &children,
+            &parents,
             &transforms,
             &mut model_cache,
         )
@@ -676,17 +681,17 @@ pub fn physics2d_update_system(
     }
 
     let mut scale_cache = Some(HashMap::new());
-    for (e, (mut col2d, _, _)) in (&mut col2d, &children, &transforms).iter().with_id() {
+    for (e, (mut col2d, _)) in (&mut col2d, &transforms).iter().with_id() {
         let model_without_scale = Transform::entity_final_model_without_scale_2d(
             e,
-            &children,
+            &parents,
             &transforms,
             &mut model_cache,
         )
         .unwrap();
         let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
         let scale =
-            Transform::entity_final_scale_2d(e, &children, &transforms, &mut scale_cache).unwrap();
+            Transform::entity_final_scale_2d(e, &parents, &transforms, &mut scale_cache).unwrap();
         col2d.update_last_transform(position, rotation, scale);
     }
 }

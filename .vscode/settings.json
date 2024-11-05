@@ -1,0 +1,4 @@
+{
+    // uncomment this line to enable rust analyzer hightlight and autocomplete for android sources
+    //"rust-analyzer.cargo.target": "aarch64-linux-android",
+}

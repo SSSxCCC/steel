@@ -1028,6 +1028,7 @@ impl IntoVertex for MyVertexEid {
     }
 }
 
+/// Parameters for [get_entity_at_screen_system].
 #[derive(Unique)]
 pub struct GetEntityAtScreenParam {
     pub window_index: usize,

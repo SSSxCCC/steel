@@ -1,10 +1,15 @@
 use crate::{
-    data::{EntitiesData, WorldData},
+    asset::AssetId,
+    data::{EntitiesData, EntityIdWithPath, PrefabData, SceneData, WorldData},
     platform::Platform,
 };
 use glam::{UVec2, Vec3};
 use shipyard::EntityId;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use vulkano::{image::view::ImageView, sync::GpuFuture};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 use winit::event::WindowEvent;
@@ -15,14 +20,15 @@ pub trait App {
     fn init(&mut self, info: InitInfo);
     fn update(&mut self, info: UpdateInfo);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
-    fn command(&mut self, cmd: Command);
+    fn command(&self, cmd: Command);
+    fn command_mut(&mut self, cmd: CommandMut);
 }
 
 /// The InitInfo contains some initialization data, and is passed to [App::init].
 pub struct InitInfo<'a> {
     pub platform: Platform,
     pub context: &'a VulkanoContext,
-    pub scene: Option<PathBuf>,
+    pub scene: Option<AssetId>,
 }
 
 /// The UpdateInfo contains some data about current frame, and is passed to [App::update] every frame.
@@ -60,30 +66,49 @@ pub struct EditorCamera {
     pub height: f32,
 }
 
-/// Command is sent by editor through [App::command] method to modify the game world.
+/// Command is sent by editor through [App::command] method to read the game world.
 pub enum Command<'a> {
     Save(&'a mut WorldData),
-    Load(&'a WorldData),
-    Reload(&'a WorldData),
-    SetCurrentScene(Option<PathBuf>),
 
-    CreateEntity,
-    DestroyEntity(EntityId),
-    ClearEntity,
     GetEntityCount(&'a mut usize),
-    /// entities_data, old_id_to_new_id map
-    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
-
-    GetComponents(&'a mut Vec<&'static str>),
-    CreateComponent(EntityId, &'static str),
-    DestroyComponent(EntityId, &'a String),
-
-    UpdateInput(&'a Vec<WindowEvent<'static>>),
-
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid.
     GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
 
+    GetComponents(&'a mut Vec<&'static str>),
+
+    UpdateInput(&'a Vec<WindowEvent<'static>>),
+
     ResetTime,
+
+    GetAssetPath(AssetId, &'a mut Option<PathBuf>),
+    GetAssetContent(AssetId, &'a mut Option<Arc<Vec<u8>>>),
+    AssetIdExists(AssetId, &'a mut bool),
+    InsertAsset(AssetId, PathBuf),
+    DeleteAsset(AssetId),
+    DeleteAssetDir(&'a Path),
+    UpdateAssetPath(AssetId, PathBuf),
+
+    GetPrefabData(AssetId, &'a mut Option<Arc<PrefabData>>),
+    /// prefab_root_entity, prefab_asset, prefab_root_entity_to_nested_prefabs_index
+    CreatePrefab(EntityId, AssetId, HashMap<EntityId, u64>),
+    /// prefab_root_entity, prefab_asset, entity_id_to_prefab_entity_id_with_path
+    LoadPrefab(EntityId, AssetId, HashMap<EntityId, EntityIdWithPath>),
+}
+
+/// CommandMut is sent by editor through [App::command] method to modify the game world.
+pub enum CommandMut<'a> {
+    Load(&'a WorldData),
+    Reload(&'a SceneData),
+    SetCurrentScene(Option<AssetId>),
+
+    CreateEntity,
+    /// entities_data, old_id_to_new_id map
+    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
+    DestroyEntity(EntityId),
+    ClearEntity,
+
+    CreateComponent(EntityId, &'static str),
+    DestroyComponent(EntityId, &'a String),
 
     // attached_entity, parent, before
     AttachBefore(EntityId, EntityId, EntityId),
