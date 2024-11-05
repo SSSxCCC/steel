@@ -9,7 +9,7 @@ Steel is an open source cross-platform Rust game engine with built-in editor.
 * **Modularity**: General game modules, such as physics engines, can be added as plugins. You can easily add any plugin written by others, or you can write a plugin for others to use.
 * **Fast**: Steel is fast on both the CPU and GPU sides. Steel uses Rust and ECS architecture, which can easily write high-performance and high-concurrency code, thereby achieving high performance on the CPU side. Steel uses Vulkan, an advanced graphics API, to achieve high performance on the GPU side.
 * **Cross-platform**: Rust itself is cross-platform, and Vulkan is also a cross-platform API, so code written in Rust and Vulkan can easily run on almost all platforms. Steel can currently be compiled and run on Windows and Android systems with one click, and will support more platforms in the future.
-* **Built-in editor**: The Steel game engine has an editor from the beginning, and the editor and the core game module are developed and upgraded together, which brings great convenience to game development.
+* **Easy to use**: The Steel game engine has an editor from the beginning, and the editor and the core game module are developed and upgraded together, which brings great convenience to game development.
 
 # Run Steel Editor
 
@@ -61,7 +61,7 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [ ] Ray traced rendering
 - [x] 2D physics
 - [ ] 3D physics
-- [ ] Asset manager
+- [x] Asset manager
 - [ ] Audio
 - [ ] Animation
 - [ ] Particle system
