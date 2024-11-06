@@ -151,26 +151,30 @@ impl DataWindow {
                                     self.delete_entity(entity, project.app().unwrap());
                                     ui.close_menu();
                                 }
-                                if entities
-                                    .get(&entity)
-                                    .and_then(|entity_data| entity_data.prefab_asset())
-                                    .is_some()
-                                {
-                                    if ui.button(texts.get("Save Prefab")).clicked() {
-                                        log::info!("entity_context_menu->Save Prefab");
-                                        Self::save_prefab(entity, entities, project, &asset_dir);
+                                if !project.is_running() {
+                                    if entities
+                                        .get(&entity)
+                                        .and_then(|entity_data| entity_data.prefab_asset())
+                                        .is_some()
+                                    {
+                                        if ui.button(texts.get("Save Prefab")).clicked() {
+                                            log::info!("entity_context_menu->Save Prefab");
+                                            Self::save_prefab(
+                                                entity, entities, project, &asset_dir,
+                                            );
+                                            ui.close_menu();
+                                        }
+                                    }
+                                    if ui.button(texts.get("Save As Prefab")).clicked() {
+                                        log::info!("entity_context_menu->Save As Prefab");
+                                        Self::save_as_prefab(
+                                            entity,
+                                            entities,
+                                            project.app().unwrap(),
+                                            &asset_dir,
+                                        );
                                         ui.close_menu();
                                     }
-                                }
-                                if ui.button(texts.get("Save As Prefab")).clicked() {
-                                    log::info!("entity_context_menu->Save As Prefab");
-                                    Self::save_as_prefab(
-                                        entity,
-                                        entities,
-                                        project.app().unwrap(),
-                                        &asset_dir,
-                                    );
-                                    ui.close_menu();
                                 }
                             });
                         });
