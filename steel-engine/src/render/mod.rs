@@ -1,5 +1,6 @@
 pub mod canvas;
 pub mod renderer2d;
+pub mod texture2d;
 
 use self::canvas::CanvasRenderContext;
 use crate::edit::Edit;
