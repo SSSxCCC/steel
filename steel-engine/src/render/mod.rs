@@ -1,6 +1,7 @@
 pub mod canvas;
 pub mod renderer2d;
-pub mod texture2d;
+pub mod shader;
+pub mod texture;
 
 use self::canvas::CanvasRenderContext;
 use crate::edit::Edit;
@@ -14,6 +15,7 @@ use steel_common::{
 };
 use vulkano::{
     command_buffer::allocator::StandardCommandBufferAllocator,
+    descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{Device, Queue},
     format::Format,
     image::view::ImageView,
@@ -67,6 +69,7 @@ pub struct RenderContext {
     pub graphics_queue: Arc<Queue>,
     pub memory_allocator: Arc<StandardMemoryAllocator>,
     pub command_buffer_allocator: StandardCommandBufferAllocator,
+    pub descriptor_set_allocator: StandardDescriptorSetAllocator,
 }
 
 /// RenderManager contains many render context objects and render parameters.
@@ -91,6 +94,10 @@ impl RenderManager {
                 graphics_queue: context.graphics_queue().clone(),
                 memory_allocator: context.memory_allocator().clone(),
                 command_buffer_allocator: StandardCommandBufferAllocator::new(
+                    context.device().clone(),
+                    Default::default(),
+                ),
+                descriptor_set_allocator: StandardDescriptorSetAllocator::new(
                     context.device().clone(),
                     Default::default(),
                 ),

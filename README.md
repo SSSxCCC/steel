@@ -55,7 +55,7 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [x] Visual editor
 - [x] Vulkan render pipeline
 - [x] 2D rendering basic
-- [ ] 2D texture
+- [x] 2D texture
 - [ ] 3D rendering basic
 - [ ] 3D model
 - [ ] Ray traced rendering

@@ -20,18 +20,18 @@ use vulkano::{
     sync::GpuFuture,
 };
 
-struct Texture2DAsset {
+struct TextureAsset {
     image: Arc<DynamicImage>,
     data: (Arc<ImageView>, Arc<Sampler>),
 }
 
 #[derive(Unique, Default)]
-/// Cache [DynamicTexture] in assets.
-pub struct Texture2DAssets {
-    textures: HashMap<AssetId, Texture2DAsset>,
+/// Cache [ImageView] and [Sampler] in assets.
+pub struct TextureAssets {
+    textures: HashMap<AssetId, TextureAsset>,
 }
 
-impl Texture2DAssets {
+impl TextureAssets {
     pub fn get_texture(
         &mut self,
         asset_id: AssetId,
@@ -52,7 +52,7 @@ impl Texture2DAssets {
                 Ok(data) => {
                     self.textures.insert(
                         asset_id,
-                        Texture2DAsset {
+                        TextureAsset {
                             image: image.clone(),
                             data: data.clone(),
                         },
