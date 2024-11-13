@@ -15,7 +15,7 @@ use vulkano::{
         SubpassBeginInfo, SubpassContents,
     },
     descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
-    format::{ClearValue, Format},
+    format::Format,
     image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::{
@@ -34,7 +34,7 @@ use vulkano::{
         PipelineShaderStageCreateInfo,
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
-    shader::{EntryPoint, ShaderModule},
+    shader::EntryPoint,
     sync::GpuFuture,
 };
 
@@ -128,72 +128,28 @@ pub struct CanvasRenderContext {
     /// The image vectors whose index at WindowIndex::GAME and WindowIndex::SCENE are for game window and scene window.
     pub depth_stencil_images: [Vec<Arc<ImageView>>; 2],
     pub eid_images: [Vec<Arc<ImageView>>; 2],
-    pub eid_image_futures: [Vec<Box<dyn GpuFuture + Send + Sync>>; 2],
     pub render_pass: Arc<RenderPass>,
     pub pipeline_point: Arc<GraphicsPipeline>,
     pub pipeline_line: Arc<GraphicsPipeline>,
     pub pipeline_triangle: Arc<GraphicsPipeline>,
     pub pipeline_circle: Arc<GraphicsPipeline>,
     pub pipeline_texture: Arc<GraphicsPipeline>,
-    pub render_pass_eid: Arc<RenderPass>,
-    pub pipeline_point_eid: Arc<GraphicsPipeline>,
-    pub pipeline_line_eid: Arc<GraphicsPipeline>,
-    pub pipeline_triangle_eid: Arc<GraphicsPipeline>,
-    pub pipeline_circle_eid: Arc<GraphicsPipeline>,
-    pub pipeline_texture_eid: Arc<GraphicsPipeline>,
 }
 
 impl CanvasRenderContext {
     pub fn new(context: &RenderContext, info: &FrameRenderInfo) -> Self {
         let render_pass = Self::create_render_pass(context, info.format);
         let (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle, pipeline_texture) =
-            Self::create_pipelines(
-                context,
-                render_pass.clone(),
-                &MyVertex::per_vertex(),
-                Some(AttachmentBlend::alpha()),
-                shader::vs::load(context.device.clone()).unwrap(),
-                shader::fs::load(context.device.clone()).unwrap(),
-                shader::circle::vs::load(context.device.clone()).unwrap(),
-                shader::circle::fs::load(context.device.clone()).unwrap(),
-                shader::texture::vs::load(context.device.clone()).unwrap(),
-                shader::texture::fs::load(context.device.clone()).unwrap(),
-            );
-        let render_pass_eid = Self::create_render_pass(context, Format::R32G32_UINT);
-        let (
-            pipeline_point_eid,
-            pipeline_line_eid,
-            pipeline_triangle_eid,
-            pipeline_circle_eid,
-            pipeline_texture_eid,
-        ) = Self::create_pipelines(
-            context,
-            render_pass_eid.clone(),
-            &MyVertexEid::per_vertex(),
-            None,
-            shader::eid::vs::load(context.device.clone()).unwrap(),
-            shader::eid::fs::load(context.device.clone()).unwrap(),
-            shader::eid::circle::vs::load(context.device.clone()).unwrap(),
-            shader::eid::circle::fs::load(context.device.clone()).unwrap(),
-            shader::eid::texture::vs::load(context.device.clone()).unwrap(),
-            shader::eid::texture::fs::load(context.device.clone()).unwrap(),
-        );
+            Self::create_pipelines(context, render_pass.clone());
         CanvasRenderContext {
             depth_stencil_images: [Vec::new(), Vec::new()],
             eid_images: [Vec::new(), Vec::new()],
-            eid_image_futures: [Vec::new(), Vec::new()],
             render_pass,
             pipeline_point,
             pipeline_line,
             pipeline_triangle,
             pipeline_circle,
             pipeline_texture,
-            render_pass_eid,
-            pipeline_point_eid,
-            pipeline_line_eid,
-            pipeline_triangle_eid,
-            pipeline_circle_eid,
-            pipeline_texture_eid,
         }
     }
 
@@ -259,9 +215,6 @@ impl CanvasRenderContext {
                 ImageView::new_default(image).unwrap()
             })
             .collect();
-        self.eid_image_futures[info.window_index] = (0..info.image_count)
-            .map(|_| vulkano::sync::now(context.device.clone()).boxed_send_sync())
-            .collect();
     }
 
     fn create_render_pass(context: &RenderContext, format: Format) -> Arc<RenderPass> {
@@ -269,10 +222,11 @@ impl CanvasRenderContext {
             context.device.clone(),
             attachments: {
                 color: { format: format, samples: 1, load_op: Clear, store_op: Store },
+                eid: { format: Format::R32G32_UINT, samples: 1, load_op: Clear, store_op: Store },
                 depth_stencil: { format: Format::D32_SFLOAT, samples: 1, load_op: Clear, store_op: DontCare },
             },
             pass: {
-                color: [ color ],
+                color: [ color, eid ],
                 depth_stencil: { depth_stencil },
             },
         ).unwrap()
@@ -281,14 +235,6 @@ impl CanvasRenderContext {
     fn create_pipelines(
         context: &RenderContext,
         render_pass: Arc<RenderPass>,
-        vertex_buffer_description: &VertexBufferDescription,
-        blend: Option<AttachmentBlend>,
-        vs: Arc<ShaderModule>,
-        fs: Arc<ShaderModule>,
-        vs_circle: Arc<ShaderModule>,
-        fs_circle: Arc<ShaderModule>,
-        vs_texture: Arc<ShaderModule>,
-        fs_texture: Arc<ShaderModule>,
     ) -> (
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
@@ -296,14 +242,19 @@ impl CanvasRenderContext {
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
     ) {
-        let vs = vs.entry_point("main").unwrap();
-        let fs = fs.entry_point("main").unwrap();
+        let vs = shader::vs::load(context.device.clone())
+            .unwrap()
+            .entry_point("main")
+            .unwrap();
+        let fs = shader::fs::load(context.device.clone())
+            .unwrap()
+            .entry_point("main")
+            .unwrap();
 
         let pipeline_point = Self::create_pipeline(
             context,
             render_pass.clone(),
-            vertex_buffer_description,
-            blend,
+            &MyVertex::per_vertex(),
             PrimitiveTopology::PointList,
             PolygonMode::Point,
             vs.clone(),
@@ -313,8 +264,7 @@ impl CanvasRenderContext {
         let pipeline_line = Self::create_pipeline(
             context,
             render_pass.clone(),
-            vertex_buffer_description,
-            blend,
+            &MyVertex::per_vertex(),
             PrimitiveTopology::LineList,
             PolygonMode::Line,
             vs.clone(),
@@ -324,8 +274,7 @@ impl CanvasRenderContext {
         let pipeline_triangle = Self::create_pipeline(
             context,
             render_pass.clone(),
-            vertex_buffer_description,
-            blend,
+            &MyVertex::per_vertex(),
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
             vs.clone(),
@@ -335,23 +284,33 @@ impl CanvasRenderContext {
         let pipeline_circle = Self::create_pipeline(
             context,
             render_pass.clone(),
-            vertex_buffer_description,
-            blend,
+            &MyVertex::per_vertex(),
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            vs_circle.entry_point("main").unwrap(),
-            fs_circle.entry_point("main").unwrap(),
+            shader::circle::vs::load(context.device.clone())
+                .unwrap()
+                .entry_point("main")
+                .unwrap(),
+            shader::circle::fs::load(context.device.clone())
+                .unwrap()
+                .entry_point("main")
+                .unwrap(),
         );
 
         let pipeline_texture = Self::create_pipeline(
             context,
             render_pass.clone(),
-            vertex_buffer_description,
-            blend,
+            &MyVertex::per_vertex(),
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            vs_texture.entry_point("main").unwrap(),
-            fs_texture.entry_point("main").unwrap(),
+            shader::texture::vs::load(context.device.clone())
+                .unwrap()
+                .entry_point("main")
+                .unwrap(),
+            shader::texture::fs::load(context.device.clone())
+                .unwrap()
+                .entry_point("main")
+                .unwrap(),
         );
 
         (
@@ -367,7 +326,6 @@ impl CanvasRenderContext {
         context: &RenderContext,
         render_pass: Arc<RenderPass>,
         vertex_buffer_description: &VertexBufferDescription,
-        blend: Option<AttachmentBlend>,
         topology: PrimitiveTopology,
         polygon_mode: PolygonMode,
         vs: EntryPoint,
@@ -407,13 +365,16 @@ impl CanvasRenderContext {
                     depth: Some(DepthState::simple()),
                     ..Default::default()
                 }),
-                color_blend_state: Some(ColorBlendState::with_attachment_states(
-                    subpass.num_color_attachments(),
-                    ColorBlendAttachmentState {
-                        blend,
-                        ..Default::default()
-                    },
-                )),
+                color_blend_state: Some(ColorBlendState {
+                    attachments: vec![
+                        ColorBlendAttachmentState {
+                            blend: Some(AttachmentBlend::alpha()),
+                            ..Default::default()
+                        },
+                        ColorBlendAttachmentState::default(),
+                    ],
+                    ..Default::default()
+                }),
                 viewport_state: Some(ViewportState::default()),
                 dynamic_state: [DynamicState::Viewport].into_iter().collect(),
                 subpass: Some(subpass.into()),
@@ -444,95 +405,16 @@ pub fn canvas_render_system(
         extent: info.window_size.as_vec2().to_array(),
         depth_range: 0.0..=1.0,
     };
-    let projection_view = camera.projection_view(&info.window_size);
 
-    let command_buffer = draw_image::<MyVertex>(
-        context,
-        canvas_context,
-        canvas_context.render_pass.clone(),
-        info.image.clone(),
-        info.window_index,
-        info.image_index,
-        viewport.clone(),
-        render_manager.clear_color.to_array().into(),
-        projection_view,
-        canvas.as_ref(),
-        canvas_context.pipeline_point.clone(),
-        canvas_context.pipeline_line.clone(),
-        canvas_context.pipeline_triangle.clone(),
-        canvas_context.pipeline_circle.clone(),
-        canvas_context.pipeline_texture.clone(),
-        texture_assets.as_mut(),
-        image_assets.as_mut(),
-        asset_manager.as_mut(),
-        platform.as_ref(),
-    );
-
-    // draw eid image
-    let command_buffer_eid = draw_image::<MyVertexEid>(
-        context,
-        canvas_context,
-        canvas_context.render_pass_eid.clone(),
-        canvas_context.eid_images[info.window_index][info.image_index].clone(),
-        info.window_index,
-        info.image_index,
-        viewport,
-        [0u32, 0u32].into(),
-        projection_view,
-        canvas.as_ref(),
-        canvas_context.pipeline_point_eid.clone(),
-        canvas_context.pipeline_line_eid.clone(),
-        canvas_context.pipeline_triangle_eid.clone(),
-        canvas_context.pipeline_circle_eid.clone(),
-        canvas_context.pipeline_texture_eid.clone(),
-        texture_assets.as_mut(),
-        image_assets.as_mut(),
-        asset_manager.as_mut(),
-        platform.as_ref(),
-    );
-
-    // TODO: should we execute after the image has drawn since image and eid_image use the same depth_stencil_image?
-    let eid_image_future = command_buffer_eid
-        .execute(context.graphics_queue.clone())
-        .unwrap()
-        .boxed_send_sync();
-    render_manager
-        .canvas_context
-        .as_mut()
-        .unwrap()
-        .eid_image_futures[info.window_index][info.image_index] = eid_image_future;
-
-    return command_buffer;
-}
-
-fn draw_image<V: IntoVertex>(
-    context: &RenderContext,
-    canvas_context: &CanvasRenderContext,
-    render_pass: Arc<RenderPass>,
-    image: Arc<ImageView>,
-    window_index: usize,
-    image_index: usize,
-    viewport: Viewport,
-    clear_value: ClearValue,
-    projection_view: Mat4,
-    canvas: &Canvas,
-    pipeline_point: Arc<GraphicsPipeline>,
-    pipeline_line: Arc<GraphicsPipeline>,
-    pipeline_triangle: Arc<GraphicsPipeline>,
-    pipeline_circle: Arc<GraphicsPipeline>,
-    pipeline_texture: Arc<GraphicsPipeline>,
-    texture_assets: &mut TextureAssets,
-    image_assets: &mut ImageAssets,
-    asset_manager: &mut AssetManager,
-    platform: &Platform,
-) -> Arc<PrimaryAutoCommandBuffer> {
-    let depth_stencil_image =
-        canvas_context.depth_stencil_images[window_index][image_index].clone();
     let framebuffer = Framebuffer::new(
         // TODO: pre-create framebuffers when we can get swapchain image views from VulkanoWindowRenderer
-        render_pass,
+        canvas_context.render_pass.clone(),
         FramebufferCreateInfo {
-            attachments: vec![image, depth_stencil_image],
+            attachments: vec![
+                info.image.clone(),
+                canvas_context.eid_images[info.window_index][info.image_index].clone(),
+                canvas_context.depth_stencil_images[info.window_index][info.image_index].clone(),
+            ],
             ..Default::default()
         },
     )
@@ -549,7 +431,11 @@ fn draw_image<V: IntoVertex>(
         .unwrap()
         .begin_render_pass(
             RenderPassBeginInfo {
-                clear_values: vec![Some(clear_value), Some(1.0.into())],
+                clear_values: vec![
+                    Some(render_manager.clear_color.to_array().into()),
+                    Some(eid_to_u32_array(EntityId::dead()).into()),
+                    Some(1.0.into()),
+                ],
                 ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
             },
             SubpassBeginInfo {
@@ -559,55 +445,56 @@ fn draw_image<V: IntoVertex>(
         )
         .unwrap();
 
+    let projection_view = camera.projection_view(&info.window_size);
     let push_constants = shader::vs::PushConstants {
         projection_view: projection_view.to_cols_array_2d(),
     };
 
-    draw_points::<V>(
+    draw_points(
         &canvas.points,
-        pipeline_point,
+        canvas_context.pipeline_point.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         push_constants,
     );
-    draw_lines::<V>(
+    draw_lines(
         &canvas.lines,
-        pipeline_line,
+        canvas_context.pipeline_line.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         push_constants,
     );
-    draw_triangles::<V>(
+    draw_triangles(
         &canvas.triangles,
-        pipeline_triangle.clone(),
+        canvas_context.pipeline_triangle.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         push_constants,
     );
-    draw_rectangles::<V>(
+    draw_rectangles(
         &canvas.rectangles,
-        pipeline_triangle,
+        canvas_context.pipeline_triangle.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         push_constants,
     );
-    draw_circles::<V>(
+    draw_circles(
         &canvas.cicles,
-        pipeline_circle,
+        canvas_context.pipeline_circle.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         &projection_view,
     );
-    draw_textures::<V>(
+    draw_textures(
         &canvas.textures,
-        pipeline_texture,
+        canvas_context.pipeline_texture.clone(),
         &mut command_buffer_builder,
         &projection_view,
         context,
-        texture_assets,
-        image_assets,
-        asset_manager,
-        platform,
+        texture_assets.as_mut(),
+        image_assets.as_mut(),
+        asset_manager.as_mut(),
+        platform.as_ref(),
     );
 
     command_buffer_builder
@@ -616,7 +503,7 @@ fn draw_image<V: IntoVertex>(
     command_buffer_builder.build().unwrap()
 }
 
-fn draw_points<V: IntoVertex>(
+fn draw_points(
     points: &Vec<(Vec3, Vec4, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
@@ -629,7 +516,7 @@ fn draw_points<V: IntoVertex>(
 
     let vertices = points
         .iter()
-        .map(|(v, c, e)| V::new(*v, *c, *e))
+        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     draw_vertices(
@@ -641,7 +528,7 @@ fn draw_points<V: IntoVertex>(
     );
 }
 
-fn draw_lines<V: IntoVertex>(
+fn draw_lines(
     lines: &Vec<[(Vec3, Vec4, EntityId); 2]>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
@@ -655,7 +542,7 @@ fn draw_lines<V: IntoVertex>(
     let vertices = lines
         .iter()
         .flatten()
-        .map(|(v, c, e)| V::new(*v, *c, *e))
+        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     draw_vertices(
@@ -667,7 +554,7 @@ fn draw_lines<V: IntoVertex>(
     );
 }
 
-fn draw_triangles<V: IntoVertex>(
+fn draw_triangles(
     triangles: &Vec<[(Vec3, Vec4, EntityId); 3]>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
@@ -681,7 +568,7 @@ fn draw_triangles<V: IntoVertex>(
     let vertices = triangles
         .iter()
         .flatten()
-        .map(|(v, c, e)| V::new(*v, *c, *e))
+        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     draw_vertices(
@@ -693,8 +580,8 @@ fn draw_triangles<V: IntoVertex>(
     );
 }
 
-fn draw_vertices<V: BufferContents>(
-    vertices: Vec<V>,
+fn draw_vertices(
+    vertices: Vec<MyVertex>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
@@ -713,7 +600,7 @@ fn draw_vertices<V: BufferContents>(
         .unwrap();
 }
 
-fn draw_rectangles<V: IntoVertex>(
+fn draw_rectangles(
     rectangles: &Vec<[(Vec3, Vec4, EntityId); 4]>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
@@ -727,7 +614,7 @@ fn draw_rectangles<V: IntoVertex>(
     let vertices = rectangles
         .iter()
         .flatten()
-        .map(|(v, c, e)| V::new(*v, *c, *e))
+        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     let indices = rectangles
@@ -754,7 +641,7 @@ fn draw_rectangles<V: IntoVertex>(
         .unwrap();
 }
 
-fn draw_circles<V: IntoVertex>(
+fn draw_circles(
     cicles: &Vec<(Vec3, Quat, f32, Vec4, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
@@ -771,7 +658,6 @@ fn draw_circles<V: IntoVertex>(
             center: center.to_array(),
             radius,
         };
-
         let model = Affine3A::from_rotation_translation(*rotation, *center);
         let vertex_buffer = vertex_buffer(
             [
@@ -780,7 +666,7 @@ fn draw_circles<V: IntoVertex>(
                 model.transform_point3(Vec3::new(radius, radius, 0.0)),
                 model.transform_point3(Vec3::new(radius, -radius, 0.0)),
             ]
-            .map(|v| V::new(v, *color, *eid))
+            .map(|v| MyVertex::new(v, *color, *eid))
             .to_vec(),
             &memory_allocator,
         );
@@ -798,7 +684,7 @@ fn draw_circles<V: IntoVertex>(
     }
 }
 
-fn draw_textures<V: IntoVertex>(
+fn draw_textures(
     textures: &Vec<(AssetId, Affine3A, Vec4, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
@@ -821,10 +707,8 @@ fn draw_textures<V: IntoVertex>(
             render_context,
         ) {
             let push_constants = shader::texture::vs::PushConstants {
-                projection_view_model: (*projection_view * Into::<Mat4>::into(*model))
-                    .to_cols_array_2d(),
+                projection_view_model: (*projection_view * Mat4::from(*model)).to_cols_array_2d(),
             };
-
             let vertex_buffer = vertex_buffer(
                 [
                     Vec3::new(-0.5, -0.5, 0.0),
@@ -832,7 +716,7 @@ fn draw_textures<V: IntoVertex>(
                     Vec3::new(0.5, 0.5, 0.0),
                     Vec3::new(0.5, -0.5, 0.0),
                 ]
-                .map(|v| V::new(v, *color, *eid))
+                .map(|v| MyVertex::new(v, *color, *eid))
                 .to_vec(),
                 &render_context.memory_allocator,
             );
@@ -916,53 +800,28 @@ struct MyVertex {
     position: [f32; 3],
     #[format(R32G32B32A32_SFLOAT)]
     color: [f32; 4],
-}
-
-/// This union is used to convert between u64 and two u32.
-union Eid {
-    u64: u64,
-    array_u32: [u32; 2],
-}
-
-fn eid_to_u32_array(eid: EntityId) -> [u32; 2] {
-    let eid = Eid { u64: eid.inner() };
-    unsafe { eid.array_u32 }
-}
-
-fn u32_array_to_eid(a: [u32; 2]) -> EntityId {
-    let eid = Eid { array_u32: a };
-    EntityId::from_inner(unsafe { eid.u64 }).unwrap_or(EntityId::dead())
-}
-
-#[derive(BufferContents, Vertex, Clone)]
-#[repr(C)]
-struct MyVertexEid {
-    #[format(R32G32B32_SFLOAT)]
-    position: [f32; 3],
     #[format(R32G32_UINT)]
     eid: [u32; 2],
 }
 
-trait IntoVertex: BufferContents + Clone {
-    fn new(position: Vec3, color: Vec4, eid: EntityId) -> Self;
-}
-
-impl IntoVertex for MyVertex {
-    fn new(position: Vec3, color: Vec4, _eid: EntityId) -> Self {
+impl MyVertex {
+    fn new(position: Vec3, color: Vec4, eid: EntityId) -> Self {
         MyVertex {
             position: position.to_array(),
             color: color.to_array(),
+            eid: eid_to_u32_array(eid),
         }
     }
 }
 
-impl IntoVertex for MyVertexEid {
-    fn new(position: Vec3, _color: Vec4, eid: EntityId) -> Self {
-        MyVertexEid {
-            position: position.to_array(),
-            eid: eid_to_u32_array(eid),
-        }
-    }
+fn eid_to_u32_array(eid: EntityId) -> [u32; 2] {
+    let eid = eid.inner();
+    [eid as u32, (eid >> 32) as u32]
+}
+
+fn u32_array_to_eid(arr: [u32; 2]) -> EntityId {
+    let eid = ((arr[1] as u64) << 32) | (arr[0] as u64);
+    EntityId::from_inner(eid).unwrap_or_default()
 }
 
 /// Parameters for [get_entity_at_screen_system].
@@ -1009,18 +868,16 @@ pub fn get_entity_at_screen_system(
                     buffer.clone(),
                 ))
                 .unwrap();
-            let future = std::mem::replace(
-                &mut canvas_contex.eid_image_futures[param.window_index][image_index],
-                vulkano::sync::now(render_manager.context.device.clone()).boxed_send_sync(),
-            );
-            let future = builder
+            builder
                 .build()
                 .unwrap()
-                .execute_after(future, render_manager.context.graphics_queue.clone())
+                // no need to execute after previous drawing future because they are excuting on the same vk queue
+                .execute(render_manager.context.graphics_queue.clone())
                 .unwrap()
                 .then_signal_fence_and_flush()
+                .unwrap()
+                .wait(None)
                 .unwrap();
-            future.wait(None).unwrap();
             let index = ((param.screen_position.x + param.screen_position.y * width) * 2) as usize;
             let buffer_read = buffer.read().unwrap();
             if index + 1 < buffer_read.len() {
