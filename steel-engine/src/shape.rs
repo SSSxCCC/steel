@@ -13,6 +13,12 @@ impl std::ops::Deref for ShapeWrapper {
     }
 }
 
+impl Default for ShapeWrapper {
+    fn default() -> Self {
+        Self(SharedShape::cuboid(0.5, 0.5))
+    }
+}
+
 impl std::fmt::Debug for ShapeWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("ShapeWrapper")

@@ -3,22 +3,49 @@ use crate::{
     transform::Transform,
 };
 use glam::{Affine3A, Vec3, Vec4};
-use parry2d::shape::{ShapeType, SharedShape};
+use parry2d::shape::ShapeType;
 use shipyard::{Component, IntoIter, IntoWithId, UniqueViewMut, View};
 use std::collections::HashMap;
-use steel_common::data::{Data, Limit, Value};
+use steel_common::{
+    asset::AssetId,
+    data::{Data, Limit, Value},
+};
 
-/// Renderer2D component is used to draw a 2D shape on an entity.
+/// The 2d render object used by [Renderer2D], may be a 2d shape or 2d texture.
+#[derive(Debug)]
+pub enum RenderObject2D {
+    Shape(ShapeWrapper),
+    Texture(AssetId),
+}
+
+impl RenderObject2D {
+    pub fn to_i32(&self) -> i32 {
+        match self {
+            Self::Shape(_) => 0,
+            Self::Texture(_) => 1,
+        }
+    }
+
+    pub fn from_i32(i: i32) -> Self {
+        match i {
+            0 => Self::Shape(ShapeWrapper::default()),
+            1 => Self::Texture(AssetId::default()),
+            _ => Self::Shape(ShapeWrapper::default()),
+        }
+    }
+}
+
+/// Renderer2D component is used to draw a 2D shape or 2D texture on an entity.
 #[derive(Component, Debug)]
 pub struct Renderer2D {
-    pub shape: ShapeWrapper,
+    pub object: RenderObject2D,
     pub color: Vec4,
 }
 
 impl Default for Renderer2D {
     fn default() -> Self {
         Self {
-            shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)),
+            object: RenderObject2D::Shape(ShapeWrapper::default()),
             color: Vec4::ONE, /* white */
         }
     }
@@ -31,12 +58,34 @@ impl Edit for Renderer2D {
 
     fn get_data(&self) -> Data {
         let mut data = Data::new();
-        self.shape.get_data(&mut data);
+        data.add_value_with_limit(
+            "render_object",
+            Value::Int32(self.object.to_i32()),
+            Limit::Int32Enum(vec![(0, "Shape".into()), (1, "Texture".into())]),
+        );
+        match &self.object {
+            RenderObject2D::Shape(shape) => shape.get_data(&mut data),
+            RenderObject2D::Texture(asset_id) => {
+                data.add_value("unnamed-0", Value::Asset(*asset_id))
+            }
+        }
         data.insert_with_limit("color", Value::Vec4(self.color), Limit::Vec4Color)
     }
 
     fn set_data(&mut self, data: &Data) {
-        self.shape.set_data(data);
+        if let Some(Value::Int32(render_object)) = data.get("render_object") {
+            if self.object.to_i32() != *render_object {
+                self.object = RenderObject2D::from_i32(*render_object);
+            }
+            match &mut self.object {
+                RenderObject2D::Shape(shape) => shape.set_data(data),
+                RenderObject2D::Texture(asset_id) => {
+                    if let Some(Value::Asset(a)) = data.get("unnamed-0") {
+                        *asset_id = *a;
+                    }
+                }
+            }
+        }
         if let Some(Value::Vec4(v)) = data.get("color") {
             self.color = *v
         }
@@ -62,29 +111,33 @@ pub fn renderer2d_to_canvas_system(
             &mut model_cache,
         )
         .unwrap();
-        match renderer2d.shape.shape_type() {
-            ShapeType::Ball => {
-                let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
-                    x.partial_cmp(y).unwrap()
-                });
-                let radius = renderer2d.shape.as_ball().unwrap().radius * scale;
-                let (_, rotation, position) = model_without_scale.to_scale_rotation_translation();
-                canvas.circle(position, rotation, radius, renderer2d.color, eid);
-            }
-            ShapeType::Cuboid => {
-                let shape = renderer2d.shape.as_cuboid().unwrap();
-                let (half_width, half_height) = (shape.half_extents.x, shape.half_extents.y);
-                let model = model_without_scale * Affine3A::from_scale(scale);
-                canvas.rectangle(
-                    model.transform_point3(Vec3::new(-half_width, -half_height, 0.0)),
-                    model.transform_point3(Vec3::new(-half_width, half_height, 0.0)),
-                    model.transform_point3(Vec3::new(half_width, half_height, 0.0)),
-                    model.transform_point3(Vec3::new(half_width, -half_height, 0.0)),
-                    renderer2d.color,
-                    eid,
-                );
-            }
-            _ => (),
+        let model = model_without_scale * Affine3A::from_scale(scale);
+        match &renderer2d.object {
+            RenderObject2D::Shape(shape) => match shape.shape_type() {
+                ShapeType::Ball => {
+                    let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
+                        x.partial_cmp(y).unwrap()
+                    });
+                    let radius = shape.as_ball().unwrap().radius * scale;
+                    let (_, rotation, position) =
+                        model_without_scale.to_scale_rotation_translation();
+                    canvas.circle(position, rotation, radius, renderer2d.color, eid);
+                }
+                ShapeType::Cuboid => {
+                    let shape = shape.as_cuboid().unwrap();
+                    let (half_width, half_height) = (shape.half_extents.x, shape.half_extents.y);
+                    canvas.rectangle(
+                        model.transform_point3(Vec3::new(-half_width, -half_height, 0.0)),
+                        model.transform_point3(Vec3::new(-half_width, half_height, 0.0)),
+                        model.transform_point3(Vec3::new(half_width, half_height, 0.0)),
+                        model.transform_point3(Vec3::new(half_width, -half_height, 0.0)),
+                        renderer2d.color,
+                        eid,
+                    );
+                }
+                _ => (),
+            },
+            RenderObject2D::Texture(asset) => canvas.texture(*asset, renderer2d.color, model, eid),
         }
     }
 }

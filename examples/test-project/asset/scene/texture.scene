@@ -15,7 +15,7 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Ground"
+                    "String": "Sculpture"
                   }
                 }
               },
@@ -23,8 +23,8 @@
                 "values": {
                   "position": {
                     "Vec3": [
+                      -3.0,
                       0.0,
-                      -8.0,
                       0.0
                     ]
                   },
@@ -37,7 +37,7 @@
                   },
                   "scale": {
                     "Vec3": [
-                      15.0,
+                      1.0,
                       1.0,
                       1.0
                     ]
@@ -46,41 +46,19 @@
               },
               "Renderer2D": {
                 "values": {
-                  "shape_type": {
+                  "render_object": {
                     "Int32": 1
                   },
-                  "size": {
-                    "Vec2": [
-                      1.0,
-                      1.0
-                    ]
+                  "unnamed-0": {
+                    "Asset": 2921013567
                   },
                   "color": {
                     "Vec4": [
-                      0.0,
                       1.0,
-                      2.3841858e-7,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "Collider2D": {
-                "values": {
-                  "shape_type": {
-                    "Int32": 1
-                  },
-                  "size": {
-                    "Vec2": [
+                      1.0,
                       1.0,
                       1.0
                     ]
-                  },
-                  "restitution": {
-                    "Float32": 0.7
-                  },
-                  "sensor": {
-                    "Bool": false
                   }
                 }
               }
@@ -103,7 +81,7 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Box"
+                    "String": "Cat"
                   }
                 }
               },
@@ -111,7 +89,7 @@
                 "values": {
                   "position": {
                     "Vec3": [
-                      0.0,
+                      3.0,
                       0.0,
                       0.0
                     ]
@@ -134,106 +112,11 @@
               },
               "Renderer2D": {
                 "values": {
-                  "shape_type": {
+                  "render_object": {
                     "Int32": 1
                   },
-                  "size": {
-                    "Vec2": [
-                      1.0,
-                      1.0
-                    ]
-                  },
-                  "color": {
-                    "Vec4": [
-                      1.0,
-                      1.0,
-                      1.0,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "RigidBody2D": {
-                "values": {
-                  "body_type": {
-                    "Int32": 0
-                  }
-                }
-              },
-              "Collider2D": {
-                "values": {
-                  "shape_type": {
-                    "Int32": 1
-                  },
-                  "size": {
-                    "Vec2": [
-                      1.0,
-                      1.0
-                    ]
-                  },
-                  "restitution": {
-                    "Float32": 0.7
-                  },
-                  "sensor": {
-                    "Bool": false
-                  }
-                }
-              }
-            }
-          },
-          {}
-        ]
-      ],
-      [
-        [
-          {
-            "index": 2,
-            "gen": 0
-          },
-          []
-        ],
-        [
-          {
-            "components": {
-              "Name": {
-                "values": {
                   "unnamed-0": {
-                    "String": "Ball"
-                  }
-                }
-              },
-              "Transform": {
-                "values": {
-                  "position": {
-                    "Vec3": [
-                      0.0,
-                      5.0,
-                      0.0
-                    ]
-                  },
-                  "rotation": {
-                    "Vec3": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  "scale": {
-                    "Vec3": [
-                      1.0,
-                      1.0,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "Renderer2D": {
-                "values": {
-                  "shape_type": {
-                    "Int32": 0
-                  },
-                  "radius": {
-                    "Float32": 0.5
+                    "Asset": 4111960136
                   },
                   "color": {
                     "Vec4": [
@@ -242,29 +125,6 @@
                       1.0,
                       1.0
                     ]
-                  }
-                }
-              },
-              "RigidBody2D": {
-                "values": {
-                  "body_type": {
-                    "Int32": 0
-                  }
-                }
-              },
-              "Collider2D": {
-                "values": {
-                  "shape_type": {
-                    "Int32": 0
-                  },
-                  "radius": {
-                    "Float32": 0.5
-                  },
-                  "restitution": {
-                    "Float32": 0.7
-                  },
-                  "sensor": {
-                    "Bool": false
                   }
                 }
               }
@@ -300,10 +160,6 @@
             },
             {
               "index": 1,
-              "gen": 0
-            },
-            {
-              "index": 2,
               "gen": 0
             }
           ]
@@ -368,7 +224,7 @@
           "Asset": 529652184
         },
         "scene2": {
-          "Asset": 1482858380
+          "Asset": 2943891939
         }
       }
     }
@@ -378,8 +234,7 @@
       "roots": {
         "EntityVec": {
           "0": [],
-          "1": [],
-          "2": []
+          "1": []
         }
       }
     }

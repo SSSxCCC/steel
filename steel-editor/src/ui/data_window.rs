@@ -34,25 +34,6 @@ impl DataWindow {
         }
     }
 
-    pub fn entity_component_windows(
-        &mut self,
-        ctx: &egui::Context,
-        world_data: &mut WorldData,
-        project: &mut Project,
-        asset_dir: impl AsRef<Path>,
-        texts: &Texts,
-    ) {
-        egui::Window::new(texts.get("Entities")).show(&ctx, |ui| {
-            self.entities_view(ui, world_data, project, &asset_dir, texts);
-        });
-
-        if let Some(entity_data) = world_data.entities.get_mut(&self.selected_entity) {
-            egui::Window::new(texts.get("Components")).show(&ctx, |ui| {
-                self.entity_view(ui, entity_data, project.app().unwrap(), asset_dir, texts);
-            });
-        }
-    }
-
     pub fn entities_view(
         &mut self,
         ui: &mut egui::Ui,
@@ -95,8 +76,6 @@ impl DataWindow {
                     ));
                 }
             }
-        } else if !world_data.entities.is_empty() {
-            panic!("entities_view: hierarchy.roots is empty but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
         }
 
         ui.menu_button("+", |ui| {
@@ -170,26 +149,30 @@ impl DataWindow {
                                     self.delete_entity(entity, project.app().unwrap());
                                     ui.close_menu();
                                 }
-                                if entities
-                                    .get(&entity)
-                                    .and_then(|entity_data| entity_data.prefab_asset())
-                                    .is_some()
-                                {
-                                    if ui.button(texts.get("Save Prefab")).clicked() {
-                                        log::info!("entity_context_menu->Save Prefab");
-                                        Self::save_prefab(entity, entities, project, &asset_dir);
+                                if !project.is_running() {
+                                    if entities
+                                        .get(&entity)
+                                        .and_then(|entity_data| entity_data.prefab_asset())
+                                        .is_some()
+                                    {
+                                        if ui.button(texts.get("Save Prefab")).clicked() {
+                                            log::info!("entity_context_menu->Save Prefab");
+                                            Self::save_prefab(
+                                                entity, entities, project, &asset_dir,
+                                            );
+                                            ui.close_menu();
+                                        }
+                                    }
+                                    if ui.button(texts.get("Save As Prefab")).clicked() {
+                                        log::info!("entity_context_menu->Save As Prefab");
+                                        Self::save_as_prefab(
+                                            entity,
+                                            entities,
+                                            project.app().unwrap(),
+                                            &asset_dir,
+                                        );
                                         ui.close_menu();
                                     }
-                                }
-                                if ui.button(texts.get("Save As Prefab")).clicked() {
-                                    log::info!("entity_context_menu->Save As Prefab");
-                                    Self::save_as_prefab(
-                                        entity,
-                                        entities,
-                                        project.app().unwrap(),
-                                        &asset_dir,
-                                    );
-                                    ui.close_menu();
                                 }
                             });
                         });
@@ -1045,32 +1028,6 @@ impl DataWindow {
             Self::color_label(ui, color, format!("Invalid{asset_id:?}"));
         }
         asset_path
-    }
-
-    pub fn unique_windows(
-        &mut self,
-        ctx: &egui::Context,
-        world_data: &mut WorldData,
-        app: &Box<dyn App>,
-        asset_dir: impl AsRef<Path>,
-        texts: &Texts,
-    ) {
-        egui::Window::new(texts.get("Uniques")).show(&ctx, |ui| {
-            self.uniques_view(ui, world_data);
-        });
-
-        if let Some(unique_data) = world_data.uniques.get_mut(&self.selected_unique) {
-            egui::Window::new(&self.selected_unique).show(&ctx, |ui| {
-                self.data_view(
-                    ui,
-                    &self.selected_unique,
-                    unique_data,
-                    app,
-                    asset_dir,
-                    texts,
-                );
-            });
-        }
     }
 
     pub fn uniques_view(&mut self, ui: &mut egui::Ui, world_data: &WorldData) {

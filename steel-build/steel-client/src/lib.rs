@@ -50,6 +50,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     // graphics
     let mut config = VulkanoConfig::default();
     config.device_features.fill_mode_non_solid = true;
+    config.device_features.independent_blend = true;
     let context = VulkanoContext::new(config);
     let mut windows = VulkanoWindows::default();
 

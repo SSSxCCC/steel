@@ -60,8 +60,6 @@ impl Texts {
         )
         .add("Ui", "Ui", "界面")
         .add("Current Scale: ", "Current Scale: ", "当前缩放：")
-        .add("Enable Dock", "Enable Dock", "启用Dock")
-        .add("Disable Dock", "Disable Dock", "禁用Dock")
         .add("fps: ", "fps: ", "帧率：")
         .add("Entities", "Entities", "实体")
         .add("Components", "Components", "组件")

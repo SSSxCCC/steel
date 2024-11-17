@@ -1,7 +1,7 @@
 pub use steel_common::app::*;
 
 use crate::{
-    asset::{AssetManager, PrefabAssets},
+    asset::{AssetManager, ImageAssets, PrefabAssets},
     camera::{Camera, CameraInfo},
     data::{
         ComponentRegistry, ComponentRegistryExt, CreatePrefabParam, EntitiesDataExt,
@@ -14,6 +14,7 @@ use crate::{
     render::{
         canvas::{Canvas, GetEntityAtScreenParam},
         renderer2d::Renderer2D,
+        texture::TextureAssets,
         FrameRenderInfo, RenderManager,
     },
     scene::SceneManager,
@@ -138,8 +139,10 @@ impl SteelApp {
         .add_and_register_unique(Hierarchy::default())
         .add_unique(AssetManager::default())
         .add_unique(PrefabAssets::default())
+        .add_unique(ImageAssets::default())
+        .add_unique(TextureAssets::default())
         .add_unique(CameraInfo::new())
-        .add_unique(Canvas::new())
+        .add_unique(Canvas::default())
         .add_unique(Input::new())
         .add_unique(Time::new())
         .add_system(

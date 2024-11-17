@@ -126,34 +126,36 @@ impl MenuBar {
                                     );
                                     ui.close_menu();
                                 }
-                                if world_data
-                                    .entities
-                                    .get(&data_window.selected_entity())
-                                    .and_then(|entity_data| entity_data.prefab_asset())
-                                    .is_some()
-                                {
-                                    if ui.button(texts.get("Save Prefab")).clicked() {
-                                        log::info!("Menu->Edit->Save Prefab");
+                                if !project.is_running() {
+                                    if world_data
+                                        .entities
+                                        .get(&data_window.selected_entity())
+                                        .and_then(|entity_data| entity_data.prefab_asset())
+                                        .is_some()
+                                    {
+                                        if ui.button(texts.get("Save Prefab")).clicked() {
+                                            log::info!("Menu->Edit->Save Prefab");
+                                            let asset_dir = project.asset_dir().unwrap();
+                                            DataWindow::save_prefab(
+                                                data_window.selected_entity(),
+                                                &world_data.entities,
+                                                project,
+                                                asset_dir,
+                                            );
+                                            ui.close_menu();
+                                        }
+                                    }
+                                    if ui.button(texts.get("Save As Prefab")).clicked() {
+                                        log::info!("Menu->Edit->Save As Prefab");
                                         let asset_dir = project.asset_dir().unwrap();
-                                        DataWindow::save_prefab(
+                                        DataWindow::save_as_prefab(
                                             data_window.selected_entity(),
                                             &world_data.entities,
-                                            project,
+                                            project.app().unwrap(),
                                             asset_dir,
                                         );
                                         ui.close_menu();
                                     }
-                                }
-                                if ui.button(texts.get("Save As Prefab")).clicked() {
-                                    log::info!("Menu->Edit->Save As Prefab");
-                                    let asset_dir = project.asset_dir().unwrap();
-                                    DataWindow::save_as_prefab(
-                                        data_window.selected_entity(),
-                                        &world_data.entities,
-                                        project.app().unwrap(),
-                                        asset_dir,
-                                    );
-                                    ui.close_menu();
                                 }
                             },
                         );
@@ -319,17 +321,6 @@ impl MenuBar {
                         ctx.pixels_per_point()
                     ));
                     egui::gui_zoom::zoom_menu_buttons(ui);
-                    if ui
-                        .button(texts.get(if editor_state.use_dock {
-                            "Disable Dock"
-                        } else {
-                            "Enable Dock"
-                        }))
-                        .clicked()
-                    {
-                        editor_state.use_dock = !editor_state.use_dock;
-                        ui.close_menu();
-                    }
                     ui.menu_button(texts.get("Language"), |ui| {
                         if ui.button(texts.get("en-US")).clicked() {
                             texts.language = Language::Eng;
