@@ -47,7 +47,9 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 
 # Editor demo
 
-![image](demo.png)
+![image](demo/demo.png)
+
+![image](demo/texture.png)
 
 # Development Roadmap
 

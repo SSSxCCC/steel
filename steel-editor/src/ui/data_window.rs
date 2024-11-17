@@ -76,8 +76,6 @@ impl DataWindow {
                     ));
                 }
             }
-        } else if !world_data.entities.is_empty() {
-            panic!("entities_view: hierarchy.roots is empty but world_data.entities is not empty! world_data.entities={:?}", world_data.entities);
         }
 
         ui.menu_button("+", |ui| {

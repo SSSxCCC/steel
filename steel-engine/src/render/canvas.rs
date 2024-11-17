@@ -501,6 +501,11 @@ pub fn canvas_render_system(
         .end_render_pass(Default::default())
         .unwrap();
     command_buffer_builder.build().unwrap()
+    // There is a strange bug here that command buffer build will return an error with message "unsolvable resource conflict".
+    // This is caused by hashing wrong key in the HashMap of vulkano::command_buffer::auto::builder::AutoSyncState::images.
+    // We can work around this by changing HashMap<K, V> to Vec<(K, V)> and searching key by Arc::ptr_eq when traversing the vector.
+    // After modifying local vulkano source file in ".cargo" folder, run "cargo clean" to force rebuilding vulkano locally.
+    // TODO: fix this bug.
 }
 
 fn draw_points(
@@ -648,6 +653,10 @@ fn draw_circles(
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     projection_view: &Mat4,
 ) {
+    if cicles.is_empty() {
+        return;
+    }
+
     command_buffer_builder
         .bind_pipeline_graphics(pipeline.clone())
         .unwrap();
@@ -695,6 +704,10 @@ fn draw_textures(
     asset_manager: &mut AssetManager,
     platform: &Platform,
 ) {
+    if textures.is_empty() {
+        return;
+    }
+
     command_buffer_builder
         .bind_pipeline_graphics(pipeline.clone())
         .unwrap();
@@ -706,8 +719,14 @@ fn draw_textures(
             platform,
             render_context,
         ) {
+            let model = *model
+                * Affine3A::from_scale(Vec3::new(
+                    image_view.image().extent()[0] as f32 / 100.0,
+                    image_view.image().extent()[1] as f32 / 100.0,
+                    1.0,
+                ));
             let push_constants = shader::texture::vs::PushConstants {
-                projection_view_model: (*projection_view * Mat4::from(*model)).to_cols_array_2d(),
+                projection_view_model: (*projection_view * Mat4::from(model)).to_cols_array_2d(),
             };
             let vertex_buffer = vertex_buffer(
                 [

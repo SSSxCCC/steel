@@ -15,7 +15,7 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Cat"
+                    "String": "Sculpture"
                   }
                 }
               },
@@ -50,7 +50,7 @@
                     "Int32": 1
                   },
                   "unnamed-0": {
-                    "Asset": 4111960136
+                    "Asset": 2921013567
                   },
                   "color": {
                     "Vec4": [
@@ -81,7 +81,7 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Sculpture"
+                    "String": "Cat"
                   }
                 }
               },
@@ -116,7 +116,7 @@
                     "Int32": 1
                   },
                   "unnamed-0": {
-                    "Asset": 2921013567
+                    "Asset": 4111960136
                   },
                   "color": {
                     "Vec4": [
