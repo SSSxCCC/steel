@@ -33,6 +33,10 @@ impl RenderObject2D {
             _ => Self::Shape(ShapeWrapper::default()),
         }
     }
+
+    pub fn enum_vector() -> Vec<(i32, String)> {
+        vec![(0, "Shape".into()), (1, "Texture".into())]
+    }
 }
 
 /// Renderer2D component is used to draw a 2D shape or 2D texture on an entity.
@@ -61,7 +65,7 @@ impl Edit for Renderer2D {
         data.add_value_with_limit(
             "render_object",
             Value::Int32(self.object.to_i32()),
-            Limit::Int32Enum(vec![(0, "Shape".into()), (1, "Texture".into())]),
+            Limit::Int32Enum(RenderObject2D::enum_vector()),
         );
         match &self.object {
             RenderObject2D::Shape(shape) => shape.get_data(&mut data),

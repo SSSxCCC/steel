@@ -154,7 +154,7 @@ impl SteelApp {
             Schedule::PreUpdate,
             crate::render::canvas::canvas_clear_system,
         )
-        .add_system(Schedule::PreUpdate, crate::camera::camera_maintain_system)
+        .add_system(Schedule::PostUpdate, crate::camera::camera_maintain_system)
         .add_system(
             Schedule::PostUpdate,
             crate::render::renderer2d::renderer2d_to_canvas_system,

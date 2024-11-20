@@ -1,45 +1,20 @@
+pub use steel_common::camera::*;
+
 use crate::{edit::Edit, transform::Transform};
-use glam::{Mat4, UVec2, Vec3};
+use glam::{Mat4, Quat, UVec2, Vec3};
 use shipyard::{
     AddComponent, Component, Get, IntoIter, IntoWithId, Unique, UniqueViewMut, View, ViewMut,
 };
-use steel_common::{
-    app::EditorCamera,
-    data::{Data, Limit, Value},
-};
-
-/// The camera size specify. Since we can not fix the screen aspect ratio,
-/// we must choose to either specify the width or height, or specify the minimum width and height.
-#[derive(Debug, Clone, Copy)]
-pub enum CameraSpec {
-    /// Specify a width and caculate height by width / aspect_ratio.
-    FixedWidth,
-    /// Specify a height and caculate with by height * aspect_ratio.
-    FixedHeight,
-    /// Specify a min width and a min height.
-    MinWidthHeight,
-}
-
-impl From<i32> for CameraSpec {
-    fn from(value: i32) -> Self {
-        match value {
-            0 => CameraSpec::FixedWidth,
-            1 => CameraSpec::FixedHeight,
-            2 => CameraSpec::MinWidthHeight,
-            _ => CameraSpec::FixedHeight,
-        }
-    }
-}
+use steel_common::data::Data;
 
 /// The camera info to use for current frame.
-/// CameraInfo is overriden by Camera component every frame if it exists,
-/// and is overriden by EditorCamera every frame if we are in steel-editor.
+/// CameraInfo is overriden by [Camera] component every frame if it exists,
+/// and is overriden by [SceneCamera] every frame if we are in steel-editor.
 #[derive(Unique)]
 pub struct CameraInfo {
     pub position: Vec3,
-    pub width: f32,
-    pub height: f32,
-    pub spec: CameraSpec,
+    pub rotation: Quat,
+    pub settings: CameraSettings,
 }
 
 impl CameraInfo {
@@ -47,71 +22,92 @@ impl CameraInfo {
     pub fn new() -> Self {
         CameraInfo {
             position: Vec3::ZERO,
-            width: 20.0,
-            height: 20.0,
-            spec: CameraSpec::FixedHeight,
+            rotation: Quat::IDENTITY,
+            settings: CameraSettings::new_orthographic(),
         }
     }
 
     /// Caculate the (projection * view) matrix of camera.
     pub fn projection_view(&self, window_size: &UVec2) -> Mat4 {
-        let view = Mat4::look_at_lh(self.position, self.position + Vec3::NEG_Z, Vec3::Y);
-        let (half_width, half_height) = match self.spec {
-            CameraSpec::FixedWidth => self.fixed_width(window_size),
-            CameraSpec::FixedHeight => self.fixed_height(window_size),
-            CameraSpec::MinWidthHeight => {
-                if self.width / self.height > window_size.x as f32 / window_size.y as f32 {
-                    self.fixed_width(window_size)
-                } else {
-                    self.fixed_height(window_size)
-                }
+        let direction = self.rotation * Vec3::NEG_Z;
+        let up = self.rotation * Vec3::Y;
+        let view = Mat4::look_at_rh(self.position, self.position + direction, up);
+        let mut projection = match self.settings {
+            CameraSettings::Orthographic {
+                width,
+                height,
+                size,
+                near,
+                far,
+            } => {
+                let (half_width, half_height) = match size {
+                    OrthographicCameraSize::FixedWidth => Self::fixed_width(width, window_size),
+                    OrthographicCameraSize::FixedHeight => Self::fixed_height(height, window_size),
+                    OrthographicCameraSize::MinWidthHeight => {
+                        if width / height > window_size.x as f32 / window_size.y as f32 {
+                            Self::fixed_width(width, window_size)
+                        } else {
+                            Self::fixed_height(height, window_size)
+                        }
+                    }
+                };
+                Mat4::orthographic_rh(
+                    -half_width,
+                    half_width,
+                    -half_height,
+                    half_height,
+                    near,
+                    far,
+                )
+            }
+            CameraSettings::Perspective { fov, near, far } => {
+                Mat4::perspective_rh(fov, window_size.x as f32 / window_size.y as f32, near, far)
             }
         };
-        let projection = Mat4::orthographic_lh(
-            half_width,
-            -half_width,
-            half_height,
-            -half_height,
-            -1000000.0,
-            1000000.0,
-        );
+        projection.y_axis.y *= -1.0;
         projection * view
     }
 
-    fn fixed_width(&self, window_size: &UVec2) -> (f32, f32) {
-        let half_width = self.width / 2.0;
+    fn fixed_width(width: f32, window_size: &UVec2) -> (f32, f32) {
+        let half_width = width / 2.0;
         let half_height = half_width * window_size.y as f32 / window_size.x as f32;
         (half_width, half_height)
     }
 
-    fn fixed_height(&self, window_size: &UVec2) -> (f32, f32) {
-        let half_height = self.height / 2.0;
+    fn fixed_height(height: f32, window_size: &UVec2) -> (f32, f32) {
+        let half_height = height / 2.0;
         let half_width = half_height * window_size.x as f32 / window_size.y as f32;
         (half_width, half_height)
     }
 
-    pub fn set(&mut self, editor_camera: &EditorCamera) {
-        self.position = editor_camera.position;
-        self.height = editor_camera.height;
-        self.spec = CameraSpec::FixedHeight;
+    pub fn set(&mut self, scene_camera: &SceneCamera) {
+        self.position = scene_camera.position;
+        self.rotation = scene_camera.rotation;
+        self.settings = scene_camera.settings;
     }
 }
 
-/// The Camera component can be attached to an entity and move camera according to the Transform component.
+/// The Camera component can be attached to an entity and move camera according to the [Transform] component.
 #[derive(Component, Debug)]
-pub struct Camera {
-    pub width: f32,
-    pub height: f32,
-    pub spec: CameraSpec,
+pub struct Camera(pub CameraSettings);
+
+impl std::ops::Deref for Camera {
+    type Target = CameraSettings;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Camera {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl Default for Camera {
     fn default() -> Self {
-        Self {
-            width: 20.0,
-            height: 20.0,
-            spec: CameraSpec::FixedHeight,
-        }
+        Camera(CameraSettings::new_orthographic())
     }
 }
 
@@ -122,54 +118,16 @@ impl Edit for Camera {
 
     fn get_data(&self) -> Data {
         let mut data = Data::new();
-        data.add_value_with_limit(
-            "spec",
-            Value::Int32(self.spec as i32),
-            Limit::Int32Enum(vec![
-                (0, "FixedWidth".into()),
-                (1, "FixedHeight".into()),
-                (2, "MinWidthHeight".into()),
-            ]),
-        );
-        match self.spec {
-            CameraSpec::FixedWidth => data.add_value("width", Value::Float32(self.width)),
-            CameraSpec::FixedHeight => data.add_value("height", Value::Float32(self.height)),
-            CameraSpec::MinWidthHeight => {
-                data.add_value("min_width", Value::Float32(self.width));
-                data.add_value("min_height", Value::Float32(self.height));
-            }
-        }
+        self.0.get_data(&mut data);
         data
     }
 
     fn set_data(&mut self, data: &Data) {
-        if let Some(Value::Int32(v)) = data.get("spec") {
-            self.spec = (*v).into()
-        }
-        match self.spec {
-            CameraSpec::FixedWidth => {
-                if let Some(Value::Float32(v)) = data.get("width") {
-                    self.width = *v
-                }
-            }
-            CameraSpec::FixedHeight => {
-                if let Some(Value::Float32(v)) = data.get("height") {
-                    self.height = *v
-                }
-            }
-            CameraSpec::MinWidthHeight => {
-                if let Some(Value::Float32(v)) = data.get("min_width") {
-                    self.width = *v
-                };
-                if let Some(Value::Float32(v)) = data.get("min_height") {
-                    self.height = *v
-                };
-            }
-        }
+        self.0.set_data(data);
     }
 }
 
-/// Modify CameraInfo unique according to the Camera component.
+/// Modify [CameraInfo] unique according to the [Camera] component.
 pub fn camera_maintain_system(
     mut transform: ViewMut<Transform>,
     camera: View<Camera>,
@@ -181,9 +139,7 @@ pub fn camera_maintain_system(
         }
         let transform = transform.get(e).unwrap();
         info.position = transform.position;
-        // TODO: transform.rotation
-        info.width = camera.width;
-        info.height = camera.height;
-        info.spec = camera.spec;
+        info.rotation = transform.rotation;
+        info.settings = **camera;
     } // TODO: handle situation without Camera
 }

@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod asset;
+pub mod camera;
 pub mod data;
 pub mod ext;
 pub mod platform;

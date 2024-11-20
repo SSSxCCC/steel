@@ -87,6 +87,10 @@ impl Texts {
         .add("New Entity", "New Entity", "新实体")
         .add("From Prefab", "From Prefab", "从预制件")
         .add("Create", "Create", "创建")
+        .add("Camera", "Camera", "相机")
+        .add("Settings", "Settings", "设置")
+        .add("Reset", "Reset", "重置")
+        .add("Scene Camera", "Scene Camera", "场景相机")
     }
 
     fn add(mut self, key: &'static str, eng: &'static str, chs: &'static str) -> Self {
