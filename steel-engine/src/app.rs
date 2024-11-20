@@ -13,6 +13,7 @@ use crate::{
     name::Name,
     render::{
         canvas::{Canvas, GetEntityAtScreenParam},
+        renderer::Renderer,
         renderer2d::Renderer2D,
         texture::TextureAssets,
         FrameRenderInfo, RenderManager,
@@ -134,6 +135,7 @@ impl SteelApp {
         .register_component::<Children>()
         .register_component::<Transform>()
         .register_component::<Camera>()
+        .register_component::<Renderer>()
         .register_component::<Renderer2D>()
         .register_unique::<RenderManager>()
         .add_and_register_unique(Hierarchy::default())
@@ -158,6 +160,10 @@ impl SteelApp {
         .add_system(
             Schedule::PostUpdate,
             crate::render::renderer2d::renderer2d_to_canvas_system,
+        )
+        .add_system(
+            Schedule::PostUpdate,
+            crate::render::renderer::renderer_to_canvas_system,
         )
     }
 

@@ -13,6 +13,7 @@ pub mod platform;
 pub mod render;
 pub mod scene;
 pub mod shape;
+pub mod shape2d;
 pub mod time;
 pub mod transform;
 pub mod ui;

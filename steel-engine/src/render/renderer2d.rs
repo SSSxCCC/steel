@@ -1,6 +1,5 @@
 use crate::{
-    edit::Edit, hierarchy::Parent, render::canvas::Canvas, shape::ShapeWrapper,
-    transform::Transform,
+    edit::Edit, hierarchy::Parent, render::canvas::Canvas, shape2d::Shape2D, transform::Transform,
 };
 use glam::{Affine3A, Vec3, Vec4};
 use parry2d::shape::ShapeType;
@@ -14,7 +13,7 @@ use steel_common::{
 /// The 2d render object used by [Renderer2D], may be a 2d shape or 2d texture.
 #[derive(Debug)]
 pub enum RenderObject2D {
-    Shape(ShapeWrapper),
+    Shape(Shape2D),
     Texture(AssetId),
 }
 
@@ -28,9 +27,9 @@ impl RenderObject2D {
 
     pub fn from_i32(i: i32) -> Self {
         match i {
-            0 => Self::Shape(ShapeWrapper::default()),
+            0 => Self::Shape(Shape2D::default()),
             1 => Self::Texture(AssetId::default()),
-            _ => Self::Shape(ShapeWrapper::default()),
+            _ => Self::Shape(Shape2D::default()),
         }
     }
 
@@ -49,7 +48,7 @@ pub struct Renderer2D {
 impl Default for Renderer2D {
     fn default() -> Self {
         Self {
-            object: RenderObject2D::Shape(ShapeWrapper::default()),
+            object: RenderObject2D::Shape(Shape2D::default()),
             color: Vec4::ONE, /* white */
         }
     }
@@ -96,7 +95,7 @@ impl Edit for Renderer2D {
     }
 }
 
-/// Add drawing data to the Canvas unique according to the Renderer2D components.
+/// Add drawing data to the [Canvas] unique according to the [Renderer2D] components.
 pub fn renderer2d_to_canvas_system(
     renderer2d: View<Renderer2D>,
     transforms: View<Transform>,

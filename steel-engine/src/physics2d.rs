@@ -3,7 +3,7 @@ use crate::{
     edit::Edit,
     hierarchy::Parent,
     render::canvas::Canvas,
-    shape::ShapeWrapper,
+    shape2d::Shape2D,
     time::Time,
     transform::Transform,
 };
@@ -13,7 +13,7 @@ use shipyard::{
     AddComponent, Component, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView,
     UniqueViewMut, View, ViewMut,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZero};
 use steel_common::data::{Data, Limit, Value};
 
 /// Maximum difference between two f32 values to be considered equal.
@@ -114,7 +114,7 @@ impl Edit for RigidBody2D {
 #[track(All)]
 pub struct Collider2D {
     handle: ColliderHandle,
-    pub shape: ShapeWrapper,
+    pub shape: Shape2D,
     pub restitution: f32,
     pub sensor: bool,
     last_transform: Option<(Vec2, f32, Vec2)>, // translation, rotation and scale
@@ -125,7 +125,7 @@ impl Collider2D {
     pub fn new(shape: SharedShape, restitution: f32, sensor: bool) -> Self {
         Collider2D {
             handle: ColliderHandle::invalid(),
-            shape: ShapeWrapper(shape),
+            shape: Shape2D(shape),
             restitution,
             sensor,
             last_transform: None,
@@ -173,7 +173,7 @@ impl Default for Collider2D {
     fn default() -> Self {
         Self {
             handle: ColliderHandle::invalid(),
-            shape: ShapeWrapper(SharedShape::cuboid(0.5, 0.5)),
+            shape: Shape2D(SharedShape::cuboid(0.5, 0.5)),
             restitution: Default::default(),
             sensor: false,
             last_transform: None,
@@ -217,7 +217,7 @@ pub struct Physics2DManager {
     pub integration_parameters: IntegrationParameters,
     pub physics_pipeline: PhysicsPipeline,
     pub island_manager: IslandManager,
-    pub broad_phase: BroadPhase,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub impulse_joint_set: ImpulseJointSet,
     pub multibody_joint_set: MultibodyJointSet,
@@ -257,7 +257,7 @@ impl Default for Physics2DManager {
             integration_parameters: IntegrationParameters::default(),
             physics_pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(),
-            broad_phase: BroadPhase::new(),
+            broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
             impulse_joint_set: ImpulseJointSet::new(),
             multibody_joint_set: MultibodyJointSet::new(),
@@ -282,57 +282,75 @@ impl Edit for Physics2DManager {
                 "min_ccd_dt",
                 Value::Float32(self.integration_parameters.min_ccd_dt),
             )
-            .insert("erp", Value::Float32(self.integration_parameters.erp))
             .insert(
-                "damping_ratio",
-                Value::Float32(self.integration_parameters.damping_ratio),
+                "contact_damping_ratio",
+                Value::Float32(self.integration_parameters.contact_damping_ratio),
             )
             .insert(
-                "joint_erp",
-                Value::Float32(self.integration_parameters.joint_erp),
+                "contact_natural_frequency",
+                Value::Float32(self.integration_parameters.contact_natural_frequency),
+            )
+            .insert(
+                "joint_natural_frequency",
+                Value::Float32(self.integration_parameters.joint_natural_frequency),
             )
             .insert(
                 "joint_damping_ratio",
                 Value::Float32(self.integration_parameters.joint_damping_ratio),
             )
             .insert(
-                "allowed_linear_error",
-                Value::Float32(self.integration_parameters.allowed_linear_error),
+                "warmstart_coefficient",
+                Value::Float32(self.integration_parameters.warmstart_coefficient),
             )
             .insert(
-                "max_penetration_correction",
-                Value::Float32(self.integration_parameters.max_penetration_correction),
+                "length_unit",
+                Value::Float32(self.integration_parameters.length_unit),
             )
             .insert(
-                "prediction_distance",
-                Value::Float32(self.integration_parameters.prediction_distance),
+                "normalized_allowed_linear_error",
+                Value::Float32(self.integration_parameters.normalized_allowed_linear_error),
             )
             .insert(
-                "max_velocity_iterations",
-                Value::Int32(self.integration_parameters.max_velocity_iterations as i32),
-            )
-            .insert(
-                "max_velocity_friction_iterations",
-                Value::Int32(self.integration_parameters.max_velocity_friction_iterations as i32),
-            )
-            .insert(
-                "max_stabilization_iterations",
-                Value::Int32(self.integration_parameters.max_stabilization_iterations as i32),
-            )
-            .insert(
-                "interleave_restitution_and_friction_resolution",
-                Value::Bool(
+                "normalized_max_corrective_velocity",
+                Value::Float32(
                     self.integration_parameters
-                        .interleave_restitution_and_friction_resolution,
+                        .normalized_max_corrective_velocity,
+                ),
+            )
+            .insert(
+                "normalized_prediction_distance",
+                Value::Float32(self.integration_parameters.normalized_prediction_distance),
+            )
+            .insert_with_limit(
+                "num_solver_iterations",
+                Value::UInt32(self.integration_parameters.num_solver_iterations.get() as u32),
+                Limit::UInt32Range(1..=u32::MAX),
+            )
+            .insert(
+                "num_additional_friction_iterations",
+                Value::UInt32(
+                    self.integration_parameters
+                        .num_additional_friction_iterations as u32,
+                ),
+            )
+            .insert(
+                "num_internal_pgs_iterations",
+                Value::UInt32(self.integration_parameters.num_internal_pgs_iterations as u32),
+            )
+            .insert(
+                "num_internal_stabilization_iterations",
+                Value::UInt32(
+                    self.integration_parameters
+                        .num_internal_stabilization_iterations as u32,
                 ),
             )
             .insert(
                 "min_island_size",
-                Value::Int32(self.integration_parameters.min_island_size as i32),
+                Value::UInt32(self.integration_parameters.min_island_size as u32),
             )
             .insert(
                 "max_ccd_substeps",
-                Value::Int32(self.integration_parameters.max_ccd_substeps as i32),
+                Value::UInt32(self.integration_parameters.max_ccd_substeps as u32),
             )
     }
 
@@ -343,44 +361,53 @@ impl Edit for Physics2DManager {
         if let Some(Value::Float32(v)) = data.get("min_ccd_dt") {
             self.integration_parameters.min_ccd_dt = *v
         }
-        if let Some(Value::Float32(v)) = data.get("erp") {
-            self.integration_parameters.erp = *v
+        if let Some(Value::Float32(v)) = data.get("contact_damping_ratio") {
+            self.integration_parameters.contact_damping_ratio = *v
         }
-        if let Some(Value::Float32(v)) = data.get("damping_ratio") {
-            self.integration_parameters.damping_ratio = *v
+        if let Some(Value::Float32(v)) = data.get("contact_natural_frequency") {
+            self.integration_parameters.contact_natural_frequency = *v
         }
-        if let Some(Value::Float32(v)) = data.get("joint_erp") {
-            self.integration_parameters.joint_erp = *v
+        if let Some(Value::Float32(v)) = data.get("joint_natural_frequency") {
+            self.integration_parameters.joint_natural_frequency = *v
         }
         if let Some(Value::Float32(v)) = data.get("joint_damping_ratio") {
             self.integration_parameters.joint_damping_ratio = *v
         }
-        if let Some(Value::Float32(v)) = data.get("allowed_linear_error") {
-            self.integration_parameters.allowed_linear_error = *v
+        if let Some(Value::Float32(v)) = data.get("warmstart_coefficient") {
+            self.integration_parameters.warmstart_coefficient = *v
         }
-        if let Some(Value::Float32(v)) = data.get("max_penetration_correction") {
-            self.integration_parameters.max_penetration_correction = *v
+        if let Some(Value::Float32(v)) = data.get("length_unit") {
+            self.integration_parameters.length_unit = *v
         }
-        if let Some(Value::Float32(v)) = data.get("prediction_distance") {
-            self.integration_parameters.prediction_distance = *v
+        if let Some(Value::Float32(v)) = data.get("normalized_allowed_linear_error") {
+            self.integration_parameters.normalized_allowed_linear_error = *v
         }
-        if let Some(Value::Int32(v)) = data.get("max_velocity_iterations") {
-            self.integration_parameters.max_velocity_iterations = *v as usize
-        }
-        if let Some(Value::Int32(v)) = data.get("max_velocity_friction_iterations") {
-            self.integration_parameters.max_velocity_friction_iterations = *v as usize
-        }
-        if let Some(Value::Int32(v)) = data.get("max_stabilization_iterations") {
-            self.integration_parameters.max_stabilization_iterations = *v as usize
-        }
-        if let Some(Value::Bool(v)) = data.get("interleave_restitution_and_friction_resolution") {
+        if let Some(Value::Float32(v)) = data.get("normalized_max_corrective_velocity") {
             self.integration_parameters
-                .interleave_restitution_and_friction_resolution = *v
+                .normalized_max_corrective_velocity = *v
         }
-        if let Some(Value::Int32(v)) = data.get("min_island_size") {
+        if let Some(Value::Float32(v)) = data.get("normalized_prediction_distance") {
+            self.integration_parameters.normalized_prediction_distance = *v
+        }
+        if let Some(Value::UInt32(v)) = data.get("num_solver_iterations") {
+            self.integration_parameters.num_solver_iterations =
+                NonZero::new(1.max(*v) as usize).unwrap()
+        }
+        if let Some(Value::UInt32(v)) = data.get("num_additional_friction_iterations") {
+            self.integration_parameters
+                .num_additional_friction_iterations = *v as usize
+        }
+        if let Some(Value::UInt32(v)) = data.get("num_internal_pgs_iterations") {
+            self.integration_parameters.num_internal_pgs_iterations = *v as usize
+        }
+        if let Some(Value::UInt32(v)) = data.get("num_internal_stabilization_iterations") {
+            self.integration_parameters
+                .num_internal_stabilization_iterations = *v as usize
+        }
+        if let Some(Value::UInt32(v)) = data.get("min_island_size") {
             self.integration_parameters.min_island_size = *v as usize
         }
-        if let Some(Value::Int32(v)) = data.get("max_ccd_substeps") {
+        if let Some(Value::UInt32(v)) = data.get("max_ccd_substeps") {
             self.integration_parameters.max_ccd_substeps = *v as usize
         }
     }
