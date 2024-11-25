@@ -112,73 +112,26 @@ pub fn renderer_to_canvas_system(
             &mut model_cache,
         )
         .unwrap();
-        let model = model_without_scale * Affine3A::from_scale(scale);
         match &renderer.object {
             RenderObject::Shape(shape) => match shape.shape_type() {
                 ShapeType::Ball => {
-                    let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
-                        x.partial_cmp(y).unwrap()
-                    });
-                    let radius = shape.as_ball().unwrap().radius * scale;
-                    let (_, rotation, position) =
-                        model_without_scale.to_scale_rotation_translation();
-                    canvas.circle(position, rotation, radius, renderer.color, eid);
+                    let scale = shape.as_ball().unwrap().radius / 0.5
+                        * [scale.x.abs(), scale.y.abs(), scale.z.abs()]
+                            .into_iter()
+                            .fold(f32::NEG_INFINITY, |max, val| max.max(val));
+                    let model =
+                        model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, scale));
+                    canvas.sphere(model, renderer.color, eid);
                 }
                 ShapeType::Cuboid => {
                     let shape = shape.as_cuboid().unwrap();
-                    let (half_x, half_y, half_z) = (
-                        shape.half_extents.x,
-                        shape.half_extents.y,
-                        shape.half_extents.z,
+                    let scale = Vec3::new(
+                        scale.x * shape.half_extents.x * 2.0,
+                        scale.y * shape.half_extents.y * 2.0,
+                        scale.z * shape.half_extents.z * 2.0,
                     );
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(-half_x, -half_y, half_z)),
-                        model.transform_point3(Vec3::new(-half_x, half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, -half_y, half_z)),
-                        renderer.color,
-                        eid,
-                    );
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(-half_x, -half_y, -half_z)),
-                        model.transform_point3(Vec3::new(-half_x, half_y, -half_z)),
-                        model.transform_point3(Vec3::new(half_x, half_y, -half_z)),
-                        model.transform_point3(Vec3::new(half_x, -half_y, -half_z)),
-                        renderer.color,
-                        eid,
-                    );
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(-half_x, half_y, -half_z)),
-                        model.transform_point3(Vec3::new(-half_x, half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, half_y, -half_z)),
-                        renderer.color,
-                        eid,
-                    );
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(-half_x, -half_y, -half_z)),
-                        model.transform_point3(Vec3::new(-half_x, -half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, -half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, -half_y, -half_z)),
-                        renderer.color,
-                        eid,
-                    );
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(half_x, -half_y, -half_z)),
-                        model.transform_point3(Vec3::new(half_x, -half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, half_y, half_z)),
-                        model.transform_point3(Vec3::new(half_x, half_y, -half_z)),
-                        renderer.color,
-                        eid,
-                    );
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(-half_x, -half_y, -half_z)),
-                        model.transform_point3(Vec3::new(-half_x, -half_y, half_z)),
-                        model.transform_point3(Vec3::new(-half_x, half_y, half_z)),
-                        model.transform_point3(Vec3::new(-half_x, half_y, -half_z)),
-                        renderer.color,
-                        eid,
-                    );
+                    let model = model_without_scale * Affine3A::from_scale(scale);
+                    canvas.cuboid(model, renderer.color, eid);
                 }
                 _ => (),
             },

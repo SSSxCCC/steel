@@ -60,6 +60,10 @@ fn _main(event_loop: EventLoop<()>) {
     let mut config = VulkanoConfig::default();
     config.device_features.fill_mode_non_solid = true;
     config.device_features.independent_blend = true;
+    config.device_features.runtime_descriptor_array = true;
+    config
+        .device_features
+        .descriptor_binding_variable_descriptor_count = true;
     let context = VulkanoContext::new(config);
     let mut windows = VulkanoWindows::default();
     let mut scene_camera = SceneCamera::default();

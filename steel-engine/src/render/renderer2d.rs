@@ -118,29 +118,27 @@ pub fn renderer2d_to_canvas_system(
         match &renderer2d.object {
             RenderObject2D::Shape(shape) => match shape.shape_type() {
                 ShapeType::Ball => {
-                    let scale = std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
-                        x.partial_cmp(y).unwrap()
-                    });
-                    let radius = shape.as_ball().unwrap().radius * scale;
-                    let (_, rotation, position) =
-                        model_without_scale.to_scale_rotation_translation();
-                    canvas.circle(position, rotation, radius, renderer2d.color, eid);
+                    let scale = shape.as_ball().unwrap().radius / 0.5
+                        * std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
+                            x.partial_cmp(y).unwrap()
+                        });
+                    let model =
+                        model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, 1.0));
+                    canvas.circle(model, renderer2d.color, eid);
                 }
                 ShapeType::Cuboid => {
                     let shape = shape.as_cuboid().unwrap();
-                    let (half_width, half_height) = (shape.half_extents.x, shape.half_extents.y);
-                    canvas.rectangle(
-                        model.transform_point3(Vec3::new(-half_width, -half_height, 0.0)),
-                        model.transform_point3(Vec3::new(-half_width, half_height, 0.0)),
-                        model.transform_point3(Vec3::new(half_width, half_height, 0.0)),
-                        model.transform_point3(Vec3::new(half_width, -half_height, 0.0)),
-                        renderer2d.color,
-                        eid,
+                    let scale = Vec3::new(
+                        scale.x * shape.half_extents.x * 2.0,
+                        scale.y * shape.half_extents.y * 2.0,
+                        scale.z,
                     );
+                    let model = model_without_scale * Affine3A::from_scale(scale);
+                    canvas.rectangle(model, renderer2d.color, eid);
                 }
                 _ => (),
             },
-            RenderObject2D::Texture(asset) => canvas.texture(*asset, renderer2d.color, model, eid),
+            RenderObject2D::Texture(asset) => canvas.texture(*asset, model, renderer2d.color, eid),
         }
     }
 }
