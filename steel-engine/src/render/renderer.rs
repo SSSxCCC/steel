@@ -14,21 +14,27 @@ use steel_common::{
 #[derive(Debug)]
 pub enum RenderObject {
     Shape(Shape),
-    Model(AssetId),
+    Model {
+        model_asset: AssetId,
+        texture_asset: AssetId,
+    },
 }
 
 impl RenderObject {
     pub fn to_i32(&self) -> i32 {
         match self {
             Self::Shape(_) => 0,
-            Self::Model(_) => 1,
+            Self::Model { .. } => 1,
         }
     }
 
     pub fn from_i32(i: i32) -> Self {
         match i {
             0 => Self::Shape(Shape::default()),
-            1 => Self::Model(AssetId::default()),
+            1 => Self::Model {
+                model_asset: AssetId::default(),
+                texture_asset: AssetId::default(),
+            },
             _ => Self::Shape(Shape::default()),
         }
     }
@@ -68,7 +74,13 @@ impl Edit for Renderer {
         );
         match &self.object {
             RenderObject::Shape(shape) => shape.get_data(&mut data),
-            RenderObject::Model(asset_id) => data.add_value("unnamed-0", Value::Asset(*asset_id)),
+            RenderObject::Model {
+                model_asset,
+                texture_asset,
+            } => {
+                data.add_value("model_asset", Value::Asset(*model_asset));
+                data.add_value("texture_asset", Value::Asset(*texture_asset));
+            }
         }
         data.insert_with_limit("color", Value::Vec4(self.color), Limit::Vec4Color)
     }
@@ -80,9 +92,15 @@ impl Edit for Renderer {
             }
             match &mut self.object {
                 RenderObject::Shape(shape) => shape.set_data(data),
-                RenderObject::Model(asset_id) => {
-                    if let Some(Value::Asset(a)) = data.get("unnamed-0") {
-                        *asset_id = *a;
+                RenderObject::Model {
+                    model_asset,
+                    texture_asset,
+                } => {
+                    if let Some(Value::Asset(a)) = data.get("model_asset") {
+                        *model_asset = *a;
+                    }
+                    if let Some(Value::Asset(a)) = data.get("texture_asset") {
+                        *texture_asset = *a;
                     }
                 }
             }
@@ -112,6 +130,7 @@ pub fn renderer_to_canvas_system(
             &mut model_cache,
         )
         .unwrap();
+        let model = model_without_scale * Affine3A::from_scale(scale);
         match &renderer.object {
             RenderObject::Shape(shape) => match shape.shape_type() {
                 ShapeType::Ball => {
@@ -135,7 +154,10 @@ pub fn renderer_to_canvas_system(
                 }
                 _ => (),
             },
-            RenderObject::Model(_) => (),
+            RenderObject::Model {
+                model_asset,
+                texture_asset,
+            } => canvas.model(*model_asset, *texture_asset, model, renderer.color, eid),
         }
     }
 }

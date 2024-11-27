@@ -51,6 +51,8 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 
 ![image](demo/texture.png)
 
+![image](demo/model.png)
+
 # Development Roadmap
 
 - [x] Game core module
@@ -59,7 +61,7 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [x] 2D rendering basic
 - [x] 2D texture
 - [x] 3D rendering basic
-- [ ] 3D model
+- [x] 3D model
 - [ ] Ray traced rendering
 - [x] 2D physics
 - [ ] 3D physics

@@ -1,4 +1,6 @@
 pub mod canvas;
+pub mod image;
+pub mod model;
 pub mod renderer;
 pub mod renderer2d;
 pub mod texture;

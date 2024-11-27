@@ -277,23 +277,27 @@ impl Editor {
             }
             CameraSettings::Perspective { .. } => {
                 if input.mouse_held(1) {
-                    ctx.set_cursor_icon(egui::CursorIcon::None);
                     let mut rotation = scene_camera.rotation.to_scaled_axis();
                     let mouse_diff = input.mouse_diff();
-                    rotation.y -= mouse_diff.0 / 1000.0;
+                    rotation.y += mouse_diff.0 / 1000.0;
                     rotation.x -= mouse_diff.1 / 1000.0;
                     rotation.x = rotation
                         .x
-                        .min(89.0_f32.to_radians())
-                        .max(-89.0_f32.to_radians());
+                        .clamp(-89.0_f32.to_radians(), 89.0_f32.to_radians());
                     scene_camera.rotation = Quat::from_scaled_axis(rotation);
+                    ctx.set_cursor_icon(egui::CursorIcon::None);
                 } else {
                     ctx.set_cursor_icon(egui::CursorIcon::Default);
                 }
 
-                let direction = scene_camera.rotation * Vec3::NEG_Z;
-                let right = scene_camera.rotation * Vec3::X;
-                let up = scene_camera.rotation * Vec3::Y;
+                let rotation = scene_camera.rotation.to_scaled_axis(); // x: pitch, y: yaw, z: roll
+                let direction = Vec3::new(
+                    rotation.y.sin() * rotation.x.cos(),
+                    rotation.x.sin(),
+                    -rotation.y.cos() * rotation.x.cos(),
+                );
+                let right = direction.cross(Vec3::Y).normalize();
+                let up = right.cross(direction).normalize();
                 if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
                     scene_camera.position -= right; // TODO: * move_speed * delta_time
                 }

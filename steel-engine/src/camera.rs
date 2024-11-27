@@ -28,9 +28,19 @@ impl CameraInfo {
     }
 
     /// Caculate the (projection * view) matrix of camera.
+    /// Steel engine uses right hand coordinate system, camera is toward -z.
     pub fn projection_view(&self, window_size: &UVec2) -> Mat4 {
-        let direction = self.rotation * Vec3::NEG_Z;
-        let up = self.rotation * Vec3::Y;
+        // TODO: find out why using quaternion math below is not working!
+        // let direction = self.rotation * Vec3::NEG_Z;
+        // let up = self.rotation * Vec3::Y;
+        let rotation = self.rotation.to_scaled_axis(); // x: pitch, y: yaw, z: roll
+        let direction = Vec3::new(
+            rotation.y.sin() * rotation.x.cos(),
+            rotation.x.sin(),
+            -rotation.y.cos() * rotation.x.cos(),
+        );
+        let right = direction.cross(Vec3::Y).normalize();
+        let up = right.cross(direction).normalize();
         let view = Mat4::look_at_rh(self.position, self.position + direction, up);
         let mut projection = match self.settings {
             CameraSettings::Orthographic {

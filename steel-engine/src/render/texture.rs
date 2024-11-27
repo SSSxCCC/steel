@@ -1,5 +1,5 @@
-use super::RenderContext;
-use crate::asset::{AssetManager, ImageAssets};
+use super::{image::ImageAssets, RenderContext};
+use crate::asset::AssetManager;
 use image::{DynamicImage, GenericImageView};
 use shipyard::Unique;
 use std::{collections::HashMap, error::Error, sync::Arc};

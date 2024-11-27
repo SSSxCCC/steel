@@ -1,11 +1,11 @@
-use super::{mesh, shader, texture::TextureAssets, FrameRenderInfo, RenderContext, RenderManager};
-use crate::{
-    asset::{AssetManager, ImageAssets},
-    camera::CameraInfo,
+use super::{
+    image::ImageAssets, mesh, model::ModelAssets, shader, texture::TextureAssets, FrameRenderInfo,
+    RenderContext, RenderManager,
 };
+use crate::{asset::AssetManager, camera::CameraInfo};
 use glam::{Affine3A, UVec2, Vec3, Vec4};
 use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, iter::zip, sync::Arc};
 use steel_common::{asset::AssetId, platform::Platform};
 use vulkano::{
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
@@ -39,7 +39,8 @@ use vulkano::{
 };
 
 /// Canvas contains current frame's drawing data, which will be converted to vertex data, and send to gpu to draw.
-/// You can use this unique to draw points, lines, triangles, rectangles, cicles, and textures to the screen.
+/// You can use this unique to draw points, lines, triangles, rectangles, cicles, etc. on the screen.
+/// All the drawing data requires an [EntityId] for screen object picking.
 #[derive(Unique, Default)]
 pub struct Canvas {
     /// 1 vertex: (position, color, eid)
@@ -52,55 +53,70 @@ pub struct Canvas {
     rectangles: Vec<(Affine3A, Vec4, EntityId)>,
     /// (model matrix, color, eid)
     cicles: Vec<(Affine3A, Vec4, EntityId)>,
-    /// (texture, model, color, eid)
+    /// (texture asset, model matrix, color, eid)
     textures: Vec<(AssetId, Affine3A, Vec4, EntityId)>,
     /// (model matrix, color, eid)
     cuboids: Vec<(Affine3A, Vec4, EntityId)>,
     /// (model matrix, color, eid)
     spheres: Vec<(Affine3A, Vec4, EntityId)>,
+    /// (model asset, texture asset, model matrix, color, eid)
+    models: Vec<(AssetId, AssetId, Affine3A, Vec4, EntityId)>,
 }
 
 impl Canvas {
-    /// Draw a point with position p, color, and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a point with position p, color, and [EntityId].
     pub fn point(&mut self, p: Vec3, color: Vec4, eid: EntityId) {
         self.points.push((p, color, eid));
     }
 
-    /// Draw a line from p1 to p2 with color and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a line from p1 to p2 with color and [EntityId].
     pub fn line(&mut self, p1: Vec3, p2: Vec3, color: Vec4, eid: EntityId) {
         self.lines.push([(p1, color, eid), (p2, color, eid)]);
     }
 
-    /// Draw a triangle with vertices p1, p2, p3, color, and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a triangle with vertices p1, p2, p3, color, and [EntityId].
     pub fn triangle(&mut self, p1: Vec3, p2: Vec3, p3: Vec3, color: Vec4, eid: EntityId) {
         self.triangles
             .push([(p1, color, eid), (p2, color, eid), (p3, color, eid)]);
     }
 
-    /// Draw a rectangle with model matrix, color, and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a rectangle with model matrix, color, and [EntityId].
     pub fn rectangle(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
         self.rectangles.push((model, color, eid));
     }
 
-    /// Draw a circle with model matrix, color, and [EntityId] eid. The position and scale of model matrix
+    /// Draw a circle with model matrix, color, and [EntityId].
     /// are the center and radius of the circle. The eid is used for screen object picking.
     pub fn circle(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
         self.cicles.push((model, color, eid));
     }
 
-    /// Draw a texture with texture asset, model matrix, color, and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a texture with texture asset, model matrix, color, and [EntityId].
     pub fn texture(&mut self, asset: AssetId, model: Affine3A, color: Vec4, eid: EntityId) {
         self.textures.push((asset, model, color, eid));
     }
 
-    /// Draw a cuboid with model matrix, color, and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a cuboid with model matrix, color, and [EntityId].
     pub fn cuboid(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
         self.cuboids.push((model, color, eid));
     }
 
-    /// Draw a sphere with model matrix, color, and [EntityId] eid. The eid is used for screen object picking.
+    /// Draw a sphere with model matrix, color, and [EntityId].
     pub fn sphere(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
         self.spheres.push((model, color, eid));
+    }
+
+    /// Draw a model with model asset, texture asset, model matrix, color, and [EntityId].
+    pub fn model(
+        &mut self,
+        model_asset: AssetId,
+        texture_asset: AssetId,
+        model: Affine3A,
+        color: Vec4,
+        eid: EntityId,
+    ) {
+        self.models
+            .push((model_asset, texture_asset, model, color, eid));
     }
 
     /// Clear all drawing data.
@@ -113,6 +129,7 @@ impl Canvas {
         self.textures.clear();
         self.cuboids.clear();
         self.spheres.clear();
+        self.models.clear();
     }
 }
 
@@ -134,6 +151,7 @@ pub struct CanvasRenderContext {
     pub pipeline_shape: Arc<GraphicsPipeline>,
     pub pipeline_circle: Arc<GraphicsPipeline>,
     pub pipeline_texture: Arc<GraphicsPipeline>,
+    pub pipeline_model: Arc<GraphicsPipeline>,
 }
 
 impl CanvasRenderContext {
@@ -146,6 +164,7 @@ impl CanvasRenderContext {
             pipeline_shape,
             pipeline_circle,
             pipeline_texture,
+            pipeline_model,
         ) = Self::create_pipelines(context, render_pass.clone());
         CanvasRenderContext {
             depth_stencil_images: [Vec::new(), Vec::new()],
@@ -157,6 +176,7 @@ impl CanvasRenderContext {
             pipeline_shape,
             pipeline_circle,
             pipeline_texture,
+            pipeline_model,
         }
     }
 
@@ -249,6 +269,7 @@ impl CanvasRenderContext {
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
+        Arc<GraphicsPipeline>,
     ) {
         let vs = shader::vertex::vs::load(context.device.clone())
             .unwrap()
@@ -332,6 +353,11 @@ impl CanvasRenderContext {
             |_| {},
         );
 
+        let properties = context.device.physical_device().properties();
+        let max_descriptor_count = properties
+            .max_per_stage_descriptor_samplers
+            .min(properties.max_per_stage_descriptor_sampled_images);
+
         let pipeline_texture = Self::create_pipeline(
             context,
             render_pass.clone(),
@@ -352,10 +378,31 @@ impl CanvasRenderContext {
             |create_info| {
                 let binding = create_info.set_layouts[0].bindings.get_mut(&0).unwrap();
                 binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
-                let properties = context.device.physical_device().properties();
-                binding.descriptor_count = properties
-                    .max_per_stage_descriptor_samplers
-                    .min(properties.max_per_stage_descriptor_sampled_images);
+                binding.descriptor_count = max_descriptor_count;
+            },
+        );
+
+        let pipeline_model = Self::create_pipeline(
+            context,
+            render_pass.clone(),
+            &[
+                shader::model::VertexData::per_vertex(),
+                shader::texture::InstanceData::per_instance(),
+            ],
+            PrimitiveTopology::TriangleList,
+            PolygonMode::Fill,
+            shader::model::vs::load(context.device.clone())
+                .unwrap()
+                .entry_point("main")
+                .unwrap(),
+            shader::model::fs::load(context.device.clone())
+                .unwrap()
+                .entry_point("main")
+                .unwrap(),
+            |create_info| {
+                let binding = create_info.set_layouts[0].bindings.get_mut(&0).unwrap();
+                binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
+                binding.descriptor_count = max_descriptor_count;
             },
         );
 
@@ -366,6 +413,7 @@ impl CanvasRenderContext {
             pipeline_shape,
             pipeline_circle,
             pipeline_texture,
+            pipeline_model,
         )
     }
 
@@ -446,6 +494,7 @@ pub fn canvas_render_system(
     camera: UniqueView<CameraInfo>,
     canvas: UniqueView<Canvas>,
     mut render_manager: UniqueViewMut<RenderManager>,
+    mut model_assets: UniqueViewMut<ModelAssets>,
     mut texture_assets: UniqueViewMut<TextureAssets>,
     mut image_assets: UniqueViewMut<ImageAssets>,
     mut asset_manager: UniqueViewMut<AssetManager>,
@@ -572,6 +621,18 @@ pub fn canvas_render_system(
         push_constants,
         mesh::SPHERE_VERTICES.to_vec(),
         mesh::SPHERE_INDICES.to_vec(),
+    );
+    draw_models(
+        &canvas.models,
+        canvas_context.pipeline_model.clone(),
+        &mut command_buffer_builder,
+        push_constants,
+        context,
+        model_assets.as_mut(),
+        texture_assets.as_mut(),
+        image_assets.as_mut(),
+        asset_manager.as_mut(),
+        platform.as_ref(),
     );
 
     command_buffer_builder
@@ -833,6 +894,132 @@ fn draw_textures(
             0,
         )
         .unwrap();
+}
+
+fn draw_models(
+    models: &Vec<(AssetId, AssetId, Affine3A, Vec4, EntityId)>,
+    pipeline: Arc<GraphicsPipeline>,
+    command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    push_constants: shader::vertex::vs::PushConstants,
+    render_context: &RenderContext,
+    model_assets: &mut ModelAssets,
+    texture_assets: &mut TextureAssets,
+    image_assets: &mut ImageAssets,
+    asset_manager: &mut AssetManager,
+    platform: &Platform,
+) {
+    if models.is_empty() {
+        return;
+    }
+
+    let mut vertex_buffers = Vec::new();
+    let mut index_buffers = Vec::new();
+    let mut instances = Vec::new();
+    let mut model_to_index = HashMap::new();
+    let mut image_view_samplers = Vec::new();
+    let mut image_to_index = HashMap::new();
+    for (model_asset, texture_asset, model_matrix, color, eid) in models {
+        if let Some(model) = model_assets.get_model(*model_asset, asset_manager, platform) {
+            let index = *model_to_index.entry(*model_asset).or_insert_with(|| {
+                let vertices = model.vertices.iter().map(|v| shader::model::VertexData {
+                    position: v.position,
+                    // the OBJ format assumes a coordinate system where a vertical coordinate of 0 means the bottom of the image
+                    tex_coord: [v.texture[0], 1.0 - v.texture[1]],
+                });
+                let vertex_buffer = create_buffer(
+                    vertices,
+                    &render_context.memory_allocator,
+                    BufferUsage::VERTEX_BUFFER,
+                );
+                let index_buffer = create_buffer(
+                    model.indices.clone(),
+                    &render_context.memory_allocator,
+                    BufferUsage::INDEX_BUFFER,
+                );
+                vertex_buffers.push(vertex_buffer);
+                index_buffers.push(index_buffer);
+                instances.push(Vec::new());
+                instances.len() - 1
+            });
+            let texture_index = if let Some((image_view, sampler)) = texture_assets.get_texture(
+                *texture_asset,
+                image_assets,
+                asset_manager,
+                platform,
+                render_context,
+            ) {
+                *image_to_index.entry(image_view.clone()).or_insert_with(|| {
+                    image_view_samplers.push((image_view, sampler));
+                    image_view_samplers.len() - 1
+                })
+            } else {
+                u32::MAX as usize
+            };
+            instances[index].push(shader::texture::InstanceData::new(
+                *color,
+                *eid,
+                texture_index,
+                *model_matrix,
+            ));
+        }
+    }
+
+    if instances.is_empty() {
+        return;
+    }
+
+    let descriptor_set = PersistentDescriptorSet::new_variable(
+        &render_context.descriptor_set_allocator,
+        pipeline.layout().set_layouts()[0].clone(),
+        image_view_samplers.len() as u32,
+        if image_view_samplers.is_empty() {
+            vec![]
+        } else {
+            vec![WriteDescriptorSet::image_view_sampler_array(
+                0,
+                0,
+                image_view_samplers,
+            )]
+        },
+        [],
+    )
+    .unwrap();
+
+    command_buffer_builder
+        .bind_pipeline_graphics(pipeline.clone())
+        .unwrap()
+        .push_constants(pipeline.layout().clone(), 0, push_constants)
+        .unwrap()
+        .bind_descriptor_sets(
+            PipelineBindPoint::Graphics,
+            pipeline.layout().clone(),
+            0,
+            descriptor_set,
+        )
+        .unwrap();
+
+    for (instances, (vertex_buffer, index_buffer)) in
+        zip(instances, zip(vertex_buffers, index_buffers))
+    {
+        let instance_buffer = create_buffer(
+            instances,
+            &render_context.memory_allocator,
+            BufferUsage::VERTEX_BUFFER,
+        );
+        command_buffer_builder
+            .bind_vertex_buffers(0, (vertex_buffer.clone(), instance_buffer.clone()))
+            .unwrap()
+            .bind_index_buffer(index_buffer.clone())
+            .unwrap()
+            .draw_indexed(
+                index_buffer.len() as u32,
+                instance_buffer.len() as u32,
+                0,
+                0,
+                0,
+            )
+            .unwrap();
+    }
 }
 
 /// Helper function to create a buffer from a list of data.

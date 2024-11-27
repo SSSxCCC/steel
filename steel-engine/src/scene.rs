@@ -1,6 +1,6 @@
 use crate::{
-    asset::{AssetManager, PrefabAssets},
-    data::{ComponentRegistry, LoadScenePrefabsParam, UniqueRegistry, WorldDataExt},
+    asset::AssetManager,
+    data::{ComponentRegistry, LoadScenePrefabsParam, PrefabAssets, UniqueRegistry, WorldDataExt},
 };
 use shipyard::{Unique, UniqueView, UniqueViewMut, World};
 use std::collections::HashMap;

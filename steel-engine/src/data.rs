@@ -1,6 +1,7 @@
 pub use steel_common::data::*;
 
 use crate::{
+    asset::AssetManager,
     edit::Edit,
     hierarchy::{Children, Parent},
 };
@@ -10,8 +11,8 @@ use shipyard::{
     AddComponent, Component, EntitiesView, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView,
     UniqueViewMut, View, ViewMut, World,
 };
-use std::collections::HashMap;
-use steel_common::asset::AssetId;
+use std::{collections::HashMap, sync::Arc};
+use steel_common::{asset::AssetId, platform::Platform};
 
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
@@ -729,5 +730,51 @@ pub(crate) fn load_scene_prefabs_system(
             prefab.asset = prefab_asset;
             prefab.root_entity = prefab_root_entity;
         }
+    }
+}
+
+struct PrefabAsset {
+    bytes: Arc<Vec<u8>>,
+    data: Arc<PrefabData>,
+}
+
+#[derive(Unique, Default)]
+/// Cache [PrefabData] in assets.
+pub struct PrefabAssets {
+    prefabs: HashMap<AssetId, PrefabAsset>,
+}
+
+impl PrefabAssets {
+    pub fn get_prefab_data(
+        &mut self,
+        asset_id: AssetId,
+        asset_manager: &mut AssetManager,
+        platform: &Platform,
+    ) -> Option<Arc<PrefabData>> {
+        if let Some(bytes) = asset_manager.get_asset_content(asset_id, platform) {
+            if let Some(prefab_asset) = self.prefabs.get(&asset_id) {
+                if Arc::ptr_eq(bytes, &prefab_asset.bytes) {
+                    // cache is still valid
+                    return Some(prefab_asset.data.clone());
+                }
+            }
+            // cache is not valid, reload data
+            match serde_json::from_slice::<PrefabData>(&bytes) {
+                Ok(data) => {
+                    let prefab_data = Arc::new(data);
+                    self.prefabs.insert(
+                        asset_id,
+                        PrefabAsset {
+                            bytes: bytes.clone(),
+                            data: prefab_data.clone(),
+                        },
+                    );
+                    return Some(prefab_data);
+                }
+                Err(e) => log::error!("PrefabAssets::get_prefab_data: error: {}", e),
+            }
+        }
+        self.prefabs.remove(&asset_id);
+        None
     }
 }

@@ -13,6 +13,7 @@ steel-common = { version = "0.2.0", path = "../steel-common" }
 steel-proc = { version = "0.2.0", path = "steel-proc" }
 steel-shader = { version = "0.1.0", path = "steel-shader" }
 image = "0.25.5"
+obj-rs = "0.7.4"
 
 vulkano = "0.34.1"
 vulkano-shaders = "0.34.0"

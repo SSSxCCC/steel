@@ -1,0 +1,249 @@
+{
+  "entities": {
+    "entities": [
+      [
+        [
+          {
+            "index": 0,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Viking Room"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      -1.5707964,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      10.0,
+                      10.0,
+                      10.0
+                    ]
+                  }
+                }
+              },
+              "Renderer": {
+                "values": {
+                  "render_object": {
+                    "Int32": 1
+                  },
+                  "model_asset": {
+                    "Asset": 125169608
+                  },
+                  "texture_asset": {
+                    "Asset": 360035086
+                  },
+                  "color": {
+                    "Vec4": [
+                      1.0,
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 1,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Camera"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      10.0,
+                      10.0,
+                      -8.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      -0.62831885,
+                      4.0142574,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Camera": {
+                "values": {
+                  "mode": {
+                    "Int32": 1
+                  },
+                  "fov": {
+                    "Float32": 1.5707964
+                  },
+                  "near": {
+                    "Float32": 0.0001
+                  },
+                  "far": {
+                    "Float32": 1000.0
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
+      ]
+    ],
+    "nested_prefabs": [],
+    "delete": []
+  },
+  "uniques": {
+    "RenderManager": {
+      "values": {
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 0,
+              "gen": 0
+            },
+            {
+              "index": 1,
+              "gen": 0
+            }
+          ]
+        }
+      }
+    },
+    "Physics2DManager": {
+      "values": {
+        "gravity": {
+          "Vec2": [
+            0.0,
+            -9.81
+          ]
+        },
+        "min_ccd_dt": {
+          "Float32": 0.00016666668
+        },
+        "contact_damping_ratio": {
+          "Float32": 5.0
+        },
+        "contact_natural_frequency": {
+          "Float32": 30.0
+        },
+        "joint_natural_frequency": {
+          "Float32": 1000000.0
+        },
+        "joint_damping_ratio": {
+          "Float32": 1.0
+        },
+        "warmstart_coefficient": {
+          "Float32": 1.0
+        },
+        "length_unit": {
+          "Float32": 1.0
+        },
+        "normalized_allowed_linear_error": {
+          "Float32": 0.001
+        },
+        "normalized_max_corrective_velocity": {
+          "Float32": 10.0
+        },
+        "normalized_prediction_distance": {
+          "Float32": 0.002
+        },
+        "num_solver_iterations": {
+          "UInt32": 4
+        },
+        "num_additional_friction_iterations": {
+          "UInt32": 0
+        },
+        "num_internal_pgs_iterations": {
+          "UInt32": 1
+        },
+        "num_internal_stabilization_iterations": {
+          "UInt32": 2
+        },
+        "min_island_size": {
+          "UInt32": 128
+        },
+        "max_ccd_substeps": {
+          "UInt32": 1
+        }
+      }
+    },
+    "MyUnique": {
+      "values": {
+        "scene1": {
+          "Asset": 0
+        },
+        "scene2": {
+          "Asset": 0
+        }
+      }
+    }
+  },
+  "unique_id_paths": {
+    "Hierarchy": {
+      "roots": {
+        "EntityVec": {
+          "0": [],
+          "1": []
+        }
+      }
+    }
+  }
+}
