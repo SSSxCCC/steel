@@ -15,6 +15,7 @@ use vulkano::{
         SubpassBeginInfo, SubpassContents,
     },
     descriptor_set::{layout::DescriptorBindingFlags, PersistentDescriptorSet, WriteDescriptorSet},
+    device::Device,
     format::Format,
     image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
@@ -24,7 +25,7 @@ use vulkano::{
             depth_stencil::{DepthState, DepthStencilState},
             input_assembly::{InputAssemblyState, PrimitiveTopology},
             multisample::MultisampleState,
-            rasterization::{PolygonMode, RasterizationState},
+            rasterization::{CullMode, PolygonMode, RasterizationState},
             vertex_input::{Vertex, VertexDefinition},
             viewport::{Viewport, ViewportState},
             GraphicsPipelineCreateInfo,
@@ -34,8 +35,9 @@ use vulkano::{
         PipelineShaderStageCreateInfo,
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
-    shader::EntryPoint,
+    shader::{EntryPoint, ShaderModule},
     sync::GpuFuture,
+    Validated, VulkanError,
 };
 
 /// Canvas contains current frame's drawing data, which will be converted to vertex data, and send to gpu to draw.
@@ -147,7 +149,10 @@ pub struct CanvasRenderContext {
     pub pipeline_point: Arc<GraphicsPipeline>,
     pub pipeline_line: Arc<GraphicsPipeline>,
     pub pipeline_triangle: Arc<GraphicsPipeline>,
-    /// See [shader::shape].
+    /// Used to draw 2d shapes, like rectangle.
+    pub pipeline_shape2d: Arc<GraphicsPipeline>,
+    /// Used to draw 3d shapes, like cuboid. The only difference to
+    /// [CanvasRenderContext::pipeline_shape2d] is that this has culling.
     pub pipeline_shape: Arc<GraphicsPipeline>,
     pub pipeline_circle: Arc<GraphicsPipeline>,
     pub pipeline_texture: Arc<GraphicsPipeline>,
@@ -161,6 +166,7 @@ impl CanvasRenderContext {
             pipeline_point,
             pipeline_line,
             pipeline_triangle,
+            pipeline_shape2d,
             pipeline_shape,
             pipeline_circle,
             pipeline_texture,
@@ -173,6 +179,7 @@ impl CanvasRenderContext {
             pipeline_point,
             pipeline_line,
             pipeline_triangle,
+            pipeline_shape2d,
             pipeline_shape,
             pipeline_circle,
             pipeline_texture,
@@ -270,15 +277,10 @@ impl CanvasRenderContext {
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
+        Arc<GraphicsPipeline>,
     ) {
-        let vs = shader::vertex::vs::load(context.device.clone())
-            .unwrap()
-            .entry_point("main")
-            .unwrap();
-        let fs = shader::vertex::fs::load(context.device.clone())
-            .unwrap()
-            .entry_point("main")
-            .unwrap();
+        let vs = Self::load_entry_point(context.device.clone(), shader::vertex::vs::load);
+        let fs = Self::load_entry_point(context.device.clone(), shader::vertex::fs::load);
 
         let pipeline_point = Self::create_pipeline(
             context,
@@ -286,6 +288,7 @@ impl CanvasRenderContext {
             &shader::vertex::VertexData::per_vertex(),
             PrimitiveTopology::PointList,
             PolygonMode::Point,
+            CullMode::None,
             vs.clone(),
             fs.clone(),
             |_| {},
@@ -297,6 +300,7 @@ impl CanvasRenderContext {
             &shader::vertex::VertexData::per_vertex(),
             PrimitiveTopology::LineList,
             PolygonMode::Line,
+            CullMode::None,
             vs.clone(),
             fs.clone(),
             |_| {},
@@ -308,8 +312,24 @@ impl CanvasRenderContext {
             &shader::vertex::VertexData::per_vertex(),
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
+            CullMode::None,
             vs.clone(),
             fs.clone(),
+            |_| {},
+        );
+
+        let pipeline_shape2d = Self::create_pipeline(
+            context,
+            render_pass.clone(),
+            &[
+                shader::shape::VertexData::per_vertex(),
+                shader::shape::InstanceData::per_instance(),
+            ],
+            PrimitiveTopology::TriangleList,
+            PolygonMode::Fill,
+            CullMode::None,
+            Self::load_entry_point(context.device.clone(), shader::shape::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::shape::fs::load),
             |_| {},
         );
 
@@ -322,14 +342,9 @@ impl CanvasRenderContext {
             ],
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            shader::shape::vs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
-            shader::shape::fs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
+            CullMode::Back,
+            Self::load_entry_point(context.device.clone(), shader::shape::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::shape::fs::load),
             |_| {},
         );
 
@@ -342,14 +357,9 @@ impl CanvasRenderContext {
             ],
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            shader::circle::vs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
-            shader::circle::fs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
+            CullMode::None,
+            Self::load_entry_point(context.device.clone(), shader::circle::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::circle::fs::load),
             |_| {},
         );
 
@@ -367,14 +377,9 @@ impl CanvasRenderContext {
             ],
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            shader::texture::vs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
-            shader::texture::fs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
+            CullMode::None,
+            Self::load_entry_point(context.device.clone(), shader::texture::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::texture::fs::load),
             |create_info| {
                 let binding = create_info.set_layouts[0].bindings.get_mut(&0).unwrap();
                 binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
@@ -391,14 +396,9 @@ impl CanvasRenderContext {
             ],
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            shader::model::vs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
-            shader::model::fs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
+            CullMode::Back,
+            Self::load_entry_point(context.device.clone(), shader::model::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::model::fs::load),
             |create_info| {
                 let binding = create_info.set_layouts[0].bindings.get_mut(&0).unwrap();
                 binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
@@ -410,6 +410,7 @@ impl CanvasRenderContext {
             pipeline_point,
             pipeline_line,
             pipeline_triangle,
+            pipeline_shape2d,
             pipeline_shape,
             pipeline_circle,
             pipeline_texture,
@@ -423,6 +424,7 @@ impl CanvasRenderContext {
         vertex_definition: &impl VertexDefinition,
         topology: PrimitiveTopology,
         polygon_mode: PolygonMode,
+        cull_mode: CullMode,
         vs: EntryPoint,
         fs: EntryPoint,
         pipeline_descriptor_set_layout_create_info_modify: impl FnOnce(
@@ -461,6 +463,7 @@ impl CanvasRenderContext {
                 }),
                 rasterization_state: Some(RasterizationState {
                     polygon_mode,
+                    cull_mode,
                     ..Default::default()
                 }),
                 multisample_state: Some(MultisampleState::default()),
@@ -485,6 +488,13 @@ impl CanvasRenderContext {
             },
         )
         .unwrap()
+    }
+
+    fn load_entry_point(
+        device: Arc<Device>,
+        load_fn: impl Fn(Arc<Device>) -> Result<Arc<ShaderModule>, Validated<VulkanError>>,
+    ) -> EntryPoint {
+        load_fn(device).unwrap().entry_point("main").unwrap()
     }
 }
 
@@ -577,7 +587,7 @@ pub fn canvas_render_system(
     );
     draw_shapes(
         &canvas.rectangles,
-        canvas_context.pipeline_shape.clone(),
+        canvas_context.pipeline_shape2d.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         push_constants,

@@ -3,9 +3,9 @@ use std::sync::LazyLock;
 
 pub const RECTANGLE_VERTICES: [Vec3; 4] = [
     Vec3::new(-0.5, -0.5, 0.0), // Bottom-left corner
-    Vec3::new(-0.5, 0.5, 0.0),  // Top-left corner
-    Vec3::new(0.5, 0.5, 0.0),   // Top-right corner
     Vec3::new(0.5, -0.5, 0.0),  // Bottom-right corner
+    Vec3::new(0.5, 0.5, 0.0),   // Top-right corner
+    Vec3::new(-0.5, 0.5, 0.0),  // Top-left corner
 ];
 
 pub const RECTANGLE_INDICES: [u16; 6] = [0, 1, 2, 2, 3, 0];
@@ -22,12 +22,12 @@ pub const CUBOID_VERTICES: [Vec3; 8] = [
 ];
 
 pub const CUBOID_INDICES: [u16; 36] = [
-    0, 1, 2, 2, 3, 0, // Back face
-    4, 5, 6, 6, 7, 4, // Front face
-    0, 1, 5, 5, 4, 0, // Left face
-    3, 2, 6, 6, 7, 3, // Right face
-    1, 5, 6, 6, 2, 1, // Top face
-    0, 4, 7, 7, 3, 0, // Bottom face
+    0, 2, 1, 0, 3, 2, // Back face
+    4, 5, 6, 4, 6, 7, // Front face
+    0, 1, 5, 0, 5, 4, // Left face
+    3, 7, 6, 3, 6, 2, // Right face
+    1, 2, 6, 1, 6, 5, // Top face
+    0, 4, 7, 0, 7, 3, // Bottom face
 ];
 
 pub const SPHERE_VERTICES: LazyLock<[Vec3; SPHERE_VERTEX_COUNT]> =
