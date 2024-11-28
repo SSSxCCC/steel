@@ -1,11 +1,11 @@
-use super::{shader, texture::TextureAssets, FrameRenderInfo, RenderContext, RenderManager};
-use crate::{
-    asset::{AssetManager, ImageAssets},
-    camera::CameraInfo,
+use super::{
+    image::ImageAssets, mesh, model::ModelAssets, shader, texture::TextureAssets, FrameRenderInfo,
+    RenderContext, RenderManager,
 };
-use glam::{Affine3A, Mat4, Quat, UVec2, Vec3, Vec4};
+use crate::{asset::AssetManager, camera::CameraInfo};
+use glam::{Affine3A, UVec2, Vec3, Vec4};
 use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut};
-use std::sync::Arc;
+use std::{collections::HashMap, iter::zip, sync::Arc};
 use steel_common::{asset::AssetId, platform::Platform};
 use vulkano::{
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
@@ -14,7 +14,8 @@ use vulkano::{
         PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract, RenderPassBeginInfo,
         SubpassBeginInfo, SubpassContents,
     },
-    descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
+    descriptor_set::{layout::DescriptorBindingFlags, PersistentDescriptorSet, WriteDescriptorSet},
+    device::Device,
     format::Format,
     image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
@@ -24,8 +25,8 @@ use vulkano::{
             depth_stencil::{DepthState, DepthStencilState},
             input_assembly::{InputAssemblyState, PrimitiveTopology},
             multisample::MultisampleState,
-            rasterization::{PolygonMode, RasterizationState},
-            vertex_input::{Vertex, VertexBufferDescription, VertexDefinition},
+            rasterization::{CullMode, PolygonMode, RasterizationState},
+            vertex_input::{Vertex, VertexDefinition},
             viewport::{Viewport, ViewportState},
             GraphicsPipelineCreateInfo,
         },
@@ -34,12 +35,14 @@ use vulkano::{
         PipelineShaderStageCreateInfo,
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
-    shader::EntryPoint,
+    shader::{EntryPoint, ShaderModule},
     sync::GpuFuture,
+    Validated, VulkanError,
 };
 
 /// Canvas contains current frame's drawing data, which will be converted to vertex data, and send to gpu to draw.
-/// You can use this unique to draw points, lines, triangles, rectangles, cicles, and textures to the screen.
+/// You can use this unique to draw points, lines, triangles, rectangles, cicles, etc. on the screen.
+/// All the drawing data requires an [EntityId] for screen object picking.
 #[derive(Unique, Default)]
 pub struct Canvas {
     /// 1 vertex: (position, color, eid)
@@ -48,63 +51,74 @@ pub struct Canvas {
     lines: Vec<[(Vec3, Vec4, EntityId); 2]>,
     /// 3 vertex: (position, color, eid)
     triangles: Vec<[(Vec3, Vec4, EntityId); 3]>,
-    /// 4 vertex: (position, color, eid), index: 0, 1, 2, 2, 3, 0
-    rectangles: Vec<[(Vec3, Vec4, EntityId); 4]>,
-    /// (center, rotation, radius, color, eid)
-    cicles: Vec<(Vec3, Quat, f32, Vec4, EntityId)>,
-    /// (texture, model, color, eid)
+    /// (model matrix, color, eid)
+    rectangles: Vec<(Affine3A, Vec4, EntityId)>,
+    /// (model matrix, color, eid)
+    cicles: Vec<(Affine3A, Vec4, EntityId)>,
+    /// (texture asset, model matrix, color, eid)
     textures: Vec<(AssetId, Affine3A, Vec4, EntityId)>,
+    /// (model matrix, color, eid)
+    cuboids: Vec<(Affine3A, Vec4, EntityId)>,
+    /// (model matrix, color, eid)
+    spheres: Vec<(Affine3A, Vec4, EntityId)>,
+    /// (model asset, texture asset, model matrix, color, eid)
+    models: Vec<(AssetId, AssetId, Affine3A, Vec4, EntityId)>,
 }
 
 impl Canvas {
-    /// Draw a point with position p, color, and EntityId eid. The EntityId is used for screen object picking.
+    /// Draw a point with position p, color, and [EntityId].
     pub fn point(&mut self, p: Vec3, color: Vec4, eid: EntityId) {
         self.points.push((p, color, eid));
     }
 
-    /// Draw a line from p1 to p2 with color and EntityId eid. The EntityId is used for screen object picking.
+    /// Draw a line from p1 to p2 with color and [EntityId].
     pub fn line(&mut self, p1: Vec3, p2: Vec3, color: Vec4, eid: EntityId) {
         self.lines.push([(p1, color, eid), (p2, color, eid)]);
     }
 
-    /// Draw a triangle with vertices p1, p2, p3, color, and EntityId eid. The EntityId is used for screen object picking.
+    /// Draw a triangle with vertices p1, p2, p3, color, and [EntityId].
     pub fn triangle(&mut self, p1: Vec3, p2: Vec3, p3: Vec3, color: Vec4, eid: EntityId) {
         self.triangles
             .push([(p1, color, eid), (p2, color, eid), (p3, color, eid)]);
     }
 
-    /// Draw a rectangle with vertices p1, p2, p3, p4 (indices 0, 1, 2, 2, 3, 0), color, and EntityId eid. The EntityId is used for screen object picking.
-    pub fn rectangle(
-        &mut self,
-        p1: Vec3,
-        p2: Vec3,
-        p3: Vec3,
-        p4: Vec3,
-        color: Vec4,
-        eid: EntityId,
-    ) {
-        self.rectangles.push([
-            (p1, color, eid),
-            (p2, color, eid),
-            (p3, color, eid),
-            (p4, color, eid),
-        ]);
+    /// Draw a rectangle with model matrix, color, and [EntityId].
+    pub fn rectangle(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
+        self.rectangles.push((model, color, eid));
     }
 
-    /// Draw a circle with center, rotation, radius, color, and EntityId eid. The EntityId is used for screen object picking.
-    pub fn circle(
-        &mut self,
-        center: Vec3,
-        rotation: Quat,
-        radius: f32,
-        color: Vec4,
-        eid: EntityId,
-    ) {
-        self.cicles.push((center, rotation, radius, color, eid));
+    /// Draw a circle with model matrix, color, and [EntityId].
+    /// are the center and radius of the circle. The eid is used for screen object picking.
+    pub fn circle(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
+        self.cicles.push((model, color, eid));
     }
 
-    pub fn texture(&mut self, asset: AssetId, color: Vec4, model: Affine3A, eid: EntityId) {
+    /// Draw a texture with texture asset, model matrix, color, and [EntityId].
+    pub fn texture(&mut self, asset: AssetId, model: Affine3A, color: Vec4, eid: EntityId) {
         self.textures.push((asset, model, color, eid));
+    }
+
+    /// Draw a cuboid with model matrix, color, and [EntityId].
+    pub fn cuboid(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
+        self.cuboids.push((model, color, eid));
+    }
+
+    /// Draw a sphere with model matrix, color, and [EntityId].
+    pub fn sphere(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
+        self.spheres.push((model, color, eid));
+    }
+
+    /// Draw a model with model asset, texture asset, model matrix, color, and [EntityId].
+    pub fn model(
+        &mut self,
+        model_asset: AssetId,
+        texture_asset: AssetId,
+        model: Affine3A,
+        color: Vec4,
+        eid: EntityId,
+    ) {
+        self.models
+            .push((model_asset, texture_asset, model, color, eid));
     }
 
     /// Clear all drawing data.
@@ -115,6 +129,9 @@ impl Canvas {
         self.rectangles.clear();
         self.cicles.clear();
         self.textures.clear();
+        self.cuboids.clear();
+        self.spheres.clear();
+        self.models.clear();
     }
 }
 
@@ -132,15 +149,29 @@ pub struct CanvasRenderContext {
     pub pipeline_point: Arc<GraphicsPipeline>,
     pub pipeline_line: Arc<GraphicsPipeline>,
     pub pipeline_triangle: Arc<GraphicsPipeline>,
+    /// Used to draw 2d shapes, like rectangle.
+    pub pipeline_shape2d: Arc<GraphicsPipeline>,
+    /// Used to draw 3d shapes, like cuboid. The only difference to
+    /// [CanvasRenderContext::pipeline_shape2d] is that this has culling.
+    pub pipeline_shape: Arc<GraphicsPipeline>,
     pub pipeline_circle: Arc<GraphicsPipeline>,
     pub pipeline_texture: Arc<GraphicsPipeline>,
+    pub pipeline_model: Arc<GraphicsPipeline>,
 }
 
 impl CanvasRenderContext {
     pub fn new(context: &RenderContext, info: &FrameRenderInfo) -> Self {
         let render_pass = Self::create_render_pass(context, info.format);
-        let (pipeline_point, pipeline_line, pipeline_triangle, pipeline_circle, pipeline_texture) =
-            Self::create_pipelines(context, render_pass.clone());
+        let (
+            pipeline_point,
+            pipeline_line,
+            pipeline_triangle,
+            pipeline_shape2d,
+            pipeline_shape,
+            pipeline_circle,
+            pipeline_texture,
+            pipeline_model,
+        ) = Self::create_pipelines(context, render_pass.clone());
         CanvasRenderContext {
             depth_stencil_images: [Vec::new(), Vec::new()],
             eid_images: [Vec::new(), Vec::new()],
@@ -148,8 +179,11 @@ impl CanvasRenderContext {
             pipeline_point,
             pipeline_line,
             pipeline_triangle,
+            pipeline_shape2d,
+            pipeline_shape,
             pipeline_circle,
             pipeline_texture,
+            pipeline_model,
         }
     }
 
@@ -241,106 +275,177 @@ impl CanvasRenderContext {
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
         Arc<GraphicsPipeline>,
+        Arc<GraphicsPipeline>,
+        Arc<GraphicsPipeline>,
+        Arc<GraphicsPipeline>,
     ) {
-        let vs = shader::vs::load(context.device.clone())
-            .unwrap()
-            .entry_point("main")
-            .unwrap();
-        let fs = shader::fs::load(context.device.clone())
-            .unwrap()
-            .entry_point("main")
-            .unwrap();
+        let vs = Self::load_entry_point(context.device.clone(), shader::vertex::vs::load);
+        let fs = Self::load_entry_point(context.device.clone(), shader::vertex::fs::load);
 
         let pipeline_point = Self::create_pipeline(
             context,
             render_pass.clone(),
-            &MyVertex::per_vertex(),
+            &shader::vertex::VertexData::per_vertex(),
             PrimitiveTopology::PointList,
             PolygonMode::Point,
+            CullMode::None,
             vs.clone(),
             fs.clone(),
+            |_| {},
         );
 
         let pipeline_line = Self::create_pipeline(
             context,
             render_pass.clone(),
-            &MyVertex::per_vertex(),
+            &shader::vertex::VertexData::per_vertex(),
             PrimitiveTopology::LineList,
             PolygonMode::Line,
+            CullMode::None,
             vs.clone(),
             fs.clone(),
+            |_| {},
         );
 
         let pipeline_triangle = Self::create_pipeline(
             context,
             render_pass.clone(),
-            &MyVertex::per_vertex(),
+            &shader::vertex::VertexData::per_vertex(),
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
+            CullMode::None,
             vs.clone(),
             fs.clone(),
+            |_| {},
+        );
+
+        let pipeline_shape2d = Self::create_pipeline(
+            context,
+            render_pass.clone(),
+            &[
+                shader::shape::VertexData::per_vertex(),
+                shader::shape::InstanceData::per_instance(),
+            ],
+            PrimitiveTopology::TriangleList,
+            PolygonMode::Fill,
+            CullMode::None,
+            Self::load_entry_point(context.device.clone(), shader::shape::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::shape::fs::load),
+            |_| {},
+        );
+
+        let pipeline_shape = Self::create_pipeline(
+            context,
+            render_pass.clone(),
+            &[
+                shader::shape::VertexData::per_vertex(),
+                shader::shape::InstanceData::per_instance(),
+            ],
+            PrimitiveTopology::TriangleList,
+            PolygonMode::Fill,
+            CullMode::Back,
+            Self::load_entry_point(context.device.clone(), shader::shape::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::shape::fs::load),
+            |_| {},
         );
 
         let pipeline_circle = Self::create_pipeline(
             context,
             render_pass.clone(),
-            &MyVertex::per_vertex(),
+            &[
+                shader::shape::VertexData::per_vertex(),
+                shader::shape::InstanceData::per_instance(),
+            ],
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            shader::circle::vs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
-            shader::circle::fs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
+            CullMode::None,
+            Self::load_entry_point(context.device.clone(), shader::circle::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::circle::fs::load),
+            |_| {},
         );
+
+        let properties = context.device.physical_device().properties();
+        let max_descriptor_count = properties
+            .max_per_stage_descriptor_samplers
+            .min(properties.max_per_stage_descriptor_sampled_images);
 
         let pipeline_texture = Self::create_pipeline(
             context,
             render_pass.clone(),
-            &MyVertex::per_vertex(),
+            &[
+                shader::shape::VertexData::per_vertex(),
+                shader::texture::InstanceData::per_instance(),
+            ],
             PrimitiveTopology::TriangleList,
             PolygonMode::Fill,
-            shader::texture::vs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
-            shader::texture::fs::load(context.device.clone())
-                .unwrap()
-                .entry_point("main")
-                .unwrap(),
+            CullMode::None,
+            Self::load_entry_point(context.device.clone(), shader::texture::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::texture::fs::load),
+            |create_info| {
+                let binding = create_info.set_layouts[0].bindings.get_mut(&0).unwrap();
+                binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
+                binding.descriptor_count = max_descriptor_count;
+            },
+        );
+
+        let pipeline_model = Self::create_pipeline(
+            context,
+            render_pass.clone(),
+            &[
+                shader::model::VertexData::per_vertex(),
+                shader::texture::InstanceData::per_instance(),
+            ],
+            PrimitiveTopology::TriangleList,
+            PolygonMode::Fill,
+            CullMode::Back,
+            Self::load_entry_point(context.device.clone(), shader::model::vs::load),
+            Self::load_entry_point(context.device.clone(), shader::model::fs::load),
+            |create_info| {
+                let binding = create_info.set_layouts[0].bindings.get_mut(&0).unwrap();
+                binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
+                binding.descriptor_count = max_descriptor_count;
+            },
         );
 
         (
             pipeline_point,
             pipeline_line,
             pipeline_triangle,
+            pipeline_shape2d,
+            pipeline_shape,
             pipeline_circle,
             pipeline_texture,
+            pipeline_model,
         )
     }
 
     fn create_pipeline(
         context: &RenderContext,
         render_pass: Arc<RenderPass>,
-        vertex_buffer_description: &VertexBufferDescription,
+        vertex_definition: &impl VertexDefinition,
         topology: PrimitiveTopology,
         polygon_mode: PolygonMode,
+        cull_mode: CullMode,
         vs: EntryPoint,
         fs: EntryPoint,
+        pipeline_descriptor_set_layout_create_info_modify: impl FnOnce(
+            &mut PipelineDescriptorSetLayoutCreateInfo,
+        ),
     ) -> Arc<GraphicsPipeline> {
-        let vertex_input_state = vertex_buffer_description
+        let vertex_input_state = vertex_definition
             .definition(&vs.info().input_interface)
             .unwrap();
         let stages = [
             PipelineShaderStageCreateInfo::new(vs),
             PipelineShaderStageCreateInfo::new(fs),
         ];
+        let mut pipeline_descriptor_set_layout_create_info =
+            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages);
+        pipeline_descriptor_set_layout_create_info_modify(
+            &mut pipeline_descriptor_set_layout_create_info,
+        );
         let layout = PipelineLayout::new(
             context.device.clone(),
-            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
+            pipeline_descriptor_set_layout_create_info
                 .into_pipeline_layout_create_info(context.device.clone())
                 .unwrap(),
         )
@@ -358,6 +463,7 @@ impl CanvasRenderContext {
                 }),
                 rasterization_state: Some(RasterizationState {
                     polygon_mode,
+                    cull_mode,
                     ..Default::default()
                 }),
                 multisample_state: Some(MultisampleState::default()),
@@ -383,6 +489,13 @@ impl CanvasRenderContext {
         )
         .unwrap()
     }
+
+    fn load_entry_point(
+        device: Arc<Device>,
+        load_fn: impl Fn(Arc<Device>) -> Result<Arc<ShaderModule>, Validated<VulkanError>>,
+    ) -> EntryPoint {
+        load_fn(device).unwrap().entry_point("main").unwrap()
+    }
 }
 
 /// Send all canvas drawing data to the gpu to draw.
@@ -391,6 +504,7 @@ pub fn canvas_render_system(
     camera: UniqueView<CameraInfo>,
     canvas: UniqueView<Canvas>,
     mut render_manager: UniqueViewMut<RenderManager>,
+    mut model_assets: UniqueViewMut<ModelAssets>,
     mut texture_assets: UniqueViewMut<TextureAssets>,
     mut image_assets: UniqueViewMut<ImageAssets>,
     mut asset_manager: UniqueViewMut<AssetManager>,
@@ -433,7 +547,7 @@ pub fn canvas_render_system(
             RenderPassBeginInfo {
                 clear_values: vec![
                     Some(render_manager.clear_color.to_array().into()),
-                    Some(eid_to_u32_array(EntityId::dead()).into()),
+                    Some(shader::eid_to_u32_array(EntityId::dead()).into()),
                     Some(1.0.into()),
                 ],
                 ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
@@ -446,7 +560,7 @@ pub fn canvas_render_system(
         .unwrap();
 
     let projection_view = camera.projection_view(&info.window_size);
-    let push_constants = shader::vs::PushConstants {
+    let push_constants = shader::vertex::vs::PushConstants {
         projection_view: projection_view.to_cols_array_2d(),
     };
 
@@ -471,26 +585,60 @@ pub fn canvas_render_system(
         &mut command_buffer_builder,
         push_constants,
     );
-    draw_rectangles(
+    draw_shapes(
         &canvas.rectangles,
-        canvas_context.pipeline_triangle.clone(),
+        canvas_context.pipeline_shape2d.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
         push_constants,
+        mesh::RECTANGLE_VERTICES.to_vec(),
+        mesh::RECTANGLE_INDICES.to_vec(),
     );
-    draw_circles(
+    draw_shapes(
         &canvas.cicles,
         canvas_context.pipeline_circle.clone(),
         context.memory_allocator.clone(),
         &mut command_buffer_builder,
-        &projection_view,
+        push_constants,
+        mesh::RECTANGLE_VERTICES.to_vec(),
+        mesh::RECTANGLE_INDICES.to_vec(),
     );
     draw_textures(
         &canvas.textures,
         canvas_context.pipeline_texture.clone(),
         &mut command_buffer_builder,
-        &projection_view,
+        push_constants,
         context,
+        texture_assets.as_mut(),
+        image_assets.as_mut(),
+        asset_manager.as_mut(),
+        platform.as_ref(),
+    );
+    draw_shapes(
+        &canvas.cuboids,
+        canvas_context.pipeline_shape.clone(),
+        context.memory_allocator.clone(),
+        &mut command_buffer_builder,
+        push_constants,
+        mesh::CUBOID_VERTICES.to_vec(),
+        mesh::CUBOID_INDICES.to_vec(),
+    );
+    draw_shapes(
+        &canvas.spheres,
+        canvas_context.pipeline_shape.clone(),
+        context.memory_allocator.clone(),
+        &mut command_buffer_builder,
+        push_constants,
+        mesh::SPHERE_VERTICES.to_vec(),
+        mesh::SPHERE_INDICES.to_vec(),
+    );
+    draw_models(
+        &canvas.models,
+        canvas_context.pipeline_model.clone(),
+        &mut command_buffer_builder,
+        push_constants,
+        context,
+        model_assets.as_mut(),
         texture_assets.as_mut(),
         image_assets.as_mut(),
         asset_manager.as_mut(),
@@ -513,7 +661,7 @@ fn draw_points(
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    push_constants: shader::vs::PushConstants,
+    push_constants: shader::vertex::vs::PushConstants,
 ) {
     if points.is_empty() {
         return;
@@ -521,7 +669,7 @@ fn draw_points(
 
     let vertices = points
         .iter()
-        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
+        .map(|(v, c, e)| shader::vertex::VertexData::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     draw_vertices(
@@ -538,7 +686,7 @@ fn draw_lines(
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    push_constants: shader::vs::PushConstants,
+    push_constants: shader::vertex::vs::PushConstants,
 ) {
     if lines.is_empty() {
         return;
@@ -547,7 +695,7 @@ fn draw_lines(
     let vertices = lines
         .iter()
         .flatten()
-        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
+        .map(|(v, c, e)| shader::vertex::VertexData::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     draw_vertices(
@@ -564,7 +712,7 @@ fn draw_triangles(
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    push_constants: shader::vs::PushConstants,
+    push_constants: shader::vertex::vs::PushConstants,
 ) {
     if triangles.is_empty() {
         return;
@@ -573,7 +721,7 @@ fn draw_triangles(
     let vertices = triangles
         .iter()
         .flatten()
-        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
+        .map(|(v, c, e)| shader::vertex::VertexData::new(*v, *c, *e))
         .collect::<Vec<_>>();
 
     draw_vertices(
@@ -586,13 +734,13 @@ fn draw_triangles(
 }
 
 fn draw_vertices(
-    vertices: Vec<MyVertex>,
+    vertices: Vec<shader::vertex::VertexData>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    push_constants: shader::vs::PushConstants,
+    push_constants: shader::vertex::vs::PushConstants,
 ) {
-    let vertex_buffer = vertex_buffer(vertices, &memory_allocator);
+    let vertex_buffer = create_buffer(vertices, &memory_allocator, BufferUsage::VERTEX_BUFFER);
 
     command_buffer_builder
         .bind_pipeline_graphics(pipeline.clone())
@@ -605,99 +753,55 @@ fn draw_vertices(
         .unwrap();
 }
 
-fn draw_rectangles(
-    rectangles: &Vec<[(Vec3, Vec4, EntityId); 4]>,
+fn draw_shapes(
+    shapes: &Vec<(Affine3A, Vec4, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    push_constants: shader::vs::PushConstants,
+    push_constants: shader::vertex::vs::PushConstants,
+    vertices: Vec<Vec3>,
+    indices: Vec<u16>,
 ) {
-    if rectangles.is_empty() {
+    if shapes.is_empty() {
         return;
     }
 
-    let vertices = rectangles
+    let vertices = vertices
+        .into_iter()
+        .map(|v| shader::shape::VertexData::new(v));
+    let instances = shapes
         .iter()
-        .flatten()
-        .map(|(v, c, e)| MyVertex::new(*v, *c, *e))
+        .map(|(model, color, eid)| shader::shape::InstanceData::new(*color, *eid, *model))
         .collect::<Vec<_>>();
 
-    let indices = rectangles
-        .iter()
-        .enumerate()
-        .map(|(i, _)| [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 2, i * 4 + 3, i * 4])
-        .flatten()
-        .map(|i| i as u16)
-        .collect::<Vec<_>>();
-
-    let vertex_buffer = vertex_buffer(vertices, &memory_allocator);
-    let index_buffer = index_buffer(indices, &memory_allocator);
+    let vertex_buffer = create_buffer(vertices, &memory_allocator, BufferUsage::VERTEX_BUFFER);
+    let index_buffer = create_buffer(indices, &memory_allocator, BufferUsage::INDEX_BUFFER);
+    let instance_buffer = create_buffer(instances, &memory_allocator, BufferUsage::VERTEX_BUFFER);
 
     command_buffer_builder
         .bind_pipeline_graphics(pipeline.clone())
         .unwrap()
         .push_constants(pipeline.layout().clone(), 0, push_constants)
         .unwrap()
-        .bind_vertex_buffers(0, vertex_buffer.clone())
+        .bind_vertex_buffers(0, (vertex_buffer.clone(), instance_buffer.clone()))
         .unwrap()
         .bind_index_buffer(index_buffer.clone())
         .unwrap()
-        .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
+        .draw_indexed(
+            index_buffer.len() as u32,
+            instance_buffer.len() as u32,
+            0,
+            0,
+            0,
+        )
         .unwrap();
-}
-
-fn draw_circles(
-    cicles: &Vec<(Vec3, Quat, f32, Vec4, EntityId)>,
-    pipeline: Arc<GraphicsPipeline>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
-    command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    projection_view: &Mat4,
-) {
-    if cicles.is_empty() {
-        return;
-    }
-
-    command_buffer_builder
-        .bind_pipeline_graphics(pipeline.clone())
-        .unwrap();
-    for (center, rotation, radius, color, eid) in cicles {
-        let radius = *radius;
-        let push_constants = shader::circle::vs::PushConstants {
-            projection_view: projection_view.to_cols_array_2d(),
-            center: center.to_array(),
-            radius,
-        };
-        let model = Affine3A::from_rotation_translation(*rotation, *center);
-        let vertex_buffer = vertex_buffer(
-            [
-                model.transform_point3(Vec3::new(-radius, -radius, 0.0)),
-                model.transform_point3(Vec3::new(-radius, radius, 0.0)),
-                model.transform_point3(Vec3::new(radius, radius, 0.0)),
-                model.transform_point3(Vec3::new(radius, -radius, 0.0)),
-            ]
-            .map(|v| MyVertex::new(v, *color, *eid))
-            .to_vec(),
-            &memory_allocator,
-        );
-        let index_buffer = index_buffer(vec![0u16, 1, 2, 2, 3, 0], &memory_allocator);
-
-        command_buffer_builder
-            .push_constants(pipeline.layout().clone(), 0, push_constants)
-            .unwrap()
-            .bind_vertex_buffers(0, vertex_buffer)
-            .unwrap()
-            .bind_index_buffer(index_buffer.clone())
-            .unwrap()
-            .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
-            .unwrap();
-    }
 }
 
 fn draw_textures(
     textures: &Vec<(AssetId, Affine3A, Vec4, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    projection_view: &Mat4,
+    push_constants: shader::vertex::vs::PushConstants,
     render_context: &RenderContext,
     texture_assets: &mut TextureAssets,
     image_assets: &mut ImageAssets,
@@ -708,9 +812,9 @@ fn draw_textures(
         return;
     }
 
-    command_buffer_builder
-        .bind_pipeline_graphics(pipeline.clone())
-        .unwrap();
+    let mut instances = Vec::new();
+    let mut image_view_samplers = Vec::new();
+    let mut image_to_index = HashMap::new();
     for (asset, model, color, eid) in textures {
         if let Some((image_view, sampler)) = texture_assets.get_texture(
             *asset,
@@ -725,61 +829,220 @@ fn draw_textures(
                     image_view.image().extent()[1] as f32 / 100.0,
                     1.0,
                 ));
-            let push_constants = shader::texture::vs::PushConstants {
-                projection_view_model: (*projection_view * Mat4::from(model)).to_cols_array_2d(),
+            let index = *image_to_index.entry(image_view.clone()).or_insert_with(|| {
+                image_view_samplers.push((image_view, sampler));
+                image_view_samplers.len() - 1
+            });
+            instances.push(shader::texture::InstanceData::new(
+                *color, *eid, index, model,
+            ));
+        }
+    }
+
+    if instances.is_empty() {
+        return;
+    }
+
+    let vertices = [
+        Vec3::new(-0.5, -0.5, 0.0),
+        Vec3::new(-0.5, 0.5, 0.0),
+        Vec3::new(0.5, 0.5, 0.0),
+        Vec3::new(0.5, -0.5, 0.0),
+    ]
+    .map(|v| shader::shape::VertexData::new(v));
+    let indices = [0u16, 1, 2, 2, 3, 0];
+
+    let vertex_buffer = create_buffer(
+        vertices,
+        &render_context.memory_allocator,
+        BufferUsage::VERTEX_BUFFER,
+    );
+    let index_buffer = create_buffer(
+        indices,
+        &render_context.memory_allocator,
+        BufferUsage::INDEX_BUFFER,
+    );
+    let instance_buffer = create_buffer(
+        instances,
+        &render_context.memory_allocator,
+        BufferUsage::VERTEX_BUFFER,
+    );
+    let descriptor_set = PersistentDescriptorSet::new_variable(
+        &render_context.descriptor_set_allocator,
+        pipeline.layout().set_layouts()[0].clone(),
+        image_view_samplers.len() as u32,
+        [WriteDescriptorSet::image_view_sampler_array(
+            0,
+            0,
+            image_view_samplers,
+        )],
+        [],
+    )
+    .unwrap();
+
+    command_buffer_builder
+        .bind_pipeline_graphics(pipeline.clone())
+        .unwrap()
+        .push_constants(pipeline.layout().clone(), 0, push_constants)
+        .unwrap()
+        .bind_vertex_buffers(0, (vertex_buffer.clone(), instance_buffer.clone()))
+        .unwrap()
+        .bind_index_buffer(index_buffer.clone())
+        .unwrap()
+        .bind_descriptor_sets(
+            PipelineBindPoint::Graphics,
+            pipeline.layout().clone(),
+            0,
+            descriptor_set,
+        )
+        .unwrap()
+        .draw_indexed(
+            index_buffer.len() as u32,
+            instance_buffer.len() as u32,
+            0,
+            0,
+            0,
+        )
+        .unwrap();
+}
+
+fn draw_models(
+    models: &Vec<(AssetId, AssetId, Affine3A, Vec4, EntityId)>,
+    pipeline: Arc<GraphicsPipeline>,
+    command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    push_constants: shader::vertex::vs::PushConstants,
+    render_context: &RenderContext,
+    model_assets: &mut ModelAssets,
+    texture_assets: &mut TextureAssets,
+    image_assets: &mut ImageAssets,
+    asset_manager: &mut AssetManager,
+    platform: &Platform,
+) {
+    if models.is_empty() {
+        return;
+    }
+
+    let mut vertex_buffers = Vec::new();
+    let mut index_buffers = Vec::new();
+    let mut instances = Vec::new();
+    let mut model_to_index = HashMap::new();
+    let mut image_view_samplers = Vec::new();
+    let mut image_to_index = HashMap::new();
+    for (model_asset, texture_asset, model_matrix, color, eid) in models {
+        if let Some(model) = model_assets.get_model(*model_asset, asset_manager, platform) {
+            let index = *model_to_index.entry(*model_asset).or_insert_with(|| {
+                let vertices = model.vertices.iter().map(|v| shader::model::VertexData {
+                    position: v.position,
+                    // the OBJ format assumes a coordinate system where a vertical coordinate of 0 means the bottom of the image
+                    tex_coord: [v.texture[0], 1.0 - v.texture[1]],
+                });
+                let vertex_buffer = create_buffer(
+                    vertices,
+                    &render_context.memory_allocator,
+                    BufferUsage::VERTEX_BUFFER,
+                );
+                let index_buffer = create_buffer(
+                    model.indices.clone(),
+                    &render_context.memory_allocator,
+                    BufferUsage::INDEX_BUFFER,
+                );
+                vertex_buffers.push(vertex_buffer);
+                index_buffers.push(index_buffer);
+                instances.push(Vec::new());
+                instances.len() - 1
+            });
+            let texture_index = if let Some((image_view, sampler)) = texture_assets.get_texture(
+                *texture_asset,
+                image_assets,
+                asset_manager,
+                platform,
+                render_context,
+            ) {
+                *image_to_index.entry(image_view.clone()).or_insert_with(|| {
+                    image_view_samplers.push((image_view, sampler));
+                    image_view_samplers.len() - 1
+                })
+            } else {
+                u32::MAX as usize
             };
-            let vertex_buffer = vertex_buffer(
-                [
-                    Vec3::new(-0.5, -0.5, 0.0),
-                    Vec3::new(-0.5, 0.5, 0.0),
-                    Vec3::new(0.5, 0.5, 0.0),
-                    Vec3::new(0.5, -0.5, 0.0),
-                ]
-                .map(|v| MyVertex::new(v, *color, *eid))
-                .to_vec(),
-                &render_context.memory_allocator,
-            );
-            let index_buffer =
-                index_buffer(vec![0u16, 1, 2, 2, 3, 0], &render_context.memory_allocator);
-            let descriptor_set = PersistentDescriptorSet::new(
-                &render_context.descriptor_set_allocator,
-                pipeline.layout().set_layouts()[0].clone(),
-                [
-                    WriteDescriptorSet::sampler(0, sampler),
-                    WriteDescriptorSet::image_view(1, image_view),
-                ],
-                [],
+            instances[index].push(shader::texture::InstanceData::new(
+                *color,
+                *eid,
+                texture_index,
+                *model_matrix,
+            ));
+        }
+    }
+
+    if instances.is_empty() {
+        return;
+    }
+
+    let descriptor_set = PersistentDescriptorSet::new_variable(
+        &render_context.descriptor_set_allocator,
+        pipeline.layout().set_layouts()[0].clone(),
+        image_view_samplers.len() as u32,
+        if image_view_samplers.is_empty() {
+            vec![]
+        } else {
+            vec![WriteDescriptorSet::image_view_sampler_array(
+                0,
+                0,
+                image_view_samplers,
+            )]
+        },
+        [],
+    )
+    .unwrap();
+
+    command_buffer_builder
+        .bind_pipeline_graphics(pipeline.clone())
+        .unwrap()
+        .push_constants(pipeline.layout().clone(), 0, push_constants)
+        .unwrap()
+        .bind_descriptor_sets(
+            PipelineBindPoint::Graphics,
+            pipeline.layout().clone(),
+            0,
+            descriptor_set,
+        )
+        .unwrap();
+
+    for (instances, (vertex_buffer, index_buffer)) in
+        zip(instances, zip(vertex_buffers, index_buffers))
+    {
+        let instance_buffer = create_buffer(
+            instances,
+            &render_context.memory_allocator,
+            BufferUsage::VERTEX_BUFFER,
+        );
+        command_buffer_builder
+            .bind_vertex_buffers(0, (vertex_buffer.clone(), instance_buffer.clone()))
+            .unwrap()
+            .bind_index_buffer(index_buffer.clone())
+            .unwrap()
+            .draw_indexed(
+                index_buffer.len() as u32,
+                instance_buffer.len() as u32,
+                0,
+                0,
+                0,
             )
             .unwrap();
-
-            command_buffer_builder
-                .push_constants(pipeline.layout().clone(), 0, push_constants)
-                .unwrap()
-                .bind_vertex_buffers(0, vertex_buffer)
-                .unwrap()
-                .bind_index_buffer(index_buffer.clone())
-                .unwrap()
-                .bind_descriptor_sets(
-                    PipelineBindPoint::Graphics,
-                    pipeline.layout().clone(),
-                    0,
-                    descriptor_set,
-                )
-                .unwrap()
-                .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
-                .unwrap();
-        }
     }
 }
 
-fn vertex_buffer<T: BufferContents>(
-    vertices: Vec<T>,
+/// Helper function to create a buffer from a list of data.
+/// This can be used to create vertex buffer, index buffer, or instance buffer.
+fn create_buffer<T: BufferContents>(
+    data: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>,
     memory_allocator: &Arc<StandardMemoryAllocator>,
+    usage: BufferUsage,
 ) -> Subbuffer<[T]> {
     Buffer::from_iter(
         memory_allocator.clone(),
         BufferCreateInfo {
-            usage: BufferUsage::VERTEX_BUFFER,
+            usage,
             ..Default::default()
         },
         AllocationCreateInfo {
@@ -787,60 +1050,9 @@ fn vertex_buffer<T: BufferContents>(
                 | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
             ..Default::default()
         },
-        vertices.into_iter(),
+        data.into_iter(),
     )
     .unwrap()
-}
-
-fn index_buffer(
-    indices: Vec<u16>,
-    memory_allocator: &Arc<StandardMemoryAllocator>,
-) -> Subbuffer<[u16]> {
-    Buffer::from_iter(
-        memory_allocator.clone(),
-        BufferCreateInfo {
-            usage: BufferUsage::INDEX_BUFFER,
-            ..Default::default()
-        },
-        AllocationCreateInfo {
-            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-            ..Default::default()
-        },
-        indices.into_iter(),
-    )
-    .unwrap()
-}
-
-#[derive(BufferContents, Vertex, Clone)]
-#[repr(C)]
-struct MyVertex {
-    #[format(R32G32B32_SFLOAT)]
-    position: [f32; 3],
-    #[format(R32G32B32A32_SFLOAT)]
-    color: [f32; 4],
-    #[format(R32G32_UINT)]
-    eid: [u32; 2],
-}
-
-impl MyVertex {
-    fn new(position: Vec3, color: Vec4, eid: EntityId) -> Self {
-        MyVertex {
-            position: position.to_array(),
-            color: color.to_array(),
-            eid: eid_to_u32_array(eid),
-        }
-    }
-}
-
-fn eid_to_u32_array(eid: EntityId) -> [u32; 2] {
-    let eid = eid.inner();
-    [eid as u32, (eid >> 32) as u32]
-}
-
-fn u32_array_to_eid(arr: [u32; 2]) -> EntityId {
-    let eid = ((arr[1] as u64) << 32) | (arr[0] as u64);
-    EntityId::from_inner(eid).unwrap_or_default()
 }
 
 /// Parameters for [get_entity_at_screen_system].
@@ -901,7 +1113,7 @@ pub fn get_entity_at_screen_system(
             let buffer_read = buffer.read().unwrap();
             if index + 1 < buffer_read.len() {
                 let eid_array = [buffer_read[index], buffer_read[index + 1]];
-                return u32_array_to_eid(eid_array);
+                return shader::u32_array_to_eid(eid_array);
             }
         }
     }

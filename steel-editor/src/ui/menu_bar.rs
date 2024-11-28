@@ -9,12 +9,13 @@ use egui_dock::DockState;
 use egui_winit_vulkano::Gui;
 use shipyard::EntityId;
 use std::time::Instant;
-use steel_common::{app::Command, data::WorldData};
+use steel_common::{app::Command, camera::SceneCamera, data::WorldData};
 use vulkano_util::context::VulkanoContext;
 
 pub struct MenuBar {
     show_open_project_dialog: bool,
     show_asset_system_introduction_dialog: bool,
+    show_scene_camera_edit_window: bool,
     switch_to_game_window_on_start: bool,
     fps_counter: FpsCounter,
 }
@@ -24,6 +25,7 @@ impl MenuBar {
         MenuBar {
             show_open_project_dialog: false,
             show_asset_system_introduction_dialog: false,
+            show_scene_camera_edit_window: false,
             switch_to_game_window_on_start: false,
             fps_counter: FpsCounter::new(),
         }
@@ -44,6 +46,7 @@ impl MenuBar {
         world_data: &mut Option<WorldData>,
         local_data: &mut LocalData,
         texts: &mut Texts,
+        scene_camera: &mut SceneCamera,
     ) {
         self.open_project_dialog(
             editor_state,
@@ -59,6 +62,8 @@ impl MenuBar {
         );
 
         self.asset_system_introduction_dialog(ctx, texts);
+
+        self.scene_camera_edit_window(data_window, ctx, project, texts, scene_camera);
 
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -295,6 +300,22 @@ impl MenuBar {
                             texts.get("Switch to Game Window on Start"),
                         );
                     });
+
+                    ui.menu_button(texts.get("Camera"), |ui| {
+                        if ui.button(texts.get("Settings")).clicked() {
+                            log::info!("Menu->Camera->Settings");
+                            self.show_scene_camera_edit_window = true;
+                            ui.close_menu();
+                        }
+                        if ui
+                            .button(format!("{} (Home)", texts.get("Reset")))
+                            .clicked()
+                        {
+                            log::info!("Menu->Camera->Reset");
+                            scene_camera.reset();
+                            ui.close_menu();
+                        }
+                    });
                 });
 
                 ui.add_enabled_ui(project.is_open(), |ui| {
@@ -403,6 +424,34 @@ impl MenuBar {
             .open(&mut self.show_asset_system_introduction_dialog)
             .show(ctx, |ui| {
                 ui.label(texts.get("Asset Introduction"));
+            });
+    }
+
+    fn scene_camera_edit_window(
+        &mut self,
+        data_window: &mut DataWindow,
+        ctx: &egui::Context,
+        project: &mut Project,
+        texts: &Texts,
+        scene_camera: &mut SceneCamera,
+    ) {
+        if !project.is_compiled() {
+            self.show_scene_camera_edit_window = false;
+        }
+        egui::Window::new(texts.get("Scene Camera"))
+            .open(&mut self.show_scene_camera_edit_window)
+            .show(ctx, |ui| {
+                let asset_dit = project.asset_dir().unwrap();
+                let mut data = scene_camera.get_data();
+                data_window.data_view(
+                    ui,
+                    "SceneCamera",
+                    &mut data,
+                    project.app().unwrap(),
+                    asset_dit,
+                    texts,
+                );
+                scene_camera.set_data(&data);
             });
     }
 }

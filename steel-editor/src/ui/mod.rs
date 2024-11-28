@@ -6,13 +6,14 @@ use crate::{locale::Texts, project::Project, utils::LocalData};
 use data_window::DataWindow;
 use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use egui_winit_vulkano::Gui;
-use glam::{UVec2, Vec3};
+use glam::{Quat, UVec2, Vec3};
 use image_window::ImageWindow;
 use menu_bar::MenuBar;
 use shipyard::EntityId;
 use std::path::PathBuf;
 use steel_common::{
-    app::{App, Command, EditorCamera, WindowIndex},
+    app::{App, Command, WindowIndex},
+    camera::{CameraSettings, OrthographicCameraSize, SceneCamera},
     data::{Value, WorldData},
 };
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
@@ -70,7 +71,7 @@ impl Editor {
         world_data: &mut Option<WorldData>,
         local_data: &mut LocalData,
         input: &WinitInputHelper,
-        editor_camera: &mut EditorCamera,
+        scene_camera: &mut SceneCamera,
     ) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
@@ -92,10 +93,11 @@ impl Editor {
                 world_data,
                 local_data,
                 &mut self.texts,
+                scene_camera,
             );
 
             if project.is_compiled() {
-                self.update_editor_window(&ctx, project, world_data, input, editor_camera);
+                self.update_editor_window(&ctx, project, world_data, input, scene_camera);
             } else if project.is_open() {
                 Self::compile_error_dialog(&ctx, &self.texts);
             }
@@ -197,50 +199,124 @@ impl Editor {
         project: &mut Project,
         world_data: &mut Option<WorldData>,
         input: &WinitInputHelper,
-        editor_camera: &mut EditorCamera,
+        scene_camera: &mut SceneCamera,
     ) {
         if self.scene_focus() {
-            self.update_editor_camera(input, editor_camera);
+            self.update_scene_camera(ctx, input, scene_camera);
             if let Some(app) = project.app() {
                 self.click_entity(ctx, app, input);
                 if let Some(world_data) = world_data {
-                    self.drag_entity(world_data, input, editor_camera);
+                    self.drag_entity(world_data, input, scene_camera);
                 }
             }
         }
     }
 
-    fn update_editor_camera(&mut self, input: &WinitInputHelper, editor_camera: &mut EditorCamera) {
+    fn update_scene_camera(
+        &self,
+        ctx: &egui::Context,
+        input: &WinitInputHelper,
+        scene_camera: &mut SceneCamera,
+    ) {
         if input.key_pressed(VirtualKeyCode::Home) {
-            editor_camera.position = Vec3::ZERO;
-            editor_camera.height = 20.0;
+            scene_camera.reset();
         }
 
-        if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
-            editor_camera.position.x -= 1.0; // TODO: * move_speed * delta_time
-        }
-        if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
-            editor_camera.position.x += 1.0;
-        }
-        if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
-            editor_camera.position.y += 1.0;
-        }
-        if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
-            editor_camera.position.y -= 1.0;
-        }
+        match &mut scene_camera.settings {
+            CameraSettings::Orthographic {
+                width,
+                height,
+                size,
+                ..
+            } => {
+                if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
+                    scene_camera.position.x -= 1.0; // TODO: * move_speed * delta_time
+                }
+                if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
+                    scene_camera.position.x += 1.0;
+                }
+                if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
+                    scene_camera.position.y += 1.0;
+                }
+                if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
+                    scene_camera.position.y -= 1.0;
+                }
 
-        let scroll_diff = input.scroll_diff();
-        if scroll_diff > 0.0 {
-            editor_camera.height /= 1.1;
-        } else if scroll_diff < 0.0 {
-            editor_camera.height *= 1.1;
-        }
+                let scroll_diff = input.scroll_diff();
+                if scroll_diff > 0.0 {
+                    *width /= 1.1;
+                    *height /= 1.1;
+                } else if scroll_diff < 0.0 {
+                    *width *= 1.1;
+                    *height *= 1.1;
+                }
 
-        if input.mouse_held(1) {
-            let screen_to_world = editor_camera.height / self.scene_window.pixel().y as f32;
-            let mouse_diff = input.mouse_diff();
-            editor_camera.position.x -= mouse_diff.0 * screen_to_world;
-            editor_camera.position.y += mouse_diff.1 * screen_to_world;
+                if input.mouse_held(1) {
+                    let screen_to_world = match size {
+                        OrthographicCameraSize::FixedWidth => {
+                            *width / self.scene_window.pixel().x as f32
+                        }
+                        OrthographicCameraSize::FixedHeight => {
+                            *height / self.scene_window.pixel().y as f32
+                        }
+                        OrthographicCameraSize::MinWidthHeight => {
+                            if *width / *height
+                                > self.scene_window.pixel().x as f32
+                                    / self.scene_window.pixel().y as f32
+                            {
+                                *width / self.scene_window.pixel().x as f32
+                            } else {
+                                *height / self.scene_window.pixel().y as f32
+                            }
+                        }
+                    };
+                    let mouse_diff = input.mouse_diff();
+                    scene_camera.position.x -= mouse_diff.0 * screen_to_world;
+                    scene_camera.position.y += mouse_diff.1 * screen_to_world;
+                }
+            }
+            CameraSettings::Perspective { .. } => {
+                if input.mouse_held(1) {
+                    let mut rotation = scene_camera.rotation.to_scaled_axis();
+                    let mouse_diff = input.mouse_diff();
+                    rotation.y += mouse_diff.0 / 1000.0;
+                    rotation.x -= mouse_diff.1 / 1000.0;
+                    rotation.x = rotation
+                        .x
+                        .clamp(-89.0_f32.to_radians(), 89.0_f32.to_radians());
+                    scene_camera.rotation = Quat::from_scaled_axis(rotation);
+                    ctx.set_cursor_icon(egui::CursorIcon::None);
+                } else {
+                    ctx.set_cursor_icon(egui::CursorIcon::Default);
+                }
+
+                let rotation = scene_camera.rotation.to_scaled_axis(); // x: pitch, y: yaw, z: roll
+                let direction = Vec3::new(
+                    rotation.y.sin() * rotation.x.cos(),
+                    rotation.x.sin(),
+                    -rotation.y.cos() * rotation.x.cos(),
+                );
+                let right = direction.cross(Vec3::Y).normalize();
+                let up = right.cross(direction).normalize();
+                if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
+                    scene_camera.position -= right; // TODO: * move_speed * delta_time
+                }
+                if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
+                    scene_camera.position += right;
+                }
+                if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
+                    scene_camera.position += direction;
+                }
+                if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
+                    scene_camera.position -= direction;
+                }
+                if input.key_held(VirtualKeyCode::Space) {
+                    scene_camera.position += up;
+                }
+                if input.key_held(VirtualKeyCode::C) {
+                    scene_camera.position -= up;
+                }
+            }
         }
     }
 
@@ -273,22 +349,46 @@ impl Editor {
         &mut self,
         world_data: &mut WorldData,
         input: &WinitInputHelper,
-        editor_camera: &EditorCamera,
+        scene_camera: &SceneCamera,
     ) {
-        if input.mouse_held(0)
-            && self.data_window.selected_entity() == self.editor_state.pressed_entity
+        if let CameraSettings::Orthographic {
+            width,
+            height,
+            size,
+            ..
+        } = scene_camera.settings
         {
-            if let Some(entity_data) = world_data
-                .entities
-                .get_mut(&self.data_window.selected_entity())
+            if input.mouse_held(0)
+                && self.data_window.selected_entity() == self.editor_state.pressed_entity
             {
-                if let Some(data) = entity_data.components.get_mut("Transform") {
-                    if let Some(Value::Vec3(position)) = data.values.get_mut("position") {
-                        let screen_to_world =
-                            editor_camera.height / self.scene_window.pixel().y as f32;
-                        let mouse_diff = input.mouse_diff();
-                        position.x += mouse_diff.0 * screen_to_world;
-                        position.y -= mouse_diff.1 * screen_to_world;
+                if let Some(entity_data) = world_data
+                    .entities
+                    .get_mut(&self.data_window.selected_entity())
+                {
+                    if let Some(data) = entity_data.components.get_mut("Transform") {
+                        if let Some(Value::Vec3(position)) = data.values.get_mut("position") {
+                            let screen_to_world = match size {
+                                OrthographicCameraSize::FixedWidth => {
+                                    width / self.scene_window.pixel().x as f32
+                                }
+                                OrthographicCameraSize::FixedHeight => {
+                                    height / self.scene_window.pixel().y as f32
+                                }
+                                OrthographicCameraSize::MinWidthHeight => {
+                                    if width / height
+                                        > self.scene_window.pixel().x as f32
+                                            / self.scene_window.pixel().y as f32
+                                    {
+                                        width / self.scene_window.pixel().x as f32
+                                    } else {
+                                        height / self.scene_window.pixel().y as f32
+                                    }
+                                }
+                            };
+                            let mouse_diff = input.mouse_diff();
+                            position.x += mouse_diff.0 * screen_to_world;
+                            position.y -= mouse_diff.1 * screen_to_world;
+                        }
                     }
                 }
             }

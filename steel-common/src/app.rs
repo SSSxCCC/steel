@@ -1,9 +1,10 @@
 use crate::{
     asset::AssetId,
+    camera::SceneCamera,
     data::{EntitiesData, EntityIdWithPath, PrefabData, SceneData, WorldData},
     platform::Platform,
 };
-use glam::{UVec2, Vec3};
+use glam::UVec2;
 use shipyard::EntityId;
 use std::{
     collections::HashMap,
@@ -57,13 +58,7 @@ pub struct DrawInfo<'a> {
 /// The EditorInfo contains some drawing data specific to the editor scene window,
 /// and is contained in DrawInfo, which is passed to [App::draw] every frame.
 pub struct EditorInfo<'a> {
-    pub camera: &'a EditorCamera,
-}
-
-/// Camera info for editor window.
-pub struct EditorCamera {
-    pub position: Vec3,
-    pub height: f32,
+    pub camera: &'a SceneCamera,
 }
 
 /// Command is sent by editor through [App::command] method to read the game world.

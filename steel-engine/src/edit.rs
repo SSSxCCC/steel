@@ -64,26 +64,26 @@ pub trait Edit {
     /// The name of this component or unique.
     fn name() -> &'static str;
 
-    /// Create a Data struct from self.
+    /// Create a [Data] from self.
     fn get_data(&self) -> Data {
         Data::new()
     }
 
-    /// Modify self according to a Data struct. This function is called every frame in editor
+    /// Modify self according to a [Data]. This function is called every frame in editor
     /// to make user able to modify component or unique in editor. You should omit read-only
     /// values so that they are never modified.
     fn set_data(&mut self, data: &Data) {
         let _ = data; // disable unused variable warning
     }
 
-    /// Modify self according to a Data struct. This function is usually called during scene loading.
-    /// By default, this calls Edit::set_data so that you do not need to implement this for the
+    /// Modify self according to a [Data]. This function is usually called during scene loading.
+    /// By default, this calls [Edit::set_data] so that you do not need to implement this for the
     /// component/unique which has the same behaviour between scene loading and editor modify.
     fn load_data(&mut self, data: &Data) {
         self.set_data(data);
     }
 
-    /// Create Self from a Data struct. This function is usually called during scene loading.
+    /// Create Self from a [Data]. This function is usually called during scene loading.
     fn from_data(data: &Data) -> Self
     where
         Self: Default,

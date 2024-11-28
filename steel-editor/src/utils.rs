@@ -54,7 +54,7 @@ impl LocalData {
                 log::warn!("Failed to load LocalData, error={error}");
 
                 let mut last_open_project_path =
-                    std::fs::canonicalize("examples/test-project").unwrap_or_default();
+                    std::fs::canonicalize("examples/demo").unwrap_or_default();
                 delte_windows_path_prefix(&mut last_open_project_path);
 
                 LocalData {

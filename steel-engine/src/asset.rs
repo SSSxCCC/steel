@@ -1,14 +1,12 @@
 pub use steel_common::asset::*;
 
-use image::{DynamicImage, ImageError, ImageReader};
 use shipyard::Unique;
 use std::{
     collections::HashMap,
-    io::Cursor,
     path::{Path, PathBuf},
     sync::Arc,
 };
-use steel_common::{data::PrefabData, platform::Platform};
+use steel_common::platform::Platform;
 
 /// Asset info.
 pub struct Asset {
@@ -116,103 +114,5 @@ impl AssetManager {
         if let Some(asset) = self.assets.get_mut(&asset_id) {
             asset.path = path;
         }
-    }
-}
-
-struct PrefabAsset {
-    bytes: Arc<Vec<u8>>,
-    data: Arc<PrefabData>,
-}
-
-#[derive(Unique, Default)]
-/// Cache [PrefabData] in assets.
-pub struct PrefabAssets {
-    prefabs: HashMap<AssetId, PrefabAsset>,
-}
-
-impl PrefabAssets {
-    pub fn get_prefab_data(
-        &mut self,
-        asset_id: AssetId,
-        asset_manager: &mut AssetManager,
-        platform: &Platform,
-    ) -> Option<Arc<PrefabData>> {
-        if let Some(bytes) = asset_manager.get_asset_content(asset_id, platform) {
-            if let Some(prefab_asset) = self.prefabs.get(&asset_id) {
-                if Arc::ptr_eq(bytes, &prefab_asset.bytes) {
-                    // cache is still valid
-                    return Some(prefab_asset.data.clone());
-                }
-            }
-            // cache is not valid, reload data
-            match serde_json::from_slice::<PrefabData>(&bytes) {
-                Ok(data) => {
-                    let prefab_data = Arc::new(data);
-                    self.prefabs.insert(
-                        asset_id,
-                        PrefabAsset {
-                            bytes: bytes.clone(),
-                            data: prefab_data.clone(),
-                        },
-                    );
-                    return Some(prefab_data);
-                }
-                Err(e) => log::error!("PrefabAssets::get_prefab_data: error: {}", e),
-            }
-        }
-        self.prefabs.remove(&asset_id);
-        None
-    }
-}
-
-struct ImageAsset {
-    bytes: Arc<Vec<u8>>,
-    data: Arc<DynamicImage>,
-}
-
-#[derive(Unique, Default)]
-/// Cache [DynamicImage] in assets.
-pub struct ImageAssets {
-    images: HashMap<AssetId, ImageAsset>,
-}
-
-impl ImageAssets {
-    pub fn get_image(
-        &mut self,
-        asset_id: AssetId,
-        asset_manager: &mut AssetManager,
-        platform: &Platform,
-    ) -> Option<Arc<DynamicImage>> {
-        if let Some(bytes) = asset_manager.get_asset_content(asset_id, platform) {
-            if let Some(image_asset) = self.images.get(&asset_id) {
-                if Arc::ptr_eq(bytes, &image_asset.bytes) {
-                    // cache is still valid
-                    return Some(image_asset.data.clone());
-                }
-            }
-            // cache is not valid, reload data
-            match Self::get_image_from_bytes(&bytes) {
-                Ok(data) => {
-                    let image_data = Arc::new(data);
-                    self.images.insert(
-                        asset_id,
-                        ImageAsset {
-                            bytes: bytes.clone(),
-                            data: image_data.clone(),
-                        },
-                    );
-                    return Some(image_data);
-                }
-                Err(e) => log::error!("ImageAssets::get_image: error: {}", e),
-            }
-        }
-        self.images.remove(&asset_id);
-        None
-    }
-
-    fn get_image_from_bytes(bytes: &[u8]) -> Result<DynamicImage, ImageError> {
-        ImageReader::new(Cursor::new(bytes))
-            .with_guessed_format()?
-            .decode()
     }
 }

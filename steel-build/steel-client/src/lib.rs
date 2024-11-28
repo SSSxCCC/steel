@@ -51,6 +51,10 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let mut config = VulkanoConfig::default();
     config.device_features.fill_mode_non_solid = true;
     config.device_features.independent_blend = true;
+    config.device_features.runtime_descriptor_array = true;
+    config
+        .device_features
+        .descriptor_binding_variable_descriptor_count = true;
     let context = VulkanoContext::new(config);
     let mut windows = VulkanoWindows::default();
 

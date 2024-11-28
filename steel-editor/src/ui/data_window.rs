@@ -612,7 +612,7 @@ impl DataWindow {
     pub fn data_view(
         &self,
         ui: &mut egui::Ui,
-        data_name: &String,
+        data_name: &str,
         data: &mut Data,
         app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
@@ -698,7 +698,7 @@ impl DataWindow {
         value: &mut Value,
         limit: Option<&Limit>,
         name: &String,
-        data_name: &String,
+        data_name: &str,
         color: egui::Color32,
         app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,

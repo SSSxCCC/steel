@@ -1,11 +1,11 @@
-use glam::Vec3;
-use parry3d::shape::{Ball, Cuboid, ShapeType, SharedShape};
+use glam::Vec2;
+use parry2d::shape::{Ball, Cuboid, ShapeType, SharedShape};
 use steel_common::data::{Data, Limit, Value};
 
-/// A wrapper of [parry3d::shape::SharedShape].
-pub struct Shape(pub SharedShape);
+/// A wrapper of [parry2d::shape::SharedShape].
+pub struct Shape2D(pub SharedShape);
 
-impl std::ops::Deref for Shape {
+impl std::ops::Deref for Shape2D {
     type Target = SharedShape;
 
     fn deref(&self) -> &Self::Target {
@@ -13,19 +13,19 @@ impl std::ops::Deref for Shape {
     }
 }
 
-impl Default for Shape {
+impl Default for Shape2D {
     fn default() -> Self {
-        Self(SharedShape::cuboid(0.5, 0.5, 0.5))
+        Self(SharedShape::cuboid(0.5, 0.5))
     }
 }
 
-impl std::fmt::Debug for Shape {
+impl std::fmt::Debug for Shape2D {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Shape").field(&self.shape_type()).finish() // TODO: print all members
+        f.debug_tuple("Shape2D").field(&self.shape_type()).finish() // TODO: print all members
     }
 }
 
-impl Shape {
+impl Shape2D {
     /// Convert i32 to ShapeType.
     fn i32_to_shape_type(i: &i32) -> ShapeType {
         match i {
@@ -48,10 +48,9 @@ impl Shape {
         } else if let Some(shape) = self.as_cuboid() {
             data.values.insert(
                 "size".into(),
-                Value::Vec3(Vec3::new(
+                Value::Vec2(Vec2::new(
                     shape.half_extents.x * 2.0,
                     shape.half_extents.y * 2.0,
-                    shape.half_extents.z * 2.0,
                 )),
             );
         } // TODO: support all shape type
@@ -78,14 +77,10 @@ impl Shape {
                     let mut shape = if let Some(shape) = self.as_cuboid() {
                         *shape
                     } else {
-                        Cuboid::new([0.5, 0.5, 0.5].into())
+                        Cuboid::new([0.5, 0.5].into())
                     };
-                    if let Some(Value::Vec3(v)) = data.get("size") {
-                        (
-                            shape.half_extents.x,
-                            shape.half_extents.y,
-                            shape.half_extents.z,
-                        ) = (v.x / 2.0, v.y / 2.0, v.z / 2.0)
+                    if let Some(Value::Vec2(v)) = data.get("size") {
+                        (shape.half_extents.x, shape.half_extents.y) = (v.x / 2.0, v.y / 2.0)
                     }
                     self.0 = SharedShape::new(shape);
                 }

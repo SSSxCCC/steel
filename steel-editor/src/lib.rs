@@ -7,9 +7,10 @@ mod utils;
 
 use crate::{project::Project, ui::Editor, utils::LocalData};
 use egui_winit_vulkano::{Gui, GuiConfig};
-use glam::{Vec2, Vec3};
+use glam::Vec2;
 use steel_common::{
-    app::{Command, CommandMut, DrawInfo, EditorCamera, EditorInfo, UpdateInfo},
+    app::{Command, CommandMut, DrawInfo, EditorInfo, UpdateInfo},
+    camera::SceneCamera,
     data::WorldData,
 };
 use vulkano::sync::GpuFuture;
@@ -59,12 +60,13 @@ fn _main(event_loop: EventLoop<()>) {
     let mut config = VulkanoConfig::default();
     config.device_features.fill_mode_non_solid = true;
     config.device_features.independent_blend = true;
+    config.device_features.runtime_descriptor_array = true;
+    config
+        .device_features
+        .descriptor_binding_variable_descriptor_count = true;
     let context = VulkanoContext::new(config);
     let mut windows = VulkanoWindows::default();
-    let mut editor_camera = EditorCamera {
-        position: Vec3::ZERO,
-        height: 20.0,
-    };
+    let mut scene_camera = SceneCamera::default();
 
     // input
     let mut input_editor = WinitInputHelper::new(); // for editor window
@@ -192,7 +194,7 @@ fn _main(event_loop: EventLoop<()>) {
                     &mut world_data,
                     &mut local_data,
                     &input_editor,
-                    &mut editor_camera,
+                    &mut scene_camera,
                 );
 
                 let is_running = project.is_running();
@@ -260,7 +262,7 @@ fn _main(event_loop: EventLoop<()>) {
                             image: image.clone(),
                             window_size: editor.scene_window().pixel(),
                             editor_info: Some(EditorInfo {
-                                camera: &editor_camera,
+                                camera: &scene_camera,
                             }),
                         });
                         gpu_future = gpu_future.join(draw_future).boxed();

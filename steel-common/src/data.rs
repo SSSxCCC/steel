@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-/// Limit Value in a range or in several enum, mainly used in Edit::get_data.
+/// Limit [Value] in a range or in several enum, mainly used in Edit::get_data.
 #[derive(Debug, Clone)]
 pub enum Limit {
     /// Limit i32 value to a range.
@@ -88,7 +88,7 @@ pub enum Value {
     VecAsset(Vec<AssetId>),
 }
 
-/// Data contains all Value with Limit in a component or unique.
+/// Data contains all [Value] with [Limit] in a component or unique.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Data {
     // &'static str is too dangerous to be used in here because its memory is no longer exist when steel.dll is unloaded!
@@ -98,7 +98,7 @@ pub struct Data {
 }
 
 impl Data {
-    /// create a new data, then you can continue to call insert or insert_with_limit to fill this data.
+    /// create a new data, then you can continue to call [Data::insert] or [Data::insert_with_limit] to fill this data.
     /// # example
     /// ```rust
     /// let data = Data::new().insert("name", Value::String("Sam".into()))
@@ -143,7 +143,7 @@ impl Data {
     }
 
     /// Cut useless data in self before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values if cut_read_only is true.
     pub fn cut(&self, cut_read_only: bool) -> Self {
         let mut data_cut = Data::new();
@@ -172,7 +172,7 @@ impl Data {
     }
 }
 
-/// EntityData contains all component Data in a entity.
+/// EntityData contains all component data in a entity.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct EntityData {
     pub components: IndexMap<String, Data>,
@@ -192,7 +192,7 @@ impl EntityData {
     }
 
     /// Get the parent entity id of this entity.
-    /// Returns EntityId::dead() if this entity is at top layer.
+    /// Returns [EntityId::dead] if this entity is at top layer.
     pub fn parent(&self) -> EntityId {
         self.components
             .get("Parent")
@@ -309,7 +309,7 @@ impl EntityData {
     }
 
     /// Cut useless data in self before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values.
     pub fn cut(&self) -> Self {
         let mut entity_data_cut = EntityData::default();
@@ -324,7 +324,7 @@ impl EntityData {
     }
 }
 
-/// A collection of EntityData. This is a wrapper of IndexMap<EntityId, EntityData>.
+/// A collection of [EntityData]. This is a wrapper of [IndexMap<EntityId, EntityData>].
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct EntitiesData(
     #[serde(with = "vectorize")] // TODO: #[serde_as(as = "Vec<(_, _)>")]
@@ -332,8 +332,8 @@ pub struct EntitiesData(
 );
 
 impl EntitiesData {
-    /// Cut useless data in EntitiesData before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// Cut useless data in self before saving to file:
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values.
     pub fn cut(&self) -> Self {
         let mut entities_data_cut = EntitiesData::default();
@@ -441,7 +441,7 @@ pub struct UniquesData(pub IndexMap<String, Data>);
 
 impl UniquesData {
     /// Cut useless data in self before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values.
     pub fn cut(&self) -> UniquesData {
         let mut uniques_data_cut = UniquesData::default();
@@ -453,7 +453,7 @@ impl UniquesData {
         uniques_data_cut
     }
 
-    /// For every data_value in self, call `f` with (unique_name, data_name, data_value), to create a new UniquesData.
+    /// For every data_value in self, call `f` with (unique_name, data_name, data_value), to create a new [UniquesData].
     pub fn map_value(&self, mut f: impl FnMut(&String, &String, &Value) -> Value) -> UniquesData {
         UniquesData(
             self.iter()
@@ -518,7 +518,7 @@ impl<'a> IntoIterator for &'a mut UniquesData {
     }
 }
 
-/// WorldData contains all EntityData and UniqueData in the world.
+/// WorldData contains all entity data and unique data in the world.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct WorldData {
     pub entities: EntitiesData,
@@ -532,8 +532,8 @@ impl WorldData {
         self.uniques.clear();
     }
 
-    /// Cut useless data in WorldData before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// Cut useless data in self before saving to file:
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values.
     pub fn cut(&self) -> WorldData {
         WorldData {
@@ -544,7 +544,7 @@ impl WorldData {
 }
 
 /// SceneData is a compressed version of [WorldData].
-/// SceneData stores prefabs by their asset ids while WorldData stores all data for every entity.
+/// SceneData stores prefabs by their asset ids while [WorldData] stores all data for every entity.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct SceneData {
     /// SceneData regard all eneities in world as one prefab.
@@ -597,15 +597,15 @@ impl SceneData {
     }
 
     /// Cut useless data in self before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values.
     pub fn cut(&mut self) {
         self.entities.cut();
         self.uniques = self.uniques.cut();
     }
 
-    /// Convert SceneData to WorldData. Also return a map that maps every
-    /// EntityIdWithPath in this SceneData to a new EntityId in WorldData.
+    /// Convert [SceneData] to [WorldData]. Also return a map that maps every
+    /// [EntityIdWithPath] in this [SceneData] to a new [EntityId] in [WorldData].
     pub fn to_world_data(
         &self,
         get_prefab_data_fn: impl Fn(AssetId) -> Option<Arc<PrefabData>> + Copy,
@@ -1125,7 +1125,7 @@ impl PrefabData {
     }
 
     /// Cut useless data in self before saving to file:
-    /// 1. Erase generation value of EntityId.
+    /// 1. Erase generation value of [EntityId].
     /// 2. Skip read only values.
     pub fn cut(&mut self) {
         let entities = std::mem::take(&mut self.entities);
@@ -1136,8 +1136,8 @@ impl PrefabData {
         }
     }
 
-    /// Convert PrefabData to EntitiesData. Also return a map that maps every
-    /// EntityIdWithPath in this PrefabData to a new EntityId in EntitiesData.
+    /// Convert [PrefabData] to [EntitiesData]. Also return a map that maps every
+    /// [EntityIdWithPath] in this [PrefabData] to a new [EntityId] in [EntitiesData].
     pub fn to_entities_data(
         &self,
         get_prefab_data_fn: impl Fn(AssetId) -> Option<Arc<PrefabData>> + Copy,
@@ -1158,9 +1158,9 @@ impl PrefabData {
         (entities_data, entity_map)
     }
 
-    /// Create a map that maps every EntityIdWithPath in self prefab to a new EntityId.
-    /// This returns a IndexMap for a stable order of the entities to be stored.
-    /// You can use .into_iter().collect() to convert to a HashMap.
+    /// Create a map that maps every [EntityIdWithPath] in self prefab to a new [EntityId].
+    /// This returns a [IndexMap] for a stable order of the entities to be stored.
+    /// You can use .into_iter().collect() to convert to a [HashMap].
     fn prepare_entity_map(
         &self,
         get_prefab_data_fn: impl Fn(AssetId) -> Option<Arc<PrefabData>> + Copy,
@@ -1518,7 +1518,7 @@ impl EntityDataWithIdPaths {
         }
     }
 
-    /// Convert all EntityIdWithPath to EntityId by entity_map.
+    /// Convert all [EntityIdWithPath] to [EntityId] by entity_map.
     pub fn map(mut self, entity_map: &HashMap<EntityIdWithPath, EntityId>) -> EntityData {
         self.0.components.iter_mut().for_each(|(component_name, component_data)| {
             component_data.values.iter_mut().for_each(|(data_name, data_value)| {

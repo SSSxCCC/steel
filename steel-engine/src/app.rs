@@ -1,11 +1,11 @@
 pub use steel_common::app::*;
 
 use crate::{
-    asset::{AssetManager, ImageAssets, PrefabAssets},
+    asset::AssetManager,
     camera::{Camera, CameraInfo},
     data::{
         ComponentRegistry, ComponentRegistryExt, CreatePrefabParam, EntitiesDataExt,
-        LoadPrefabParam, Prefab, UniqueRegistry,
+        LoadPrefabParam, Prefab, PrefabAssets, UniqueRegistry,
     },
     edit::Edit,
     hierarchy::{Children, Hierarchy, Parent},
@@ -13,6 +13,9 @@ use crate::{
     name::Name,
     render::{
         canvas::{Canvas, GetEntityAtScreenParam},
+        image::ImageAssets,
+        model::ModelAssets,
+        renderer::Renderer,
         renderer2d::Renderer2D,
         texture::TextureAssets,
         FrameRenderInfo, RenderManager,
@@ -134,6 +137,7 @@ impl SteelApp {
         .register_component::<Children>()
         .register_component::<Transform>()
         .register_component::<Camera>()
+        .register_component::<Renderer>()
         .register_component::<Renderer2D>()
         .register_unique::<RenderManager>()
         .add_and_register_unique(Hierarchy::default())
@@ -141,6 +145,7 @@ impl SteelApp {
         .add_unique(PrefabAssets::default())
         .add_unique(ImageAssets::default())
         .add_unique(TextureAssets::default())
+        .add_unique(ModelAssets::default())
         .add_unique(CameraInfo::new())
         .add_unique(Canvas::default())
         .add_unique(Input::new())
@@ -154,10 +159,14 @@ impl SteelApp {
             Schedule::PreUpdate,
             crate::render::canvas::canvas_clear_system,
         )
-        .add_system(Schedule::PreUpdate, crate::camera::camera_maintain_system)
+        .add_system(Schedule::PostUpdate, crate::camera::camera_maintain_system)
         .add_system(
             Schedule::PostUpdate,
             crate::render::renderer2d::renderer2d_to_canvas_system,
+        )
+        .add_system(
+            Schedule::PostUpdate,
+            crate::render::renderer::renderer_to_canvas_system,
         )
     }
 
