@@ -10,6 +10,6 @@ members = [
 ]
 exclude = [
     "steel-build/steel-project",
-    "examples/test-project",
+    "examples/demo",
     "examples/ball",
 ]
