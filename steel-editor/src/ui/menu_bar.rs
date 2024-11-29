@@ -410,7 +410,7 @@ impl MenuBar {
                         log::info!("Open project, path={}", editor_state.project_path.display());
                         scene_window.close(Some(gui));
                         game_window.close(Some(gui));
-                        project.open(editor_state.project_path.clone(), local_data);
+                        project.open(editor_state.project_path.clone(), local_data, gui_game);
                         project.compile(gui_game, context);
                         self.show_open_project_dialog = false;
                     }
