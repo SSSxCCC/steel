@@ -79,7 +79,7 @@ impl Project {
         Project { state: None }
     }
 
-    pub fn open(&mut self, path: PathBuf, local_data: &mut LocalData) {
+    pub fn open(&mut self, path: PathBuf, local_data: &mut LocalData, gui_game: &mut Option<Gui>) {
         match Self::_open(&path) {
             Err(error) => log::error!(
                 "Failed to open project, path={}, error={error}",
@@ -88,6 +88,7 @@ impl Project {
             Ok(_) => {
                 local_data.last_open_project_path = path.clone();
                 local_data.save();
+                *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
                 self.state = Some(ProjectState {
                     path,
                     compiled: None,
