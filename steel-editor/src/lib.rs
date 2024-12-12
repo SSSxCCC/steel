@@ -13,11 +13,11 @@ use steel_common::{
     camera::SceneCamera,
     data::WorldData,
 };
-use vulkano::sync::GpuFuture;
-use vulkano_util::{
-    context::{VulkanoConfig, VulkanoContext},
-    window::{VulkanoWindows, WindowDescriptor},
+use vulkano::{
+    command_buffer::allocator::StandardCommandBufferAllocator, format::Format, image::ImageUsage,
+    sync::GpuFuture,
 };
+use vulkano_util::window::{VulkanoWindows, WindowDescriptor};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
@@ -57,14 +57,11 @@ fn _main(event_loop: EventLoop<()>) {
     let mut local_data = LocalData::load();
 
     // graphics
-    let mut config = VulkanoConfig::default();
-    config.device_features.fill_mode_non_solid = true;
-    config.device_features.independent_blend = true;
-    config.device_features.runtime_descriptor_array = true;
-    config
-        .device_features
-        .descriptor_binding_variable_descriptor_count = true;
-    let context = VulkanoContext::new(config);
+    let (context, ray_tracing_supported) = steel_common::create_context();
+    // TODO: use the same command buffer allocator in steel::render::RenderContext,
+    // or fix issue in main::ui::image_window::ImageWindow and remove this.
+    let command_buffer_allocator =
+        StandardCommandBufferAllocator::new(context.device().clone(), Default::default());
     let mut windows = VulkanoWindows::default();
     let mut scene_camera = SceneCamera::default();
 
@@ -78,7 +75,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor = Editor::new(&local_data);
 
     // project
-    let mut project = Project::new();
+    let mut project = Project::new(ray_tracing_supported);
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -91,9 +88,13 @@ fn _main(event_loop: EventLoop<()>) {
                     title: "Steel Editor".into(),
                     ..Default::default()
                 },
-                |_| {},
+                |info| {
+                    info.image_format = Format::B8G8R8A8_UNORM; // for egui, see https://github.com/hakolao/egui_winit_vulkano
+                    info.image_usage |= ImageUsage::STORAGE;
+                },
             );
             let renderer = windows.get_primary_renderer().unwrap();
+            log::info!("Swapchain image format: {:?}", renderer.swapchain_format());
             gui_editor = Some(Gui::new(
                 &event_loop,
                 renderer.surface(),
@@ -242,7 +243,7 @@ fn _main(event_loop: EventLoop<()>) {
                     });
 
                     if let Some(image) = editor.game_window().image() {
-                        let mut draw_future = app.draw(DrawInfo {
+                        let draw_future = app.draw(DrawInfo {
                             before_future: vulkano::sync::now(context.device().clone()).boxed(),
                             context: &context,
                             renderer: &renderer,
@@ -250,8 +251,24 @@ fn _main(event_loop: EventLoop<()>) {
                             window_size: editor.game_window().pixel(),
                             editor_info: None,
                         });
-                        draw_future = gui.draw_on_image(draw_future, image.clone());
-                        gpu_future = gpu_future.join(draw_future).boxed();
+                        // There is a display abnormal problem, it seems like that this image displayed without finishing drawing.
+                        // We wait for draw future here to avoid this problem.
+                        // TODO: fix this display problem.
+                        draw_future
+                            .then_signal_fence_and_flush()
+                            .unwrap()
+                            .wait(None)
+                            .unwrap();
+                        let gui_future = gui.draw_on_image(
+                            vulkano::sync::now(context.device().clone()).boxed(), // TODO: use draw_future
+                            image.clone(),
+                        );
+                        let copy_future = editor.game_window().copy_image(
+                            &command_buffer_allocator,
+                            context.graphics_queue().clone(),
+                            gui_future,
+                        );
+                        gpu_future = gpu_future.join(copy_future).boxed();
                     }
 
                     if let Some(image) = editor.scene_window().image() {
@@ -265,12 +282,24 @@ fn _main(event_loop: EventLoop<()>) {
                                 camera: &scene_camera,
                             }),
                         });
-                        gpu_future = gpu_future.join(draw_future).boxed();
+                        // There is a crash problem "access to a resource has been denied".
+                        // We wait for draw future here to avoid this problem.
+                        // TODO: fix this crash problem.
+                        draw_future
+                            .then_signal_fence_and_flush()
+                            .unwrap()
+                            .wait(None)
+                            .unwrap();
+                        let copy_future = editor.scene_window().copy_image(
+                            &command_buffer_allocator,
+                            context.graphics_queue().clone(),
+                            vulkano::sync::now(context.device().clone()).boxed(), // TODO: use draw_future
+                        );
+                        gpu_future = gpu_future.join(copy_future).boxed();
                     }
                 }
 
-                let gpu_future =
-                    gui_editor.draw_on_image(gpu_future, renderer.swapchain_image_view());
+                gpu_future = gui_editor.draw_on_image(gpu_future, renderer.swapchain_image_view());
 
                 renderer.present(gpu_future, true);
             }

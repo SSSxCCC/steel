@@ -1,4 +1,7 @@
+mod ray_tracing_in_one_weekend;
+
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
+use ray_tracing_in_one_weekend::RayTracingInOneWeekend;
 use shipyard::{Component, EntityId, Unique, UniqueView, UniqueViewMut};
 use steel::{
     app::{App, Schedule, SteelApp},
@@ -17,6 +20,11 @@ pub fn create() -> Box<dyn App> {
         .add_and_register_unique(MyUnique::default())
         .register_component::<TestComponent>()
         .register_component::<TagComponent>()
+        .register_component::<RayTracingInOneWeekend>()
+        .add_system(
+            Schedule::PreUpdate,
+            ray_tracing_in_one_weekend::generate_scene_system,
+        )
         .add_system(Schedule::PostUpdate, test_system)
         .boxed()
 }

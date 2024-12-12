@@ -15,6 +15,7 @@ use crate::{
         canvas::{Canvas, GetEntityAtScreenParam},
         image::ImageAssets,
         model::ModelAssets,
+        pipeline::raytracing::material::Material,
         renderer::Renderer,
         renderer2d::Renderer2D,
         texture::TextureAssets,
@@ -26,7 +27,7 @@ use crate::{
     ui::EguiContext,
 };
 use shipyard::{
-    EntitiesView, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, Workload, World,
+    EntitiesView, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, ViewMut, Workload, World,
 };
 use steel_common::platform::Platform;
 use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
@@ -139,6 +140,7 @@ impl SteelApp {
         .register_component::<Camera>()
         .register_component::<Renderer>()
         .register_component::<Renderer2D>()
+        .register_component::<Material>()
         .register_unique::<RenderManager>()
         .add_and_register_unique(Hierarchy::default())
         .add_unique(AssetManager::default())
@@ -268,7 +270,8 @@ impl SteelApp {
 impl App for SteelApp {
     fn init(&mut self, info: InitInfo) {
         self.world.add_unique(info.platform);
-        self.world.add_unique(RenderManager::new(info.context));
+        self.world
+            .add_unique(RenderManager::new(info.context, info.ray_tracing_supported));
         self.world.add_unique(SceneManager::new(info.scene));
         Workload::new("init")
             .append(&mut self.pre_init_workload.take().unwrap())
@@ -321,10 +324,14 @@ impl App for SteelApp {
             self.world.run_workload("draw_editor").unwrap();
         }
         self.world.add_unique(FrameRenderInfo::from(&mut info));
-        let command_buffer = self.world.run(crate::render::canvas::canvas_render_system);
+        let (gpu_future, command_buffer) =
+            self.world.run(crate::render::canvas::canvas_render_system);
         self.world.remove_unique::<FrameRenderInfo>().unwrap();
         command_buffer
-            .execute_after(info.before_future, info.context.graphics_queue().clone())
+            .execute_after(
+                info.before_future.join(gpu_future),
+                info.context.graphics_queue().clone(),
+            )
             .unwrap()
             .boxed()
     }
@@ -508,10 +515,40 @@ impl App for SteelApp {
                 }
             }
             CommandMut::AttachBefore(eid, parent, before) => {
-                crate::hierarchy::attach_before(&mut self.world, eid, parent, before);
+                self.world.run(
+                    |mut hierarchy: UniqueViewMut<Hierarchy>,
+                     mut childrens: ViewMut<Children>,
+                     mut parents: ViewMut<Parent>,
+                     entities: EntitiesView| {
+                        crate::hierarchy::attach_before(
+                            &mut hierarchy,
+                            &mut childrens,
+                            &mut parents,
+                            &entities,
+                            eid,
+                            parent,
+                            before,
+                        );
+                    },
+                );
             }
             CommandMut::AttachAfter(eid, parent, after) => {
-                crate::hierarchy::attach_after(&mut self.world, eid, parent, after);
+                self.world.run(
+                    |mut hierarchy: UniqueViewMut<Hierarchy>,
+                     mut childrens: ViewMut<Children>,
+                     mut parents: ViewMut<Parent>,
+                     entities: EntitiesView| {
+                        crate::hierarchy::attach_after(
+                            &mut hierarchy,
+                            &mut childrens,
+                            &mut parents,
+                            &entities,
+                            eid,
+                            parent,
+                            after,
+                        );
+                    },
+                );
             }
         }
     }

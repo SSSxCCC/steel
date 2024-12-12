@@ -29,6 +29,7 @@ pub trait App {
 pub struct InitInfo<'a> {
     pub platform: Platform,
     pub context: &'a VulkanoContext,
+    pub ray_tracing_supported: bool,
     pub scene: Option<AssetId>,
 }
 

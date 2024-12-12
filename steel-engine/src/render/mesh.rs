@@ -75,13 +75,14 @@ const fn generate_sphere_indices() -> [u16; SPHERE_INDEX_COUNT] {
             let first = (lat * (SPHERE_LONGITUDE_COUNT + 1) + lon) as u16;
             let second = first + SPHERE_LONGITUDE_COUNT as u16 + 1;
 
+            // Ensure counter-clockwise (CCW) winding for all triangles
             indices[idx] = first;
-            indices[idx + 1] = second;
-            indices[idx + 2] = first + 1;
+            indices[idx + 1] = first + 1;
+            indices[idx + 2] = second;
 
             indices[idx + 3] = second;
-            indices[idx + 4] = second + 1;
-            indices[idx + 5] = first + 1;
+            indices[idx + 4] = first + 1;
+            indices[idx + 5] = second + 1;
 
             idx += 6;
             lon += 1;

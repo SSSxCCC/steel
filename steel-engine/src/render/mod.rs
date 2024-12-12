@@ -1,16 +1,17 @@
 pub mod canvas;
 pub mod image;
 pub mod model;
+pub mod pipeline;
 pub mod renderer;
 pub mod renderer2d;
 pub mod texture;
 
 mod mesh;
-mod shader;
 
 use self::canvas::CanvasRenderContext;
 use crate::edit::Edit;
 use glam::{UVec2, Vec4};
+use pipeline::raytracing::util::ash::AshContext;
 use shipyard::Unique;
 use std::sync::Arc;
 use steel_common::{
@@ -70,29 +71,37 @@ impl FrameRenderInfo {
 
 /// RenderContext stores many render objects that exist in the whole lifetime of application.
 pub struct RenderContext {
+    // The fields in this struct are public for convenience, users can only get a immutable reference
+    // of this struct from RenderManager::context so that they can not mutate the fields of this struct.
     pub device: Arc<Device>,
     pub graphics_queue: Arc<Queue>,
     pub memory_allocator: Arc<StandardMemoryAllocator>,
     pub command_buffer_allocator: StandardCommandBufferAllocator,
     pub descriptor_set_allocator: StandardDescriptorSetAllocator,
+    pub ash: AshContext,
 }
 
 /// RenderManager contains many render context objects and render parameters.
-#[derive(Unique, Edit)]
+#[derive(Unique)]
 pub struct RenderManager {
-    pub context: RenderContext,
-    pub canvas_context: Option<CanvasRenderContext>,
+    context: RenderContext,
+    pub(crate) canvas_context: Option<CanvasRenderContext>,
 
-    /// The image index at WindowIndex::GAME and WindowIndex::SCENE are for game window and scene window.
-    pub image_index: [usize; 2],
+    /// The image index at [WindowIndex::GAME] and [WindowIndex::SCENE] are for game window and scene window.
+    pub(crate) image_index: [usize; 2],
+
+    /// If current device supports ray tracing.
+    ray_tracing_supported: bool,
+    /// True means rendering with ray tracing pipeline, false means rendering with rasterization pipeline.
+    ray_tracing: bool,
+
     /// The color to clear the image before drawing.
-    #[edit(limit = "Limit::Vec4Color")]
     pub clear_color: Vec4,
 }
 
 impl RenderManager {
     /// Create a new RenderManager based on VulkanoContext.
-    pub fn new(context: &VulkanoContext) -> Self {
+    pub(crate) fn new(context: &VulkanoContext, ray_tracing_supported: bool) -> Self {
         Self {
             context: RenderContext {
                 device: context.device().clone(),
@@ -106,18 +115,90 @@ impl RenderManager {
                     context.device().clone(),
                     Default::default(),
                 ),
+                ash: AshContext::new(context),
             },
             canvas_context: None,
             image_index: [0, 0],
+            ray_tracing_supported,
+            ray_tracing: false,
             clear_color: Vec4::ZERO,
         }
     }
 
     /// Update RenderManager from FrameRenderInfo.
-    pub fn update(&mut self, info: &FrameRenderInfo) {
+    pub(crate) fn update(&mut self, info: &FrameRenderInfo) {
         self.image_index[info.window_index] = info.image_index;
         self.canvas_context
             .get_or_insert_with(|| CanvasRenderContext::new(&self.context, info))
             .update(&self.context, info);
+    }
+
+    /// The render context.
+    pub fn context(&self) -> &RenderContext {
+        &self.context
+    }
+
+    /// If current device supports ray tracing.
+    pub fn ray_tracing_supported(&self) -> bool {
+        self.ray_tracing_supported
+    }
+
+    /// True means rendering with ray tracing pipeline, false means rendering with rasterization pipeline.
+    pub fn ray_tracing(&self) -> bool {
+        self.ray_tracing
+    }
+
+    /// Turn ray tracing on or off. If [Self::ray_tracing_supported] is false, this dose nothing.
+    pub fn set_ray_tracing(&mut self, on: bool) {
+        if self.ray_tracing_supported {
+            self.ray_tracing = on;
+        }
+    }
+}
+
+impl Edit for RenderManager {
+    fn name() -> &'static str {
+        "RenderManager"
+    }
+
+    fn get_data(&self) -> Data {
+        let mut data = Data::new();
+        if self.ray_tracing_supported {
+            data.add_value("ray_tracing", Value::Bool(self.ray_tracing));
+        } else {
+            data.add_value_with_limit(
+                "ray_tracing",
+                Value::Bool(self.ray_tracing),
+                Limit::ReadOnly,
+            );
+        }
+
+        if self.ray_tracing {
+            // ray tracing config
+        } else {
+            // rasterization config
+            data.add_value_with_limit(
+                "clear_color",
+                Value::Vec4(self.clear_color),
+                Limit::Vec4Color,
+            )
+        }
+
+        data
+    }
+
+    fn set_data(&mut self, data: &Data) {
+        if self.ray_tracing_supported {
+            if let Some(Value::Bool(v)) = data.get("ray_tracing") {
+                self.ray_tracing = *v;
+            }
+        }
+
+        // ray tracing config
+
+        // rasterization config
+        if let Some(Value::Vec4(v)) = data.get("clear_color") {
+            self.clear_color = *v;
+        }
     }
 }

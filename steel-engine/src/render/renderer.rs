@@ -3,12 +3,14 @@ use crate::{
 };
 use glam::{Affine3A, Vec3, Vec4};
 use parry3d::shape::ShapeType;
-use shipyard::{Component, IntoIter, IntoWithId, UniqueViewMut, View};
+use shipyard::{Component, Get, IntoIter, IntoWithId, UniqueViewMut, View};
 use std::collections::HashMap;
 use steel_common::{
     asset::AssetId,
     data::{Data, Limit, Value},
 };
+
+use super::pipeline::raytracing::material::Material;
 
 /// The 3d render object used by [Renderer], may be a 3d shape or 3d model.
 #[derive(Debug)]
@@ -114,6 +116,7 @@ impl Edit for Renderer {
 /// Add drawing data to the [Canvas] unique according to the [Renderer] components.
 pub fn renderer_to_canvas_system(
     renderer: View<Renderer>,
+    materials: View<Material>,
     transforms: View<Transform>,
     children: View<Parent>,
     mut canvas: UniqueViewMut<Canvas>,
@@ -140,7 +143,8 @@ pub fn renderer_to_canvas_system(
                             .fold(f32::NEG_INFINITY, |max, val| max.max(val));
                     let model =
                         model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, scale));
-                    canvas.sphere(model, renderer.color, eid);
+                    let material = materials.get(eid).cloned().unwrap_or_default();
+                    canvas.sphere(model, renderer.color, material, eid);
                 }
                 ShapeType::Cuboid => {
                     let shape = shape.as_cuboid().unwrap();

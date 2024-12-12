@@ -8,10 +8,8 @@ use steel_common::{
     asset::{AssetId, AssetInfo},
     platform::Platform,
 };
-use vulkano_util::{
-    context::{VulkanoConfig, VulkanoContext},
-    window::{VulkanoWindows, WindowDescriptor},
-};
+use vulkano::{format::Format, image::ImageUsage};
+use vulkano_util::window::{VulkanoWindows, WindowDescriptor};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
@@ -48,14 +46,7 @@ fn main() {
 
 fn _main(event_loop: EventLoop<()>, platform: Platform) {
     // graphics
-    let mut config = VulkanoConfig::default();
-    config.device_features.fill_mode_non_solid = true;
-    config.device_features.independent_blend = true;
-    config.device_features.runtime_descriptor_array = true;
-    config
-        .device_features
-        .descriptor_binding_variable_descriptor_count = true;
-    let context = VulkanoContext::new(config);
+    let (context, ray_tracing_supported) = steel_common::create_context();
     let mut windows = VulkanoWindows::default();
 
     // input
@@ -97,6 +88,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     app.init(InitInfo {
         platform,
         context: &context,
+        ray_tracing_supported,
         scene: Some(AssetId::new("init_scene".parse().unwrap())),
     }); // init scene will be modified to init scene asset id temporily while compiling
 
@@ -104,8 +96,17 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     event_loop.run(move |event, event_loop, control_flow| match event {
         Event::Resumed => {
             log::debug!("Event::Resumed");
-            windows.create_window(&event_loop, &context, &WindowDescriptor::default(), |_| {});
+            windows.create_window(
+                &event_loop,
+                &context,
+                &WindowDescriptor::default(),
+                |info| {
+                    info.image_format = Format::B8G8R8A8_UNORM; // for egui, see https://github.com/hakolao/egui_winit_vulkano
+                    info.image_usage |= ImageUsage::STORAGE;
+                },
+            );
             let renderer = windows.get_primary_renderer().unwrap();
+            log::info!("Swapchain image format: {:?}", renderer.swapchain_format());
             gui = Some(Gui::new(
                 &event_loop,
                 renderer.surface(),
