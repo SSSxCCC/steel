@@ -804,6 +804,9 @@ impl DataWindow {
             Value::Vec3(v) => {
                 ui.horizontal(|ui| {
                     if let Some(Limit::Vec3Color) = limit {
+                        Self::drag_float(ui, &mut v.x, None);
+                        Self::drag_float(ui, &mut v.y, None);
+                        Self::drag_float(ui, &mut v.z, None);
                         let mut color = v.to_array();
                         ui.color_edit_button_rgb(&mut color);
                         *v = Vec3::from_array(color);
@@ -828,6 +831,10 @@ impl DataWindow {
             Value::Vec4(v) => {
                 ui.horizontal(|ui| {
                     if let Some(Limit::Vec4Color) = limit {
+                        Self::drag_float(ui, &mut v.x, None);
+                        Self::drag_float(ui, &mut v.y, None);
+                        Self::drag_float(ui, &mut v.z, None);
+                        Self::drag_float(ui, &mut v.w, None);
                         let mut color = v.to_array();
                         ui.color_edit_button_rgba_unmultiplied(&mut color);
                         *v = Vec4::from_array(color);

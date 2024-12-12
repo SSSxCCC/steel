@@ -72,11 +72,15 @@ struct ProjectState {
 
 pub struct Project {
     state: Option<ProjectState>,
+    ray_tracing_supported: bool,
 }
 
 impl Project {
-    pub fn new() -> Self {
-        Project { state: None }
+    pub fn new(ray_tracing_supported: bool) -> Self {
+        Project {
+            state: None,
+            ray_tracing_supported,
+        }
     }
 
     pub fn open(&mut self, path: PathBuf, local_data: &mut LocalData, gui_game: &mut Option<Gui>) {
@@ -221,6 +225,7 @@ impl Project {
             app.init(InitInfo {
                 platform: Platform::new_editor(state.path.clone()),
                 context,
+                ray_tracing_supported: self.ray_tracing_supported,
                 scene: None,
             });
 

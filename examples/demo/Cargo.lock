@@ -2220,6 +2220,8 @@ dependencies = [
 name = "steel-engine"
 version = "0.2.0"
 dependencies = [
+ "ash",
+ "bytemuck",
  "egui",
  "egui_winit_vulkano",
  "glam",
@@ -2230,6 +2232,7 @@ dependencies = [
  "obj-rs",
  "parry2d",
  "parry3d",
+ "rand",
  "rapier2d",
  "rapier3d",
  "rayon",
@@ -2267,6 +2270,7 @@ dependencies = [
  "nalgebra",
  "parry2d",
  "parry3d",
+ "rand",
  "rapier2d",
  "rapier3d",
  "rayon",

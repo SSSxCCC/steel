@@ -1,17 +1,3 @@
-use shipyard::EntityId;
-
-/// Helper function to convert [EntityId] to [[u32; 2]].
-pub fn eid_to_u32_array(eid: EntityId) -> [u32; 2] {
-    let eid = eid.inner();
-    [eid as u32, (eid >> 32) as u32]
-}
-
-/// Helper function to convert [[u32; 2]] back into [EntityId].
-pub fn u32_array_to_eid(arr: [u32; 2]) -> EntityId {
-    let eid = ((arr[1] as u64) << 32) | (arr[0] as u64);
-    EntityId::from_inner(eid).unwrap_or_default()
-}
-
 /// The shader to draw vertices. Used to draw points, lines, and triangles.
 pub mod vertex {
     use glam::{Vec3, Vec4};
@@ -34,7 +20,7 @@ pub mod vertex {
             VertexData {
                 position: position.to_array(),
                 color: color.to_array(),
-                eid: super::eid_to_u32_array(eid),
+                eid: crate::render::canvas::eid_to_u32_array(eid),
             }
         }
     }
@@ -125,7 +111,7 @@ pub mod shape {
         pub fn new(color: Vec4, eid: EntityId, model: Affine3A) -> Self {
             InstanceData {
                 color: color.to_array(),
-                eid: super::eid_to_u32_array(eid),
+                eid: crate::render::canvas::eid_to_u32_array(eid),
                 model: Mat4::from(model).to_cols_array_2d(),
             }
         }
@@ -266,7 +252,7 @@ pub mod texture {
         pub fn new(color: Vec4, eid: EntityId, index: usize, model: Affine3A) -> Self {
             InstanceData {
                 color: color.to_array(),
-                eid: super::eid_to_u32_array(eid),
+                eid: crate::render::canvas::eid_to_u32_array(eid),
                 index: index as u32,
                 model: Mat4::from(model).to_cols_array_2d(),
             }

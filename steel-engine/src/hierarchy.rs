@@ -1,7 +1,7 @@
 use crate::edit::Edit;
 use shipyard::{
-    AllStoragesViewMut, Component, EntitiesViewMut, EntityId, Get, Remove, Unique, UniqueViewMut,
-    ViewMut, World,
+    AllStoragesViewMut, Component, EntitiesView, EntityId, Get, Remove, Unique, UniqueViewMut,
+    ViewMut,
 };
 use std::collections::HashSet;
 use steel_common::data::{Data, Limit, Value};
@@ -137,7 +137,7 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
         |mut hierarchy: UniqueViewMut<Hierarchy>,
          mut childrens: ViewMut<Children>,
          parents: ViewMut<Parent>,
-         entities: EntitiesViewMut| {
+         entities: EntitiesView| {
             // remove dead entities in hierarchy root list
             for i in (0..hierarchy.roots.len()).rev() {
                 if !entities.is_alive(hierarchy.roots[i]) {
@@ -202,7 +202,7 @@ fn check_in_hierarchy(
     dead: &mut HashSet<EntityId>,
     parents: &ViewMut<Parent>,
     childrens: &ViewMut<Children>,
-    entities: &EntitiesViewMut,
+    entities: &EntitiesView,
 ) -> bool {
     // already checked entity
     if alive.contains(&eid) {
@@ -236,44 +236,63 @@ fn check_in_hierarchy(
 
 /// Dettach a child form its parent.
 /// This function must be called after hierarchy_maintain_system, or may panic.
-fn dettach(world: &mut World, eid: EntityId) {
-    world.run(
-        |mut hierarchy: UniqueViewMut<Hierarchy>,
-         mut childrens: ViewMut<Children>,
-         mut parents: ViewMut<Parent>| {
-            // remove the Parent component if exists
-            if let Some(parent) = parents.remove(eid) {
-                // retrieve and update Children component of it's parent
-                if let Ok(mut children) = (&mut childrens).get(*parent) {
-                    if let Some(i) = children.iter().position(|e| *e == eid) {
-                        children.0.remove(i);
-                        if children.is_empty() {
-                            childrens.remove(*parent);
-                        }
-                    }
-                }
-            } else {
-                // child is at the top level, update root list of Hierarchy unique
-                if let Some(i) = hierarchy.roots.iter().position(|e| *e == eid) {
-                    hierarchy.roots.remove(i);
+fn dettach(
+    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    childrens: &mut ViewMut<Children>,
+    parents: &mut ViewMut<Parent>,
+    eid: EntityId,
+) {
+    // remove the Parent component if exists
+    if let Some(parent) = parents.remove(eid) {
+        // retrieve and update Children component of it's parent
+        if let Ok(mut children) = childrens.get(*parent) {
+            if let Some(i) = children.iter().position(|e| *e == eid) {
+                children.0.remove(i);
+                if children.is_empty() {
+                    childrens.remove(*parent);
                 }
             }
-        },
-    );
+        }
+    } else {
+        // child is at the top level, update root list of Hierarchy unique
+        if let Some(i) = hierarchy.roots.iter().position(|e| *e == eid) {
+            hierarchy.roots.remove(i);
+        }
+    }
 }
 
 /// Attach a child to a parent previous to before entity. If before is EntityId::dead(), attach as the last child.
 /// This function must be called after hierarchy_maintain_system, or may panic.
-pub(crate) fn attach_before(world: &mut World, eid: EntityId, parent: EntityId, before: EntityId) {
+pub fn attach_before(
+    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    childrens: &mut ViewMut<Children>,
+    parents: &mut ViewMut<Parent>,
+    entities: &EntitiesView,
+    eid: EntityId,
+    parent: EntityId,
+    before: EntityId,
+) {
     log::trace!("Attach {eid:?} to {parent:?} before {before:?}");
-    attach(world, eid, parent, before, true);
+    attach(
+        hierarchy, childrens, parents, entities, eid, parent, before, true,
+    );
 }
 
 /// Attach a child to a parent next to after entity. If after is EntityId::dead(), attach as the first child.
 /// This function must be called after hierarchy_maintain_system, or may panic.
-pub(crate) fn attach_after(world: &mut World, eid: EntityId, parent: EntityId, after: EntityId) {
+pub fn attach_after(
+    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    childrens: &mut ViewMut<Children>,
+    parents: &mut ViewMut<Parent>,
+    entities: &EntitiesView,
+    eid: EntityId,
+    parent: EntityId,
+    after: EntityId,
+) {
     log::trace!("Attach {eid:?} to {parent:?} after {after:?}");
-    attach(world, eid, parent, after, false);
+    attach(
+        hierarchy, childrens, parents, entities, eid, parent, after, false,
+    );
 }
 
 /// Attach a child to a parent adjacent to adjacent entity.
@@ -281,32 +300,34 @@ pub(crate) fn attach_after(world: &mut World, eid: EntityId, parent: EntityId, a
 /// attach previous to adjacent. If adjacent is EntityId::dead(), attach as the last child.
 /// ### If prev is false:
 /// attach next to adjacent. If adjacent is EntityId::dead(), attach as the first child.
-fn attach(world: &mut World, eid: EntityId, parent: EntityId, adjacent: EntityId, prev: bool) {
+pub fn attach(
+    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    childrens: &mut ViewMut<Children>,
+    parents: &mut ViewMut<Parent>,
+    entities: &EntitiesView,
+    eid: EntityId,
+    parent: EntityId,
+    adjacent: EntityId,
+    prev: bool,
+) {
     // the entity we want to attach might already be attached to another parent
-    dettach(world, eid);
+    dettach(hierarchy, childrens, parents, eid);
 
-    world.run(
-        |mut hierarchy: UniqueViewMut<Hierarchy>,
-         mut childrens: ViewMut<Children>,
-         parents: ViewMut<Parent>,
-         entities: EntitiesViewMut| {
-            if parent == EntityId::dead() {
-                // attach to the top level
-                let i = get_insert_position(adjacent, prev, hierarchy.roots.iter());
-                hierarchy.roots.insert(i, eid);
-            } else {
-                if let Ok(mut children) = (&mut childrens).get(parent) {
-                    // the parent entity already has a Children component
-                    let i = get_insert_position(adjacent, prev, children.iter());
-                    children.0.insert(i, eid);
-                } else {
-                    // in this case our parent entity is missing a Children component
-                    entities.add_component(parent, childrens, Children(vec![eid]));
-                }
-                entities.add_component(eid, parents, Parent(parent));
-            }
-        },
-    );
+    if parent == EntityId::dead() {
+        // attach to the top level
+        let i = get_insert_position(adjacent, prev, hierarchy.roots.iter());
+        hierarchy.roots.insert(i, eid);
+    } else {
+        if let Ok(mut children) = childrens.get(parent) {
+            // the parent entity already has a Children component
+            let i = get_insert_position(adjacent, prev, children.iter());
+            children.0.insert(i, eid);
+        } else {
+            // in this case our parent entity is missing a Children component
+            entities.add_component(parent, childrens, Children(vec![eid]));
+        }
+        entities.add_component(eid, parents, Parent(parent));
+    }
 }
 
 fn get_insert_position<'a>(

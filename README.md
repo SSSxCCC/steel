@@ -1,6 +1,6 @@
 # The Steel Game Engine
 
-Steel is an open source cross-platform Rust game engine with built-in editor.
+Steel is an open source cross-platform Rust game engine with built-in editor. Steel uses real-time ray tracing rendering, also known as path tracing, to provide a perfect 3D lighting system. Traditional rasterization rendering still exists for use in 2D games and can be used to preview 3D scenes. You can switch between ray tracing rendering and rasterization rendering at any time.
 
 # Design Goals
 
@@ -53,6 +53,8 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 
 ![image](demo/model.png)
 
+![image](demo/ray-tracing-in-one-weekend.png)
+
 # Development Roadmap
 
 - [x] Game core module
@@ -62,7 +64,7 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [x] 2D texture
 - [x] 3D rendering basic
 - [x] 3D model
-- [ ] Ray traced rendering
+- [x] Ray traced rendering
 - [x] 2D physics
 - [ ] 3D physics
 - [x] Asset manager

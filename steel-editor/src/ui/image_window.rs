@@ -3,16 +3,30 @@ use glam::{UVec2, Vec2};
 use std::sync::Arc;
 use steel_common::ext::VulkanoWindowRendererExt;
 use vulkano::{
+    command_buffer::{
+        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
+        CopyImageInfo, PrimaryCommandBufferAbstract,
+    },
+    device::Queue,
+    format::Format,
     image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
     memory::allocator::AllocationCreateInfo,
+    sync::GpuFuture,
 };
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
 
-/// A egui window which displays a image
+/// An egui window which displays a image.
 pub struct ImageWindow {
     title: String,
     image_index: usize,
-    images: Option<Vec<Arc<ImageView>>>,
+    /// We need 2 images every frame because [egui_winit_vulkano] regard all texture input as in linear color space.
+    /// The first image is the unorm image of gamma color space that we will draw,
+    /// the second image is the srgb image that the first image will copy to and is given to [egui_winit_vulkano] to have linear color input.
+    /// We could have solved this problem by creating an unorm image view and a srgb image view for only one unorm image,
+    /// so that we could draw on unorm image view and give srgb image view to [egui_winit_vulkano] to have linear color input.
+    /// However the ray tracing pipeline requires an image with storage usage, which cannot have an image view of srgb format.
+    /// TODO: how to avoid copying image every frame?
+    images: Option<Vec<(Arc<ImageView>, Arc<ImageView>)>>,
     texture_ids: Option<Vec<egui::TextureId>>,
     pixel: UVec2,
     size: Vec2,
@@ -49,18 +63,35 @@ impl ImageWindow {
             self.images = Some(
                 (0..renderer.image_count())
                     .map(|_| {
-                        let image = Image::new(
+                        let unorm_image = Image::new(
                             context.memory_allocator().clone(),
                             ImageCreateInfo {
-                                format: renderer.swapchain_format(),
+                                format: renderer.swapchain_format(), // unorm
                                 extent: [self.pixel.x, self.pixel.y, 1],
-                                usage: ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                                usage: ImageUsage::TRANSFER_SRC
+                                    | ImageUsage::SAMPLED
+                                    | ImageUsage::STORAGE
+                                    | ImageUsage::COLOR_ATTACHMENT,
                                 ..Default::default()
                             },
                             AllocationCreateInfo::default(),
                         )
                         .unwrap();
-                        ImageView::new_default(image).unwrap()
+                        let srgb_image = Image::new(
+                            context.memory_allocator().clone(),
+                            ImageCreateInfo {
+                                format: Format::B8G8R8A8_SRGB,
+                                extent: [self.pixel.x, self.pixel.y, 1],
+                                usage: ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+                                ..Default::default()
+                            },
+                            AllocationCreateInfo::default(),
+                        )
+                        .unwrap();
+                        (
+                            ImageView::new_default(unorm_image).unwrap(),
+                            ImageView::new_default(srgb_image).unwrap(),
+                        )
                     })
                     .collect(),
             );
@@ -69,7 +100,9 @@ impl ImageWindow {
                     .as_ref()
                     .unwrap()
                     .iter()
-                    .map(|image| gui.register_user_image_view(image.clone(), Default::default()))
+                    .map(|(_, srgb_image)| {
+                        gui.register_user_image_view(srgb_image.clone(), Default::default())
+                    })
                     .collect(),
             );
             log::trace!(
@@ -97,11 +130,12 @@ impl ImageWindow {
         self.texture_ids = None;
     }
 
-    /// Get window image of current frame, return None if images are not created yet.
+    /// Get window image of current frame to draw, return None if images are not created yet.
     pub fn image(&self) -> Option<&Arc<ImageView>> {
         self.images
             .as_ref()
             .and_then(|images| images.get(self.image_index))
+            .map(|(unorm_image, _)| unorm_image)
     }
 
     /// Get the exact pixel of window images
@@ -117,5 +151,33 @@ impl ImageWindow {
     /// Get the window position which is scaled by window scale factor
     pub fn position(&self) -> Vec2 {
         self.position
+    }
+
+    /// copy unorm image to srgb image of current frame.
+    pub fn copy_image(
+        &self,
+        allocator: &StandardCommandBufferAllocator,
+        queue: Arc<Queue>,
+        befor_future: Box<dyn GpuFuture>,
+    ) -> Box<dyn GpuFuture> {
+        let (unorm_image, srgb_image) = &self.images.as_ref().unwrap()[self.image_index];
+        let mut builder = AutoCommandBufferBuilder::primary(
+            allocator,
+            queue.queue_family_index(),
+            CommandBufferUsage::OneTimeSubmit,
+        )
+        .unwrap();
+        builder
+            .copy_image(CopyImageInfo::images(
+                unorm_image.image().clone(),
+                srgb_image.image().clone(),
+            ))
+            .unwrap();
+        builder
+            .build()
+            .unwrap()
+            .execute_after(befor_future, queue)
+            .unwrap()
+            .boxed()
     }
 }
