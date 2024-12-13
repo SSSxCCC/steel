@@ -126,10 +126,12 @@ impl RenderManager {
     }
 
     /// Update RenderManager from FrameRenderInfo.
-    pub(crate) fn update(&mut self, info: &FrameRenderInfo) {
+    pub(crate) fn update(&mut self, info: &FrameRenderInfo, ray_tracing_supported: bool) {
         self.image_index[info.window_index] = info.image_index;
         self.canvas_context
-            .get_or_insert_with(|| CanvasRenderContext::new(&self.context, info))
+            .get_or_insert_with(|| {
+                CanvasRenderContext::new(&self.context, info, ray_tracing_supported)
+            })
             .update(&self.context, info);
     }
 

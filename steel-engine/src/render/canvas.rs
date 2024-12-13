@@ -129,15 +129,23 @@ pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
 pub(crate) struct CanvasRenderContext {
     pub eid_images: [Vec<Arc<ImageView>>; 2],
     pub rasterization: RasterizationPipeline,
-    pub ray_tracing: RayTracingPipeline,
+    pub ray_tracing: Option<RayTracingPipeline>,
 }
 
 impl CanvasRenderContext {
-    pub fn new(context: &RenderContext, info: &FrameRenderInfo) -> Self {
+    pub fn new(
+        context: &RenderContext,
+        info: &FrameRenderInfo,
+        ray_tracing_supported: bool,
+    ) -> Self {
         CanvasRenderContext {
             eid_images: [Vec::new(), Vec::new()],
             rasterization: RasterizationPipeline::new(context, info),
-            ray_tracing: RayTracingPipeline::new(context),
+            ray_tracing: if ray_tracing_supported {
+                Some(RayTracingPipeline::new(context))
+            } else {
+                None
+            },
         }
     }
 
@@ -188,13 +196,15 @@ pub fn canvas_render_system(
     platform: UniqueView<Platform>,
 ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
     let render_manager = render_manager.as_mut();
-    render_manager.update(&info);
+    render_manager.update(&info, render_manager.ray_tracing_supported());
     let context = &render_manager.context;
     let canvas_context = render_manager.canvas_context.as_mut().unwrap();
     let eid_image = canvas_context.eid_images[info.window_index][info.image_index].clone();
     if render_manager.ray_tracing {
         canvas_context
             .ray_tracing
+            .as_mut()
+            .unwrap()
             .draw(context, &info, &camera, &canvas, eid_image)
     } else {
         (
