@@ -140,6 +140,9 @@
   "uniques": {
     "RenderManager": {
       "values": {
+        "ray_tracing": {
+          "Bool": false
+        },
         "clear_color": {
           "Vec4": [
             0.0,

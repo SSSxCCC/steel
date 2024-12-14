@@ -65,6 +65,7 @@ pub mod vertex {
 
                 void main() {
                     f_color = in_color;
+                    f_color = vec4(pow(f_color.xyz, vec3(1.0 / 2.2)), f_color.w); // gamma correction
                     if (f_color.w > 0.0001) {
                         f_eid = in_eid;
                     }
@@ -159,6 +160,7 @@ pub mod shape {
 
                 void main() {
                     f_color = in_color;
+                    f_color = vec4(pow(f_color.xyz, vec3(1.0 / 2.2)), f_color.w); // gamma correction
                     if (f_color.w > 0.0001) {
                         f_eid = in_eid;
                     }
@@ -219,6 +221,7 @@ pub mod circle {
                         discard;
                     }
                     f_color = in_color;
+                    f_color = vec4(pow(f_color.xyz, vec3(1.0 / 2.2)), f_color.w); // gamma correction
                     if (f_color.w > 0.0001) {
                         f_eid = in_eid;
                     }
@@ -314,6 +317,7 @@ pub mod texture {
                     if (f_color.w == 0) {
                         discard;
                     }
+                    f_color = vec4(pow(f_color.xyz, vec3(1.0 / 2.2)), f_color.w); // gamma correction
                     if (f_color.w > 0.0001) {
                         f_eid = in_eid;
                     }
@@ -397,6 +401,7 @@ pub mod model {
                     if (f_color.w == 0) {
                         discard;
                     }
+                    f_color = vec4(pow(f_color.xyz, vec3(1.0 / 2.2)), f_color.w); // gamma correction
                     if (f_color.w > 0.0001) {
                         f_eid = in_eid;
                     }
