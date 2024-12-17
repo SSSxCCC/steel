@@ -96,6 +96,7 @@ impl CameraSettings {
         }
     }
 
+    /// Use with [crate::data::Limit::Int32Enum].
     pub fn to_i32(&self) -> i32 {
         match self {
             CameraSettings::Orthographic { .. } => 0,
@@ -103,6 +104,7 @@ impl CameraSettings {
         }
     }
 
+    /// Use with [crate::data::Limit::Int32Enum].
     pub fn from_i32(i: i32) -> Self {
         match i {
             0 => CameraSettings::new_orthographic(),
@@ -172,56 +174,55 @@ impl CameraSettings {
         if let Some(Value::Int32(v)) = data.get("mode") {
             if self.to_i32() != *v {
                 *self = CameraSettings::from_i32(*v);
-            } else {
-                match self {
-                    CameraSettings::Orthographic {
-                        width,
-                        height,
-                        size,
-                        near,
-                        far,
-                    } => {
-                        if let Some(Value::Int32(v)) = data.get("size") {
-                            *size = (*v).into()
-                        }
-                        match size {
-                            OrthographicCameraSize::FixedWidth => {
-                                if let Some(Value::Float32(v)) = data.get("width") {
-                                    *width = *v
-                                }
-                            }
-                            OrthographicCameraSize::FixedHeight => {
-                                if let Some(Value::Float32(v)) = data.get("height") {
-                                    *height = *v
-                                }
-                            }
-                            OrthographicCameraSize::MinWidthHeight => {
-                                if let Some(Value::Float32(v)) = data.get("min_width") {
-                                    *width = *v
-                                };
-                                if let Some(Value::Float32(v)) = data.get("min_height") {
-                                    *height = *v
-                                };
-                            }
-                        }
-                        if let Some(Value::Float32(v)) = data.get("near") {
-                            *near = *v
-                        }
-                        if let Some(Value::Float32(v)) = data.get("far") {
-                            *far = *v
+            }
+        }
+        match self {
+            CameraSettings::Orthographic {
+                width,
+                height,
+                size,
+                near,
+                far,
+            } => {
+                if let Some(Value::Int32(v)) = data.get("size") {
+                    *size = (*v).into()
+                }
+                match size {
+                    OrthographicCameraSize::FixedWidth => {
+                        if let Some(Value::Float32(v)) = data.get("width") {
+                            *width = *v
                         }
                     }
-                    CameraSettings::Perspective { fov, near, far } => {
-                        if let Some(Value::Float32(v)) = data.get("fov") {
-                            *fov = *v
-                        }
-                        if let Some(Value::Float32(v)) = data.get("near") {
-                            *near = *v
-                        }
-                        if let Some(Value::Float32(v)) = data.get("far") {
-                            *far = *v
+                    OrthographicCameraSize::FixedHeight => {
+                        if let Some(Value::Float32(v)) = data.get("height") {
+                            *height = *v
                         }
                     }
+                    OrthographicCameraSize::MinWidthHeight => {
+                        if let Some(Value::Float32(v)) = data.get("min_width") {
+                            *width = *v
+                        };
+                        if let Some(Value::Float32(v)) = data.get("min_height") {
+                            *height = *v
+                        };
+                    }
+                }
+                if let Some(Value::Float32(v)) = data.get("near") {
+                    *near = *v
+                }
+                if let Some(Value::Float32(v)) = data.get("far") {
+                    *far = *v
+                }
+            }
+            CameraSettings::Perspective { fov, near, far } => {
+                if let Some(Value::Float32(v)) = data.get("fov") {
+                    *fov = *v
+                }
+                if let Some(Value::Float32(v)) = data.get("near") {
+                    *near = *v
+                }
+                if let Some(Value::Float32(v)) = data.get("far") {
+                    *far = *v
                 }
             }
         }

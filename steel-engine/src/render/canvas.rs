@@ -201,11 +201,17 @@ pub fn canvas_render_system(
     let canvas_context = render_manager.canvas_context.as_mut().unwrap();
     let eid_image = canvas_context.eid_images[info.window_index][info.image_index].clone();
     if render_manager.ray_tracing {
-        canvas_context
-            .ray_tracing
-            .as_mut()
-            .unwrap()
-            .draw(context, &info, &camera, &canvas, eid_image)
+        canvas_context.ray_tracing.as_mut().unwrap().draw(
+            context,
+            &info,
+            &camera,
+            render_manager.camera_lens_radius,
+            render_manager.camera_focus_dist,
+            render_manager.samples,
+            render_manager.max_bounces,
+            &canvas,
+            eid_image,
+        )
     } else {
         (
             vulkano::sync::now(context.device.clone()).boxed(),
@@ -213,13 +219,13 @@ pub fn canvas_render_system(
                 context,
                 &info,
                 &camera,
+                render_manager.clear_color,
                 &canvas,
                 &mut model_assets,
                 &mut texture_assets,
                 &mut image_assets,
                 &mut asset_manager,
                 &platform,
-                render_manager.clear_color,
                 eid_image,
             ),
         )

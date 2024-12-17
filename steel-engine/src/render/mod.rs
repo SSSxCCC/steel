@@ -95,8 +95,20 @@ pub struct RenderManager {
     /// True means rendering with ray tracing pipeline, false means rendering with rasterization pipeline.
     ray_tracing: bool,
 
+    // TODO: move pipeline params to Camera component
+    // rasterization pipeline
     /// The color to clear the image before drawing.
     pub clear_color: Vec4,
+
+    // raytracing pipeline
+    /// The radius of camera lens for simulating depth of field.
+    pub camera_lens_radius: f32,
+    /// The camera focus distance, where objects appear sharp in depth of field calculations.
+    pub camera_focus_dist: f32,
+    /// Number of rays we trace per pixel for anti-aliasing.
+    pub samples: u32,
+    /// Max number of bounces the ray can make in the scene.
+    pub max_bounces: u32,
 }
 
 impl RenderManager {
@@ -122,6 +134,10 @@ impl RenderManager {
             ray_tracing_supported,
             ray_tracing: false,
             clear_color: Vec4::ZERO,
+            camera_lens_radius: 0.0,
+            camera_focus_dist: 10.0,
+            samples: 30,
+            max_bounces: 30,
         }
     }
 
@@ -177,6 +193,22 @@ impl Edit for RenderManager {
 
         if self.ray_tracing {
             // ray tracing config
+            data.add_value_with_limit(
+                "camera_lens_radius",
+                Value::Float32(self.camera_lens_radius),
+                Limit::Float32Range(0.0..=f32::MAX),
+            );
+            data.add_value_with_limit(
+                "camera_focus_dist",
+                Value::Float32(self.camera_focus_dist),
+                Limit::Float32Range(0.0..=f32::MAX),
+            );
+            data.add_value_with_limit(
+                "samples",
+                Value::UInt32(self.samples),
+                Limit::UInt32Range(1..=u32::MAX),
+            );
+            data.add_value("max_bounces", Value::UInt32(self.max_bounces));
         } else {
             // rasterization config
             data.add_value_with_limit(
@@ -197,6 +229,18 @@ impl Edit for RenderManager {
         }
 
         // ray tracing config
+        if let Some(Value::Float32(v)) = data.get("camera_lens_radius") {
+            self.camera_lens_radius = *v;
+        }
+        if let Some(Value::Float32(v)) = data.get("camera_focus_dist") {
+            self.camera_focus_dist = *v;
+        }
+        if let Some(Value::UInt32(v)) = data.get("samples") {
+            self.samples = *v;
+        }
+        if let Some(Value::UInt32(v)) = data.get("max_bounces") {
+            self.max_bounces = *v;
+        }
 
         // rasterization config
         if let Some(Value::Vec4(v)) = data.get("clear_color") {

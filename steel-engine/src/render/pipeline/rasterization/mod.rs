@@ -375,13 +375,13 @@ impl RasterizationPipeline {
         context: &RenderContext,
         info: &FrameRenderInfo,
         camera: &CameraInfo,
+        clear_color: Vec4,
         canvas: &Canvas,
         model_assets: &mut ModelAssets,
         texture_assets: &mut TextureAssets,
         image_assets: &mut ImageAssets,
         asset_manager: &mut AssetManager,
         platform: &Platform,
-        clear_color: Vec4,
         eid_image: Arc<ImageView>,
     ) -> Arc<PrimaryAutoCommandBuffer> {
         let viewport = Viewport {

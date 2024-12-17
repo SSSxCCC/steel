@@ -14,6 +14,7 @@ use glam::{Affine3A, Vec3, Vec4, Vec4Swizzles};
 use material::Material;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::sync::Arc;
+use steel_common::camera::CameraSettings;
 use util::ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup};
 use vulkano::{
     acceleration_structure::AabbPositions,
@@ -156,6 +157,10 @@ impl RayTracingPipeline {
         context: &RenderContext,
         info: &FrameRenderInfo,
         camera: &CameraInfo,
+        camera_lens_radius: f32,
+        camera_focus_dist: f32,
+        samples: u32,
+        max_bounces: u32,
         canvas: &Canvas,
         eid_image: Arc<ImageView>,
     ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
@@ -215,6 +220,21 @@ impl RayTracingPipeline {
         )
         .unwrap();
 
+        let push_constants = shader::raygen::PushConstants {
+            camera_type: camera.settings.to_i32() as u32,
+            camera_position: camera.position.to_array(),
+            camera_direction: camera.direction().to_array(),
+            camera_data: match camera.settings {
+                CameraSettings::Orthographic { height, .. } => height,
+                CameraSettings::Perspective { fov, .. } => fov,
+            },
+            camera_lens_radius,
+            camera_focus_dist,
+            seed: self.rng.next_u32(),
+            samples,
+            max_bounces,
+        };
+
         let command_buffer = AutoCommandBufferBuilder::primary(
             &context.command_buffer_allocator,
             context.graphics_queue.queue_family_index(),
@@ -254,7 +274,10 @@ impl RayTracingPipeline {
                 self.pipeline_layout.handle(),
                 vk::ShaderStageFlags::RAYGEN_KHR,
                 0,
-                &self.rng.next_u32().to_le_bytes(),
+                std::slice::from_raw_parts(
+                    &push_constants as *const shader::raygen::PushConstants as *const u8,
+                    std::mem::size_of::<shader::raygen::PushConstants>(),
+                ),
             );
             context.ash.rt_pipeline().cmd_trace_rays(
                 command_buffer_handle,
