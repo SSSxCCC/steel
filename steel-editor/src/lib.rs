@@ -75,7 +75,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor = Editor::new(&local_data);
 
     // project
-    let mut project = Project::new(ray_tracing_supported);
+    let mut project = Project::new(ray_tracing_supported, &mut local_data, &context, &mut gui);
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -137,6 +137,7 @@ fn _main(event_loop: EventLoop<()>) {
             match event {
                 WindowEvent::CloseRequested => {
                     log::debug!("WindowEvent::CloseRequested");
+                    project.exit(&mut local_data);
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(_) => {

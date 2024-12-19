@@ -78,14 +78,14 @@ impl MenuBar {
                             log::info!("Menu->Project->Close");
                             scene_window.close(Some(gui));
                             game_window.close(Some(gui));
-                            project.close(gui_game);
+                            project.close(local_data, gui_game);
                             ui.close_menu();
                         }
                         if ui.button(texts.get("Compile")).clicked() {
                             log::info!("Menu->Project->Compile");
                             scene_window.close(Some(gui));
                             game_window.close(Some(gui));
-                            project.compile(gui_game, context);
+                            project.compile(local_data, gui_game, context);
                             ui.close_menu();
                         }
                     }
@@ -411,7 +411,7 @@ impl MenuBar {
                         scene_window.close(Some(gui));
                         game_window.close(Some(gui));
                         project.open(editor_state.project_path.clone(), local_data, gui_game);
-                        project.compile(gui_game, context);
+                        project.compile(local_data, gui_game, context);
                         self.show_open_project_dialog = false;
                     }
                 }

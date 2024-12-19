@@ -76,22 +76,62 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(ray_tracing_supported: bool) -> Self {
-        Project {
+    pub fn new(
+        ray_tracing_supported: bool,
+        local_data: &mut LocalData,
+        context: &VulkanoContext,
+        gui_game: &mut Option<Gui>,
+    ) -> Self {
+        let mut project = Project {
             state: None,
             ray_tracing_supported,
+        };
+
+        if local_data.open_last_project_on_start && local_data.last_open_project_path.is_dir() {
+            log::info!(
+                "Open last project: {}",
+                local_data.last_open_project_path.display()
+            );
+            project.open(
+                local_data.last_open_project_path.clone(),
+                local_data,
+                gui_game,
+            );
+            project.compile(local_data, gui_game, context);
+        }
+
+        project
+    }
+
+    /// Called when the editor is exiting.
+    pub fn exit(&self, local_data: &mut LocalData) {
+        if let Some(compiled) = self.compiled_ref() {
+            assert!(local_data.open_last_project_on_start);
+            let scene_data = compiled.save_scene(None);
+            local_data.scene_asset_and_data = Some((compiled.scene, scene_data));
+            local_data.save();
         }
     }
 
     pub fn open(&mut self, path: PathBuf, local_data: &mut LocalData, gui_game: &mut Option<Gui>) {
         match Self::_open(&path) {
-            Err(error) => log::error!(
-                "Failed to open project, path={}, error={error}",
-                path.display()
-            ),
+            Err(error) => {
+                local_data.open_last_project_on_start = false;
+                local_data.save();
+
+                log::error!(
+                    "Failed to open project, path={}, error={error}",
+                    path.display()
+                );
+            }
             Ok(_) => {
                 local_data.last_open_project_path = path.clone();
+                local_data.open_last_project_on_start = true;
+                if self.state.is_some() {
+                    local_data.scene_asset_and_data = None; // we are closing previous project, just clear scene data
+                }
                 local_data.save();
+
                 *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
                 self.state = Some(ProjectState {
                     path,
@@ -104,13 +144,13 @@ impl Project {
     fn _open(path: &PathBuf) -> Result<(), Box<dyn Error>> {
         if !path.is_dir() {
             fs::create_dir_all(&path)?;
-            log::info!("Created directory: {}", path.display());
+            log::debug!("Created directory: {}", path.display());
         }
 
         let gitignore_file = path.join(".gitignore");
         if !gitignore_file.exists() {
             fs::write(&gitignore_file, GITIGNORE)?;
-            log::info!("Created: {}", gitignore_file.display());
+            log::debug!("Created: {}", gitignore_file.display());
 
             if let Err(error) = Self::_init_git(path) {
                 log::warn!("Failed to init git, error={error}");
@@ -136,25 +176,25 @@ impl Project {
                 // "steel-engine" folder not found, maybe steel-editor is running in exported executable, just write CARGO_TOML content.
                 fs::write(&cargo_toml_file, CARGO_TOML)?;
             }
-            log::info!("Created: {}", cargo_toml_file.display());
+            log::debug!("Created: {}", cargo_toml_file.display());
         }
 
         let src_dir = path.join("src");
         if !src_dir.is_dir() {
             fs::create_dir(&src_dir)?;
-            log::info!("Created directory: {}", src_dir.display());
+            log::debug!("Created directory: {}", src_dir.display());
         }
 
         let lib_rs_file = src_dir.join("lib.rs");
         if !lib_rs_file.is_file() {
             fs::write(&lib_rs_file, LIB_RS)?;
-            log::info!("Created: {}", lib_rs_file.display());
+            log::debug!("Created: {}", lib_rs_file.display());
         }
 
         let asset_dir = path.join("asset");
         if !asset_dir.is_dir() {
             fs::create_dir(&asset_dir)?;
-            log::info!("Created directory: {}", asset_dir.display());
+            log::debug!("Created directory: {}", asset_dir.display());
         }
 
         Ok(())
@@ -173,14 +213,23 @@ impl Project {
         self.state.is_some()
     }
 
-    pub fn close(&mut self, gui_game: &mut Option<Gui>) {
+    pub fn close(&mut self, local_data: &mut LocalData, gui_game: &mut Option<Gui>) {
+        local_data.open_last_project_on_start = false;
+        local_data.scene_asset_and_data = None;
+        local_data.save();
+
         *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
         self.state = None;
     }
 
-    pub fn compile(&mut self, gui_game: &mut Option<Gui>, context: &VulkanoContext) {
+    pub fn compile(
+        &mut self,
+        local_data: &mut LocalData,
+        gui_game: &mut Option<Gui>,
+        context: &VulkanoContext,
+    ) {
         log::info!("Project::compile start");
-        match self._compile(gui_game, context) {
+        match self._compile(local_data, gui_game, context) {
             Err(error) => log::error!("Project::compile error: {error}"),
             Ok(_) => log::info!("Project::compile end"),
         }
@@ -188,16 +237,22 @@ impl Project {
 
     fn _compile(
         &mut self,
+        local_data: &mut LocalData,
         gui_game: &mut Option<Gui>,
         context: &VulkanoContext,
     ) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
-            // save scene data before unloading library
-            let mut scene_data = SceneData::default();
             let mut scene = None;
+            let mut scene_data = SceneData::default();
+            let mut load_from_local_data = false;
             if let Some(compiled) = &mut state.compiled {
-                scene_data = compiled.save_scene(None);
+                // save scene data before unloading library
                 scene = compiled.scene.take();
+                scene_data = compiled.save_scene(None);
+            } else if let Some(scene_asset_and_data) = local_data.scene_asset_and_data.clone() {
+                load_from_local_data = true;
+                (scene, scene_data) = scene_asset_and_data;
+                local_data.save();
             }
 
             *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
@@ -265,6 +320,13 @@ impl Project {
                 receiver,
                 last_rename_from_event: None,
             });
+
+            // ensure that we load from local data only once
+            if load_from_local_data {
+                local_data.scene_asset_and_data = None;
+                local_data.save();
+            }
+
             Ok(())
         } else {
             Err(ProjectError::new("No open project").boxed())
@@ -310,7 +372,7 @@ impl Project {
             None => 1,
         };
         let to_pdb_file = pdb_dir.join(format!("{pdb_file_name}{n}"));
-        log::info!(
+        log::debug!(
             "Rename {} to {}, pdb_files={pdb_files:?}",
             pdb_file.display(),
             to_pdb_file.display()
@@ -350,7 +412,7 @@ impl Project {
 
         let mut cargo_toml_original_contents = Vec::new();
         for path in &cargo_toml_paths {
-            log::info!("Read {}", path.display());
+            log::debug!("Read {}", path.display());
             let original_content = fs::read_to_string(path)?;
             let num_match = original_content
                 .matches(STEEL_PROJECT_PATH)
@@ -367,7 +429,7 @@ impl Project {
             cargo_toml_original_contents.push(original_content);
         }
         let steel_client_src_original_content = if init_scene.is_some() {
-            log::info!("Read {}", steel_client_src_path.display());
+            log::debug!("Read {}", steel_client_src_path.display());
             let original_content = fs::read_to_string(&steel_client_src_path)?;
             let num_match = original_content
                 .matches(INIT_SCENE)
@@ -410,7 +472,7 @@ impl Project {
 
         let mut num_modified_cargo_toml = cargo_toml_paths.len();
         for i in 0..cargo_toml_paths.len() {
-            log::info!("Modify {}", cargo_toml_paths[i].display());
+            log::debug!("Modify {}", cargo_toml_paths[i].display());
             if let Err(error) = fs::write(&cargo_toml_paths[i], &cargo_toml_new_contents[i]) {
                 log::error!(
                     "Failed to modify {}, error={error}",
@@ -423,7 +485,7 @@ impl Project {
         let mut modify_success = num_modified_cargo_toml == cargo_toml_paths.len();
         if modify_success {
             if let Some(steel_client_src_new_content) = steel_client_src_new_content {
-                log::info!("Modify {}", steel_client_src_path.display());
+                log::debug!("Modify {}", steel_client_src_path.display());
                 if let Err(error) = fs::write(&steel_client_src_path, steel_client_src_new_content)
                 {
                     log::error!(
@@ -442,7 +504,7 @@ impl Project {
         };
 
         for i in 0..num_modified_cargo_toml {
-            log::info!("Restore {}", cargo_toml_paths[i].display());
+            log::debug!("Restore {}", cargo_toml_paths[i].display());
             if let Err(error) = fs::write(&cargo_toml_paths[i], &cargo_toml_original_contents[i]) {
                 log::error!(
                     "There is an error while writing original content back to {}! \
@@ -452,7 +514,7 @@ impl Project {
             }
         }
         if let Some(steel_client_src_original_content) = steel_client_src_original_content {
-            log::info!("Restore {}", steel_client_src_path.display());
+            log::debug!("Restore {}", steel_client_src_path.display());
             if let Err(error) = fs::write(&steel_client_src_path, steel_client_src_original_content)
             {
                 log::error!(
@@ -680,7 +742,7 @@ impl Project {
             let exe_export_path = state.path.join("build/windows/steel-client.exe");
             fs::create_dir_all(exe_export_path.parent().unwrap())?;
             fs::copy(exe_path, &exe_export_path)?;
-            log::info!("Exported: {}", exe_export_path.display());
+            log::debug!("Exported: {}", exe_export_path.display());
 
             Ok(())
         } else {
@@ -781,7 +843,7 @@ impl Project {
             let apk_export_path = state.path.join("build/android/steel-client.apk");
             fs::create_dir_all(apk_export_path.parent().unwrap())?;
             fs::copy(apk_path, &apk_export_path)?;
-            log::info!("Exported: {}", apk_export_path.display());
+            log::debug!("Exported: {}", apk_export_path.display());
             Ok(())
         } else {
             Err(ProjectError::new("No open project").boxed())
@@ -822,7 +884,7 @@ impl Project {
             } else {
                 let dst = dst.as_ref().join(entry.file_name());
                 fs::copy(entry.path(), &dst)?;
-                log::info!("Exported: {}", dst.display());
+                log::debug!("Exported: {}", dst.display());
             }
         }
         Ok(())
