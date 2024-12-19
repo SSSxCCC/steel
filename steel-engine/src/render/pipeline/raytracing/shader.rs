@@ -310,9 +310,11 @@ pub mod raygen {
                 float camera_data; // height of orthographic or vfov of perspective
                 float camera_lens_radius;
                 float camera_focus_dist;
-                uint seed;
                 uint samples;
                 uint max_bounces;
+                vec3 miss_color_top; // miss color is linear gradient from top to bottom
+                uint seed;
+                vec3 miss_color_bottom;
             } pcs;
 
             void main() {
@@ -396,6 +398,20 @@ pub mod miss {
             #version 460
             #extension GL_EXT_ray_tracing : require
 
+            layout(push_constant) uniform PushConstants {
+                vec3 camera_position;
+                uint camera_type; // 0 is orthographic, 1 is perspective
+                vec3 camera_direction;
+                float camera_data; // height of orthographic or vfov of perspective
+                float camera_lens_radius;
+                float camera_focus_dist;
+                uint samples;
+                uint max_bounces;
+                vec3 miss_color_top; // miss color is linear gradient between top and bottom
+                uint seed;
+                vec3 miss_color_bottom;
+            } pcs;
+
             layout(location = 0) rayPayloadInEXT RayPayload {
                 vec3 position;
                 vec3 normal;
@@ -407,7 +423,7 @@ pub mod miss {
             void main() {
                 vec3 world_ray_direction = normalize(gl_WorldRayDirectionEXT);
                 float t = 0.5 * (world_ray_direction.y + 1.0);
-                vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
+                vec3 color = mix(pcs.miss_color_bottom, pcs.miss_color_top, t);
 
                 payload.is_miss = true;
                 payload.position = color;

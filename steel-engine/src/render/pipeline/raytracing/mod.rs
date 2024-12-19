@@ -14,7 +14,10 @@ use glam::{Affine3A, Vec3, Vec4, Vec4Swizzles};
 use material::Material;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::sync::Arc;
-use steel_common::camera::CameraSettings;
+use steel_common::{
+    camera::CameraSettings,
+    data::{Data, Limit, Value},
+};
 use util::ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup};
 use vulkano::{
     acceleration_structure::AabbPositions,
@@ -68,6 +71,87 @@ impl EnumMaterialPod {
             Material::Lambertian => Self::new_lambertian(color),
             Material::Metal { fuzz } => Self::new_metal(color, fuzz),
             Material::Dielectric { ri } => Self::new_dielectric(ri), // TODO: color
+        }
+    }
+}
+
+/// Ray tracing render pipeline settings.
+pub struct RayTracingSettings {
+    /// The radius of camera lens for simulating depth of field.
+    pub camera_lens_radius: f32,
+    /// The camera focus distance, where objects appear sharp in depth of field calculations.
+    pub camera_focus_dist: f32,
+    /// Number of rays we trace per pixel for anti-aliasing.
+    pub samples: u32,
+    /// Max number of bounces the ray can make in the scene.
+    pub max_bounces: u32,
+    /// The miss color when ray direction is +Y, miss color is linear gradient between top and bottom.
+    pub miss_color_top: Vec3,
+    /// The miss color when ray direction is -Y, miss color is linear gradient between top and bottom.
+    pub miss_color_bottom: Vec3,
+}
+
+impl Default for RayTracingSettings {
+    fn default() -> Self {
+        RayTracingSettings {
+            camera_lens_radius: 0.0,
+            camera_focus_dist: 10.0,
+            samples: 30,
+            max_bounces: 30,
+            miss_color_top: Vec3::ZERO,
+            miss_color_bottom: Vec3::ZERO,
+        }
+    }
+}
+
+impl RayTracingSettings {
+    pub fn get_data(&self, data: &mut Data) {
+        data.add_value_with_limit(
+            "camera_lens_radius",
+            Value::Float32(self.camera_lens_radius),
+            Limit::Float32Range(0.0..=f32::MAX),
+        );
+        data.add_value_with_limit(
+            "camera_focus_dist",
+            Value::Float32(self.camera_focus_dist),
+            Limit::Float32Range(0.0..=f32::MAX),
+        );
+        data.add_value_with_limit(
+            "samples",
+            Value::UInt32(self.samples),
+            Limit::UInt32Range(1..=u32::MAX),
+        );
+        data.add_value("max_bounces", Value::UInt32(self.max_bounces));
+        data.add_value_with_limit(
+            "miss_color_top",
+            Value::Vec3(self.miss_color_top),
+            Limit::Vec3Color,
+        );
+        data.add_value_with_limit(
+            "miss_color_bottom",
+            Value::Vec3(self.miss_color_bottom),
+            Limit::Vec3Color,
+        );
+    }
+
+    pub fn set_data(&mut self, data: &Data) {
+        if let Some(Value::Float32(v)) = data.get("camera_lens_radius") {
+            self.camera_lens_radius = *v;
+        }
+        if let Some(Value::Float32(v)) = data.get("camera_focus_dist") {
+            self.camera_focus_dist = *v;
+        }
+        if let Some(Value::UInt32(v)) = data.get("samples") {
+            self.samples = *v;
+        }
+        if let Some(Value::UInt32(v)) = data.get("max_bounces") {
+            self.max_bounces = *v;
+        }
+        if let Some(Value::Vec3(v)) = data.get("miss_color_top") {
+            self.miss_color_top = *v;
+        }
+        if let Some(Value::Vec3(v)) = data.get("miss_color_bottom") {
+            self.miss_color_bottom = *v;
         }
     }
 }
@@ -157,10 +241,7 @@ impl RayTracingPipeline {
         context: &RenderContext,
         info: &FrameRenderInfo,
         camera: &CameraInfo,
-        camera_lens_radius: f32,
-        camera_focus_dist: f32,
-        samples: u32,
-        max_bounces: u32,
+        settings: &RayTracingSettings,
         canvas: &Canvas,
         eid_image: Arc<ImageView>,
     ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
@@ -228,11 +309,13 @@ impl RayTracingPipeline {
                 CameraSettings::Orthographic { height, .. } => height,
                 CameraSettings::Perspective { fov, .. } => fov,
             },
-            camera_lens_radius,
-            camera_focus_dist,
+            camera_lens_radius: settings.camera_lens_radius,
+            camera_focus_dist: settings.camera_focus_dist,
+            samples: settings.samples,
+            max_bounces: settings.max_bounces,
+            miss_color_top: settings.miss_color_top.to_array(),
+            miss_color_bottom: settings.miss_color_bottom.to_array(),
             seed: self.rng.next_u32(),
-            samples,
-            max_bounces,
         };
 
         let command_buffer = AutoCommandBufferBuilder::primary(
