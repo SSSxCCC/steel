@@ -45,6 +45,7 @@ impl MenuBar {
         project: &mut Project,
         world_data: &mut Option<WorldData>,
         local_data: &mut LocalData,
+        window_title: &mut Option<String>,
         texts: &mut Texts,
         scene_camera: &mut SceneCamera,
     ) {
@@ -58,6 +59,7 @@ impl MenuBar {
             context,
             project,
             local_data,
+            window_title,
             texts,
         );
 
@@ -78,7 +80,7 @@ impl MenuBar {
                             log::info!("Menu->Project->Close");
                             scene_window.close(Some(gui));
                             game_window.close(Some(gui));
-                            project.close(local_data, gui_game);
+                            project.close(local_data, window_title, gui_game);
                             ui.close_menu();
                         }
                         if ui.button(texts.get("Compile")).clicked() {
@@ -381,6 +383,7 @@ impl MenuBar {
         context: &VulkanoContext,
         project: &mut Project,
         local_data: &mut LocalData,
+        window_title: &mut Option<String>,
         texts: &Texts,
     ) {
         let mut show = self.show_open_project_dialog;
@@ -410,7 +413,12 @@ impl MenuBar {
                         log::info!("Open project, path={}", editor_state.project_path.display());
                         scene_window.close(Some(gui));
                         game_window.close(Some(gui));
-                        project.open(editor_state.project_path.clone(), local_data, gui_game);
+                        project.open(
+                            editor_state.project_path.clone(),
+                            local_data,
+                            window_title,
+                            gui_game,
+                        );
                         project.compile(local_data, gui_game, context);
                         self.show_open_project_dialog = false;
                     }

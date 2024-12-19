@@ -70,6 +70,7 @@ impl Editor {
         project: &mut Project,
         world_data: &mut Option<WorldData>,
         local_data: &mut LocalData,
+        window_title: &mut Option<String>,
         input: &WinitInputHelper,
         scene_camera: &mut SceneCamera,
     ) {
@@ -92,6 +93,7 @@ impl Editor {
                 project,
                 world_data,
                 local_data,
+                window_title,
                 &mut self.texts,
                 scene_camera,
             );

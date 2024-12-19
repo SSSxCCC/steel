@@ -79,6 +79,7 @@ impl Project {
     pub fn new(
         ray_tracing_supported: bool,
         local_data: &mut LocalData,
+        window_title: &mut Option<String>,
         context: &VulkanoContext,
         gui_game: &mut Option<Gui>,
     ) -> Self {
@@ -95,6 +96,7 @@ impl Project {
             project.open(
                 local_data.last_open_project_path.clone(),
                 local_data,
+                window_title,
                 gui_game,
             );
             project.compile(local_data, gui_game, context);
@@ -113,7 +115,13 @@ impl Project {
         }
     }
 
-    pub fn open(&mut self, path: PathBuf, local_data: &mut LocalData, gui_game: &mut Option<Gui>) {
+    pub fn open(
+        &mut self,
+        path: PathBuf,
+        local_data: &mut LocalData,
+        window_title: &mut Option<String>,
+        gui_game: &mut Option<Gui>,
+    ) {
         match Self::_open(&path) {
             Err(error) => {
                 local_data.open_last_project_on_start = false;
@@ -131,6 +139,8 @@ impl Project {
                     local_data.scene_asset_and_data = None; // we are closing previous project, just clear scene data
                 }
                 local_data.save();
+
+                *window_title = Some(format!("Steel Editor ({})", path.display()));
 
                 *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
                 self.state = Some(ProjectState {
@@ -213,10 +223,17 @@ impl Project {
         self.state.is_some()
     }
 
-    pub fn close(&mut self, local_data: &mut LocalData, gui_game: &mut Option<Gui>) {
+    pub fn close(
+        &mut self,
+        local_data: &mut LocalData,
+        window_title: &mut Option<String>,
+        gui_game: &mut Option<Gui>,
+    ) {
         local_data.open_last_project_on_start = false;
         local_data.scene_asset_and_data = None;
         local_data.save();
+
+        *window_title = Some("Steel Editor".into());
 
         *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
         self.state = None;
