@@ -6,23 +6,31 @@ mod shader;
 
 use crate::{
     camera::CameraInfo,
-    render::{canvas::Canvas, FrameRenderInfo, RenderContext},
+    render::{canvas::Canvas, mesh, FrameRenderInfo, RenderContext},
 };
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
 use glam::{Affine3A, Vec3, Vec4, Vec4Swizzles};
 use material::Material;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
+use shipyard::EntityId;
 use std::sync::Arc;
-use util::ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup};
+use steel_common::{
+    camera::CameraSettings,
+    data::{Data, Limit, Value},
+};
+use util::{
+    ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup},
+    vulkano::TriangleVertex,
+};
 use vulkano::{
-    acceleration_structure::AabbPositions,
-    buffer::{Buffer, BufferCreateInfo, BufferUsage},
+    acceleration_structure::{AabbPositions, AccelerationStructure},
+    buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer},
     descriptor_set::{layout::DescriptorSetLayout, PersistentDescriptorSet, WriteDescriptorSet},
     device::Device,
     image::view::ImageView,
-    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter},
+    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::{layout::PipelineDescriptorSetLayoutCreateInfo, PipelineLayout},
     sync::GpuFuture,
     VulkanObject,
@@ -71,6 +79,87 @@ impl EnumMaterialPod {
     }
 }
 
+/// Ray tracing render pipeline settings.
+pub struct RayTracingSettings {
+    /// The radius of camera lens for simulating depth of field.
+    pub camera_lens_radius: f32,
+    /// The camera focus distance, where objects appear sharp in depth of field calculations.
+    pub camera_focus_dist: f32,
+    /// Number of rays we trace per pixel for anti-aliasing.
+    pub samples: u32,
+    /// Max number of bounces the ray can make in the scene.
+    pub max_bounces: u32,
+    /// The miss color when ray direction is +Y, miss color is linear gradient between top and bottom.
+    pub miss_color_top: Vec3,
+    /// The miss color when ray direction is -Y, miss color is linear gradient between top and bottom.
+    pub miss_color_bottom: Vec3,
+}
+
+impl Default for RayTracingSettings {
+    fn default() -> Self {
+        RayTracingSettings {
+            camera_lens_radius: 0.0,
+            camera_focus_dist: 10.0,
+            samples: 30,
+            max_bounces: 30,
+            miss_color_top: Vec3::ZERO,
+            miss_color_bottom: Vec3::ZERO,
+        }
+    }
+}
+
+impl RayTracingSettings {
+    pub fn get_data(&self, data: &mut Data) {
+        data.add_value_with_limit(
+            "camera_lens_radius",
+            Value::Float32(self.camera_lens_radius),
+            Limit::Float32Range(0.0..=f32::MAX),
+        );
+        data.add_value_with_limit(
+            "camera_focus_dist",
+            Value::Float32(self.camera_focus_dist),
+            Limit::Float32Range(0.0..=f32::MAX),
+        );
+        data.add_value_with_limit(
+            "samples",
+            Value::UInt32(self.samples),
+            Limit::UInt32Range(1..=u32::MAX),
+        );
+        data.add_value("max_bounces", Value::UInt32(self.max_bounces));
+        data.add_value_with_limit(
+            "miss_color_top",
+            Value::Vec3(self.miss_color_top),
+            Limit::Vec3Color,
+        );
+        data.add_value_with_limit(
+            "miss_color_bottom",
+            Value::Vec3(self.miss_color_bottom),
+            Limit::Vec3Color,
+        );
+    }
+
+    pub fn set_data(&mut self, data: &Data) {
+        if let Some(Value::Float32(v)) = data.get("camera_lens_radius") {
+            self.camera_lens_radius = *v;
+        }
+        if let Some(Value::Float32(v)) = data.get("camera_focus_dist") {
+            self.camera_focus_dist = *v;
+        }
+        if let Some(Value::UInt32(v)) = data.get("samples") {
+            self.samples = *v;
+        }
+        if let Some(Value::UInt32(v)) = data.get("max_bounces") {
+            self.max_bounces = *v;
+        }
+        if let Some(Value::Vec3(v)) = data.get("miss_color_top") {
+            self.miss_color_top = *v;
+        }
+        if let Some(Value::Vec3(v)) = data.get("miss_color_bottom") {
+            self.miss_color_bottom = *v;
+        }
+    }
+}
+
 /// RayTracingPipeline stores many render objects that exist between frames.
 pub(crate) struct RayTracingPipeline {
     pipeline: AshPipeline,
@@ -88,6 +177,7 @@ impl RayTracingPipeline {
     pub fn new(context: &RenderContext) -> Self {
         let raygen_shader_module = shader::raygen::load(context.device.clone()).unwrap();
         let miss_shader_module = shader::miss::load(context.device.clone()).unwrap();
+        let closesthit_shader_module = shader::closesthit::load(context.device.clone()).unwrap();
         let sphere_intersection_shader_module =
             shader::sphere_intersection::load(context.device.clone()).unwrap();
         let sphere_closesthit_shader_module =
@@ -96,6 +186,7 @@ impl RayTracingPipeline {
         let (shader_stages, stages) = util::create_shader_stages([
             raygen_shader_module,
             miss_shader_module,
+            closesthit_shader_module,
             sphere_intersection_shader_module,
             sphere_closesthit_shader_module,
         ]);
@@ -103,10 +194,14 @@ impl RayTracingPipeline {
         let shader_groups = util::ash::create_shader_groups([
             ShaderGroup::General(0),
             ShaderGroup::General(1),
-            ShaderGroup::ProceduralHitGroup {
-                closest_hit_shader: 3,
+            ShaderGroup::TrianglesHitGroup {
+                closest_hit_shader: 2,
                 any_hit_shader: vk::SHADER_UNUSED_KHR,
-                intersection_shader: 2,
+            },
+            ShaderGroup::ProceduralHitGroup {
+                closest_hit_shader: 4,
+                any_hit_shader: vk::SHADER_UNUSED_KHR,
+                intersection_shader: 3,
             },
         ]);
 
@@ -156,64 +251,87 @@ impl RayTracingPipeline {
         context: &RenderContext,
         info: &FrameRenderInfo,
         camera: &CameraInfo,
+        settings: &RayTracingSettings,
         canvas: &Canvas,
         eid_image: Arc<ImageView>,
     ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
-        let mut sphere_instances = Vec::new();
+        let mut instances = Vec::new();
         let mut materials = Vec::new();
-        for (model, color, material, eid) in &canvas.spheres {
-            sphere_instances.push(*model);
-            materials.push(EnumMaterialPod::from_material(*material, *color));
-        }
-        // TODO: how to create an empty tlas?
-        if sphere_instances.is_empty() {
-            sphere_instances.push(Affine3A::from_scale(Vec3::ZERO));
-            materials.push(EnumMaterialPod::new_lambertian(Vec3::ZERO));
-        }
+        let mut obj_descs = Vec::new();
+        let mut eids = Vec::new();
 
-        let (blas, blas_future) = util::vulkano::create_aabb_bottom_level_acceleration_structure(
-            context.memory_allocator.clone(),
-            &context.command_buffer_allocator,
-            context.graphics_queue.clone(),
-            vec![AabbPositions {
-                min: [-1.0, -1.0, -1.0],
-                max: [1.0, 1.0, 1.0],
-            }],
+        let rectangle_blas_future = draw_shapes(
+            &canvas.rectangles,
+            context,
+            &mut materials,
+            &mut eids,
+            &mut obj_descs,
+            &mut instances,
+            mesh::RECTANGLE_VERTICES,
+            mesh::RECTANGLE_INDICES.map(|i| i as u32),
+        );
+
+        let cuboid_blas_future = draw_shapes(
+            &canvas.cuboids,
+            context,
+            &mut materials,
+            &mut eids,
+            &mut obj_descs,
+            &mut instances,
+            mesh::CUBOID_VERTICES_WITH_NORMAL,
+            mesh::CUBOID_INDICES_WITH_NORMAL.map(|i| i as u32),
+        );
+
+        let sphere_blas_future = draw_spheres(
+            &canvas.spheres,
+            context,
+            &mut materials,
+            &mut eids,
+            &mut instances,
         );
 
         let (tlas, tlas_future) = util::vulkano::create_top_level_acceleration_structure(
             context.memory_allocator.clone(),
             &context.command_buffer_allocator,
             context.graphics_queue.clone(),
-            vec![(blas, 0, sphere_instances)],
+            instances,
         );
 
-        let material_buffer = Buffer::from_iter(
-            context.memory_allocator.clone(),
-            BufferCreateInfo {
-                usage: BufferUsage::STORAGE_BUFFER,
-                ..Default::default()
-            },
-            AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                ..Default::default()
-            },
-            materials,
-        )
-        .unwrap();
+        let material_buffer = create_buffer(materials, &context.memory_allocator);
+        let mut descriptor_writes = vec![
+            WriteDescriptorSet::acceleration_structure(0, tlas),
+            WriteDescriptorSet::image_view(1, info.image.clone()),
+            WriteDescriptorSet::buffer(2, material_buffer),
+        ];
+        if !obj_descs.is_empty() {
+            let obj_desc_buffer = create_buffer(obj_descs, &context.memory_allocator);
+            descriptor_writes.push(WriteDescriptorSet::buffer(3, obj_desc_buffer));
+        }
 
         let descriptor_set = PersistentDescriptorSet::new(
             &context.descriptor_set_allocator,
             self.descriptor_set_layout.clone(),
-            [
-                WriteDescriptorSet::acceleration_structure(0, tlas),
-                WriteDescriptorSet::image_view(1, info.image.clone()),
-                WriteDescriptorSet::buffer(2, material_buffer),
-            ],
+            descriptor_writes,
             [],
         )
         .unwrap();
+
+        let push_constants = shader::raygen::PushConstants {
+            camera_type: camera.settings.to_i32() as u32,
+            camera_position: camera.position.to_array(),
+            camera_direction: camera.direction().to_array(),
+            camera_data: match camera.settings {
+                CameraSettings::Orthographic { height, .. } => height,
+                CameraSettings::Perspective { fov, .. } => fov,
+            },
+            camera_lens_radius: settings.camera_lens_radius,
+            camera_focus_dist: settings.camera_focus_dist,
+            samples: settings.samples,
+            max_bounces: settings.max_bounces,
+            miss_color_top: settings.miss_color_top.to_array(),
+            miss_color_bottom: settings.miss_color_bottom.to_array(),
+            seed: self.rng.next_u32(),
+        };
 
         let command_buffer = AutoCommandBufferBuilder::primary(
             &context.command_buffer_allocator,
@@ -254,7 +372,10 @@ impl RayTracingPipeline {
                 self.pipeline_layout.handle(),
                 vk::ShaderStageFlags::RAYGEN_KHR,
                 0,
-                &self.rng.next_u32().to_le_bytes(),
+                std::slice::from_raw_parts(
+                    &push_constants as *const shader::raygen::PushConstants as *const u8,
+                    std::mem::size_of::<shader::raygen::PushConstants>(),
+                ),
             );
             context.ash.rt_pipeline().cmd_trace_rays(
                 command_buffer_handle,
@@ -273,6 +394,112 @@ impl RayTracingPipeline {
                 .unwrap();
         }
 
-        (blas_future.join(tlas_future).boxed(), command_buffer)
+        (
+            rectangle_blas_future
+                .join(cuboid_blas_future)
+                .join(sphere_blas_future)
+                .join(tlas_future)
+                .boxed(),
+            command_buffer,
+        )
     }
+}
+
+fn draw_shapes(
+    shapes: &Vec<(Affine3A, Vec4, Material, EntityId)>,
+    context: &RenderContext,
+    materials: &mut Vec<EnumMaterialPod>,
+    eids: &mut Vec<EntityId>,
+    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
+    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
+    vertices: impl IntoIterator<Item = (Vec3, Vec3)>,
+    indices: impl IntoIterator<Item = u32>,
+) -> Box<dyn GpuFuture> {
+    if shapes.is_empty() {
+        return vulkano::sync::now(context.device.clone()).boxed();
+    }
+
+    let mut transforms = Vec::new();
+    for (model, color, material, eid) in shapes {
+        transforms.push(*model);
+        materials.push(EnumMaterialPod::from_material(*material, *color));
+        eids.push(*eid);
+    }
+
+    let ((blas, blas_future), (vertex_address, index_address)) =
+        util::vulkano::create_bottom_level_acceleration_structure_triangles(
+            context.memory_allocator.clone(),
+            &context.command_buffer_allocator,
+            context.graphics_queue.clone(),
+            vertices
+                .into_iter()
+                .map(|(p, n)| TriangleVertex::new(p, n))
+                .collect(),
+            Some(indices.into_iter().collect()),
+        );
+
+    obj_descs.push(shader::closesthit::ObjDesc {
+        vertex_address,
+        index_address,
+    });
+    instances.push((blas, 0, transforms));
+
+    blas_future
+}
+
+fn draw_spheres(
+    spheres: &Vec<(Affine3A, Vec4, Material, EntityId)>,
+    context: &RenderContext,
+    materials: &mut Vec<EnumMaterialPod>,
+    eids: &mut Vec<EntityId>,
+    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
+) -> Box<dyn GpuFuture> {
+    let mut transforms = Vec::new();
+    for (model, color, material, eid) in spheres {
+        transforms.push(*model);
+        materials.push(EnumMaterialPod::from_material(*material, *color));
+        eids.push(*eid);
+    }
+
+    // Empty instance vector will make blas creation fail, we avoid this issue by adding an invisble instance.
+    // TODO: how to create an empty tlas?
+    if transforms.is_empty() {
+        transforms.push(Affine3A::from_scale(Vec3::ZERO));
+        materials.push(EnumMaterialPod::new_lambertian(Vec3::ZERO));
+    }
+
+    let (sphere_blas, blas_future) =
+        util::vulkano::create_bottom_level_acceleration_structure_aabbs(
+            context.memory_allocator.clone(),
+            &context.command_buffer_allocator,
+            context.graphics_queue.clone(),
+            vec![AabbPositions {
+                min: [-0.5, -0.5, -0.5],
+                max: [0.5, 0.5, 0.5],
+            }],
+        );
+
+    instances.push((sphere_blas, 1, transforms));
+
+    blas_future
+}
+
+fn create_buffer<T: BufferContents>(
+    iter: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>,
+    memory_allocator: &Arc<StandardMemoryAllocator>,
+) -> vulkano::buffer::Subbuffer<[T]> {
+    Buffer::from_iter(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::STORAGE_BUFFER,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            ..Default::default()
+        },
+        iter,
+    )
+    .unwrap()
 }

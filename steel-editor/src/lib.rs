@@ -63,6 +63,7 @@ fn _main(event_loop: EventLoop<()>) {
     let command_buffer_allocator =
         StandardCommandBufferAllocator::new(context.device().clone(), Default::default());
     let mut windows = VulkanoWindows::default();
+    let mut window_title = None;
     let mut scene_camera = SceneCamera::default();
 
     // input
@@ -75,7 +76,13 @@ fn _main(event_loop: EventLoop<()>) {
     let mut editor = Editor::new(&local_data);
 
     // project
-    let mut project = Project::new(ray_tracing_supported);
+    let mut project = Project::new(
+        ray_tracing_supported,
+        &mut local_data,
+        &mut window_title,
+        &context,
+        &mut gui,
+    );
 
     log::debug!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -85,7 +92,7 @@ fn _main(event_loop: EventLoop<()>) {
                 &event_loop,
                 &context,
                 &WindowDescriptor {
-                    title: "Steel Editor".into(),
+                    title: window_title.take().unwrap_or("Steel Editor".into()),
                     ..Default::default()
                 },
                 |info| {
@@ -137,6 +144,7 @@ fn _main(event_loop: EventLoop<()>) {
             match event {
                 WindowEvent::CloseRequested => {
                     log::debug!("WindowEvent::CloseRequested");
+                    project.exit(&mut local_data);
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(_) => {
@@ -174,6 +182,10 @@ fn _main(event_loop: EventLoop<()>) {
             project.maintain_asset_dir();
             input_editor.step_with_window_events(&events);
             if let Some(renderer) = windows.get_primary_renderer_mut() {
+                if let Some(window_title) = window_title.take() {
+                    renderer.window().set_title(&window_title);
+                }
+
                 let window_size = renderer.window().inner_size();
                 if window_size.width == 0 || window_size.height == 0 {
                     return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
@@ -194,6 +206,7 @@ fn _main(event_loop: EventLoop<()>) {
                     &mut project,
                     &mut world_data,
                     &mut local_data,
+                    &mut window_title,
                     &input_editor,
                     &mut scene_camera,
                 );

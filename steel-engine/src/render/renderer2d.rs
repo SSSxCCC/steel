@@ -3,12 +3,14 @@ use crate::{
 };
 use glam::{Affine3A, Vec3, Vec4};
 use parry2d::shape::ShapeType;
-use shipyard::{Component, IntoIter, IntoWithId, UniqueViewMut, View};
+use shipyard::{Component, Get, IntoIter, IntoWithId, UniqueViewMut, View};
 use std::collections::HashMap;
 use steel_common::{
     asset::AssetId,
     data::{Data, Limit, Value},
 };
+
+use super::pipeline::raytracing::material::Material;
 
 /// The 2d render object used by [Renderer2D], may be a 2d shape or 2d texture.
 #[derive(Debug)]
@@ -97,24 +99,26 @@ impl Edit for Renderer2D {
 
 /// Add drawing data to the [Canvas] unique according to the [Renderer2D] components.
 pub fn renderer2d_to_canvas_system(
-    renderer2d: View<Renderer2D>,
+    renderers2d: View<Renderer2D>,
+    materials: View<Material>,
     transforms: View<Transform>,
-    children: View<Parent>,
+    parents: View<Parent>,
     mut canvas: UniqueViewMut<Canvas>,
 ) {
     let mut model_cache = Some(HashMap::new());
     let mut scale_cache = Some(HashMap::new());
-    for (eid, (renderer2d, _)) in (&renderer2d, &transforms).iter().with_id() {
+    for (eid, (renderer2d, _)) in (&renderers2d, &transforms).iter().with_id() {
         let scale =
-            Transform::entity_final_scale(eid, &children, &transforms, &mut scale_cache).unwrap();
+            Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache).unwrap();
         let model_without_scale = Transform::entity_final_model_without_scale(
             eid,
-            &children,
+            &parents,
             &transforms,
             &mut model_cache,
         )
         .unwrap();
         let model = model_without_scale * Affine3A::from_scale(scale);
+        let material = materials.get(eid).cloned().unwrap_or_default();
         match &renderer2d.object {
             RenderObject2D::Shape(shape) => match shape.shape_type() {
                 ShapeType::Ball => {
@@ -134,7 +138,7 @@ pub fn renderer2d_to_canvas_system(
                         scale.z,
                     );
                     let model = model_without_scale * Affine3A::from_scale(scale);
-                    canvas.rectangle(model, renderer2d.color, eid);
+                    canvas.rectangle(model, renderer2d.color, material, eid);
                 }
                 _ => (),
             },

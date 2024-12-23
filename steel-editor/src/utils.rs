@@ -6,6 +6,7 @@ use std::{
     io::{BufReader, BufWriter},
     path::{Path, PathBuf},
 };
+use steel_common::{asset::AssetId, data::SceneData};
 
 /// Delete windows path prefix:
 /// ```
@@ -37,11 +38,13 @@ pub fn load_from_file<T: for<'de> Deserialize<'de>>(
     Ok(serde_json::from_reader(reader)?)
 }
 
-/// Some data stores in local machine and can be used in the next time steel-editor is run
+/// Some data stores in local machine and can be used in the next time steel-editor run.
 #[derive(Serialize, Deserialize)]
 pub struct LocalData {
-    pub last_open_project_path: PathBuf,
     pub language: Option<Language>,
+    pub last_open_project_path: PathBuf,
+    pub open_last_project_on_start: bool,
+    pub scene_asset_and_data: Option<(Option<AssetId>, SceneData)>,
 }
 
 impl LocalData {
@@ -58,8 +61,10 @@ impl LocalData {
                 delte_windows_path_prefix(&mut last_open_project_path);
 
                 LocalData {
-                    last_open_project_path,
                     language: None,
+                    last_open_project_path,
+                    open_last_project_on_start: false,
+                    scene_asset_and_data: None,
                 }
             }
         }

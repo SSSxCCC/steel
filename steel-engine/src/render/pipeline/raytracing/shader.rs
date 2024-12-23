@@ -231,39 +231,50 @@ pub mod raygen {
             // Camera structure
             struct Camera {
                 vec3 origin;
+                uint type; // 0 is orthographic, 1 is perspective
                 vec3 lower_left_corner;
                 vec3 horizontal;
                 vec3 vertical;
-                vec3 u;
-                vec3 v;
+                float focus_dist;
+                vec3 u; // right
+                vec3 v; // up
+                vec3 w; // forward
                 float lens_radius;
             };
 
             // Camera creation function
-            Camera create_camera(vec3 look_from, vec3 look_at, vec3 vup, float vfov, float aspect_ratio, float aperture, float focus_dist) {
-                float theta = vfov;
-                float h = tan(theta / 2.0);
-                float viewport_height = 2.0 * h;
-                float viewport_width = aspect_ratio * viewport_height;
+            Camera create_camera(uint type, vec3 origin, vec3 direction, float data, float aspect_ratio, float lens_radius, float focus_dist) {
+                vec3 w = normalize(direction);
+                vec3 u = normalize(cross(w, vec3(0.0, 1.0, 0.0)));
+                vec3 v = cross(u, w);
 
-                vec3 w = normalize(look_from - look_at);
-                vec3 u = normalize(cross(vup, w));
-                vec3 v = cross(w, u);
-
-                vec3 origin = look_from;
-                vec3 horizontal = focus_dist * viewport_width * u;
-                vec3 vertical = focus_dist * viewport_height * v;
-                vec3 lower_left_corner = origin - horizontal / 2.0 - vertical / 2.0 - focus_dist * w;
+                vec3 horizontal;
+                vec3 vertical;
+                if (type == 0) { // orthographic
+                    float viewport_height = data;
+                    float viewport_width = aspect_ratio * viewport_height;
+                    horizontal = viewport_width * u;
+                    vertical = viewport_height * v;
+                } else { // perspective
+                    float vfov = data;
+                    float viewport_height = 2.0 * tan(vfov / 2.0);
+                    float viewport_width = aspect_ratio * viewport_height;
+                    horizontal = focus_dist * viewport_width * u;
+                    vertical = focus_dist * viewport_height * v;
+                }
+                vec3 lower_left_corner = origin - horizontal / 2.0 - vertical / 2.0 + focus_dist * w;
 
                 Camera cam;
+                cam.type = type;
                 cam.origin = origin;
                 cam.lower_left_corner = lower_left_corner;
                 cam.horizontal = horizontal;
                 cam.vertical = vertical;
+                cam.focus_dist = focus_dist;
                 cam.u = u;
                 cam.v = v;
-                cam.lens_radius = aperture / 2.0;
-
+                cam.w = w;
+                cam.lens_radius = lens_radius;
                 return cam;
             }
 
@@ -271,11 +282,14 @@ pub mod raygen {
             Ray get_ray(Camera cam, float s, float t, inout PCG32si rng) {
                 vec3 rd = cam.lens_radius * random_in_unit_disk(rng);
                 vec3 offset = cam.u * rd.x + cam.v * rd.y;
-
+                vec3 look_at = cam.lower_left_corner + s * cam.horizontal + t * cam.vertical;
                 Ray r;
-                r.origin = cam.origin + offset;
-                r.direction = normalize(cam.lower_left_corner + s * cam.horizontal + t * cam.vertical - cam.origin - offset);
-
+                if (cam.type == 0) { // orthographic
+                    r.origin = look_at - cam.focus_dist * cam.w + offset;
+                } else { // perspective
+                    r.origin = cam.origin + offset;
+                }
+                r.direction = normalize(look_at - r.origin);
                 return r;
             }
 
@@ -290,8 +304,18 @@ pub mod raygen {
             layout(location = 0) rayPayloadEXT RayPayload payload;
 
             layout(push_constant) uniform PushConstants {
+                vec3 camera_position;
+                uint camera_type; // 0 is orthographic, 1 is perspective
+                vec3 camera_direction;
+                float camera_data; // height of orthographic or vfov of perspective
+                float camera_lens_radius;
+                float camera_focus_dist;
+                uint samples;
+                uint max_bounces;
+                vec3 miss_color_top; // miss color is linear gradient from top to bottom
                 uint seed;
-            };
+                vec3 miss_color_bottom;
+            } pcs;
 
             void main() {
                 // Launch ID and size (inbuilt variables in GLSL)
@@ -299,18 +323,18 @@ pub mod raygen {
                 uvec3 launch_size = gl_LaunchSizeEXT;
 
                 // Random seed initialization
-                uint rand_seed = (launch_id.y * launch_size.x + launch_id.x) ^ seed;
+                uint rand_seed = (launch_id.y * launch_size.x + launch_id.x) ^ pcs.seed;
                 PCG32si rng = pcg_new(rand_seed);
 
                 // Camera setup
                 Camera camera = create_camera(
-                    vec3(13.0, 2.0, 3.0),
-                    vec3(0.0, 0.0, 0.0),
-                    vec3(0.0, 1.0, 0.0),
-                    radians(20.0),
+                    pcs.camera_type,
+                    pcs.camera_position,
+                    pcs.camera_direction,
+                    pcs.camera_data,
                     float(launch_size.x) / float(launch_size.y),
-                    0.1,
-                    10.0
+                    pcs.camera_lens_radius,
+                    pcs.camera_focus_dist
                 );
 
                 uint cull_mask = 0xff;
@@ -319,16 +343,14 @@ pub mod raygen {
 
                 vec3 final_color = vec3(0.0);
 
-                const uint N_SAMPLES = 30;
-
-                for (uint i = 0; i < N_SAMPLES; i++) {
-                    float u = (float(launch_id.x) + next_f32(rng)) / float(launch_size.x - 1);
-                    float v = (float(launch_id.y) + next_f32(rng)) / float(launch_size.y - 1);
+                for (uint i = 0; i < pcs.samples; i++) {
+                    float u = (float(launch_id.x) + next_f32(rng)) / float(launch_size.x);
+                    float v = (float(launch_id.y) + next_f32(rng)) / float(launch_size.y);
 
                     vec3 color = vec3(1.0);
                     Ray ray = get_ray(camera, u, v, rng);
 
-                    for (int j = 0; j < 30; j++) {
+                    for (uint j = 0; j <= pcs.max_bounces; j++) {
                         payload = default_RayPayload();
                         traceRayEXT(
                             top_level_as,
@@ -356,7 +378,7 @@ pub mod raygen {
                     final_color += color;
                 }
 
-                final_color = final_color / float(N_SAMPLES);
+                final_color = final_color / float(pcs.samples);
                 final_color = pow(final_color, vec3(1.0 / 2.2)); // gamma correction
 
                 ivec2 pos = ivec2(launch_id.xy);
@@ -376,6 +398,20 @@ pub mod miss {
             #version 460
             #extension GL_EXT_ray_tracing : require
 
+            layout(push_constant) uniform PushConstants {
+                vec3 camera_position;
+                uint camera_type; // 0 is orthographic, 1 is perspective
+                vec3 camera_direction;
+                float camera_data; // height of orthographic or vfov of perspective
+                float camera_lens_radius;
+                float camera_focus_dist;
+                uint samples;
+                uint max_bounces;
+                vec3 miss_color_top; // miss color is linear gradient between top and bottom
+                uint seed;
+                vec3 miss_color_bottom;
+            } pcs;
+
             layout(location = 0) rayPayloadInEXT RayPayload {
                 vec3 position;
                 vec3 normal;
@@ -387,13 +423,92 @@ pub mod miss {
             void main() {
                 vec3 world_ray_direction = normalize(gl_WorldRayDirectionEXT);
                 float t = 0.5 * (world_ray_direction.y + 1.0);
-                vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), t);
+                vec3 color = mix(pcs.miss_color_bottom, pcs.miss_color_top, t);
 
                 payload.is_miss = true;
                 payload.position = color;
                 payload.normal = vec3(0.0, 0.0, 0.0);
                 payload.material = 0;
                 payload.front_face = false;
+            }
+        ",
+    }
+}
+
+pub mod closesthit {
+    vulkano_shaders::shader! {
+        ty: "closesthit",
+        spirv_version: "1.4",
+        src: r"
+            #version 460
+            #extension GL_EXT_ray_tracing : require
+            #extension GL_EXT_scalar_block_layout : require
+            #extension GL_EXT_buffer_reference2 : require
+            #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+            struct RayPayload {
+                vec3 position;
+                vec3 normal;
+                bool is_miss;
+                uint material;
+                bool front_face;
+            };
+
+            RayPayload new_RayPayload(vec3 position, vec3 outward_normal, vec3 ray_direction, uint material) {
+                bool front_face = dot(ray_direction, outward_normal) < 0.0;
+                vec3 normal = front_face ? outward_normal : -outward_normal;
+
+                return RayPayload(
+                    position,
+                    normal,
+                    false, // is_miss initialized to false
+                    material,
+                    front_face
+                );
+            }
+
+            hitAttributeEXT vec2 attribs;
+            layout(location = 0) rayPayloadInEXT RayPayload payload;
+
+            struct ObjDesc {
+                uint64_t vertex_address; // Address of the Vertex buffer
+                uint64_t index_address; // Address of the index buffer
+            };
+            layout(set = 0, binding = 3, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+
+            struct Vertex {
+                vec3 position;
+                vec3 normal;
+            };
+            layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
+            layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
+
+            void main() {
+                // object data
+                ObjDesc obj_desc = objDesc.i[gl_InstanceCustomIndexEXT];
+                Indices indices = Indices(obj_desc.index_address);
+                Vertices vertices = Vertices(obj_desc.vertex_address);
+
+                // indices of the triangle
+                uvec3 ind = indices.i[gl_PrimitiveID];
+
+                // vertex of the triangle
+                Vertex v0 = vertices.v[ind.x];
+                Vertex v1 = vertices.v[ind.y];
+                Vertex v2 = vertices.v[ind.z];
+
+                const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+
+                // computing the coordinates of the hit position
+                const vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+                const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));  // Transforming the position to world space
+
+                // computing the normal at hit position
+                const vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
+                const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));  // Transforming the normal to world space
+
+                // return hit record
+                payload = new_RayPayload(world_position, world_normal, gl_WorldRayDirectionEXT, gl_InstanceID);
             }
         ",
     }
@@ -478,7 +593,7 @@ pub mod sphere_closesthit {
             void main() {
                 vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
                 vec3 normal = normalize(hit_pos - gl_ObjectToWorldEXT[3]);
-                payload = new_RayPayload(hit_pos, normal, gl_WorldRayDirectionEXT, gl_InstanceCustomIndexEXT);
+                payload = new_RayPayload(hit_pos, normal, gl_WorldRayDirectionEXT, gl_InstanceID);
             }
         ",
     }

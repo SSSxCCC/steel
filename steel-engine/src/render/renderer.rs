@@ -115,25 +115,26 @@ impl Edit for Renderer {
 
 /// Add drawing data to the [Canvas] unique according to the [Renderer] components.
 pub fn renderer_to_canvas_system(
-    renderer: View<Renderer>,
+    renderers: View<Renderer>,
     materials: View<Material>,
     transforms: View<Transform>,
-    children: View<Parent>,
+    parents: View<Parent>,
     mut canvas: UniqueViewMut<Canvas>,
 ) {
     let mut model_cache = Some(HashMap::new());
     let mut scale_cache = Some(HashMap::new());
-    for (eid, (renderer, _)) in (&renderer, &transforms).iter().with_id() {
+    for (eid, (renderer, _)) in (&renderers, &transforms).iter().with_id() {
         let scale =
-            Transform::entity_final_scale(eid, &children, &transforms, &mut scale_cache).unwrap();
+            Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache).unwrap();
         let model_without_scale = Transform::entity_final_model_without_scale(
             eid,
-            &children,
+            &parents,
             &transforms,
             &mut model_cache,
         )
         .unwrap();
         let model = model_without_scale * Affine3A::from_scale(scale);
+        let material = materials.get(eid).cloned().unwrap_or_default();
         match &renderer.object {
             RenderObject::Shape(shape) => match shape.shape_type() {
                 ShapeType::Ball => {
@@ -143,7 +144,6 @@ pub fn renderer_to_canvas_system(
                             .fold(f32::NEG_INFINITY, |max, val| max.max(val));
                     let model =
                         model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, scale));
-                    let material = materials.get(eid).cloned().unwrap_or_default();
                     canvas.sphere(model, renderer.color, material, eid);
                 }
                 ShapeType::Cuboid => {
@@ -154,7 +154,7 @@ pub fn renderer_to_canvas_system(
                         scale.z * shape.half_extents.z * 2.0,
                     );
                     let model = model_without_scale * Affine3A::from_scale(scale);
-                    canvas.cuboid(model, renderer.color, eid);
+                    canvas.cuboid(model, renderer.color, material, eid);
                 }
                 _ => (),
             },

@@ -28,28 +28,28 @@ use vulkano::{
 pub struct TriangleVertex {
     #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
+    #[format(R32G32B32_SFLOAT)]
+    pub normal: [f32; 3],
 }
 
-impl From<[f32; 3]> for TriangleVertex {
-    fn from(value: [f32; 3]) -> Self {
-        TriangleVertex { position: value }
-    }
-}
-
-impl From<Vec3> for TriangleVertex {
-    fn from(value: Vec3) -> Self {
+impl TriangleVertex {
+    pub fn new(position: Vec3, normal: Vec3) -> Self {
         TriangleVertex {
-            position: value.to_array(),
+            position: position.to_array(),
+            normal: normal.to_array(),
         }
     }
 }
 
-pub fn create_triangle_bottom_level_acceleration_structure(
+/// Create triangles blas based on vertices and indices,
+/// also return device addresses of vertex buffer and index buffer.
+pub fn create_bottom_level_acceleration_structure_triangles(
     memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_allocator: &StandardCommandBufferAllocator,
     queue: Arc<Queue>,
-    vertices_and_indices: Vec<(Vec<TriangleVertex>, Option<Vec<u16>>)>,
-) -> (Arc<AccelerationStructure>, Box<dyn GpuFuture>) {
+    vertices: Vec<TriangleVertex>,
+    indices: Option<Vec<u32>>,
+) -> ((Arc<AccelerationStructure>, Box<dyn GpuFuture>), (u64, u64)) {
     let description = TriangleVertex::per_vertex();
     assert_eq!(
         description.stride,
@@ -60,7 +60,7 @@ pub fn create_triangle_bottom_level_acceleration_structure(
     let mut max_primitive_counts = vec![];
     let mut build_range_infos = vec![];
 
-    for (vertices, indices) in vertices_and_indices {
+    let (vertex_address, index_address) = {
         let buffer_create_info = BufferCreateInfo {
             usage: BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY
                 | BufferUsage::SHADER_DEVICE_ADDRESS,
@@ -76,30 +76,31 @@ pub fn create_triangle_bottom_level_acceleration_structure(
             memory_allocator.clone(),
             buffer_create_info.clone(),
             allocation_create_info.clone(),
-            vertices,
+            vertices.into_iter().map(|v| TriangleVertex::from(v)),
         )
         .unwrap();
 
-        let index_buffer = indices.map(|indices| {
-            IndexBuffer::U16(
-                Buffer::from_iter(
-                    memory_allocator.clone(),
-                    buffer_create_info,
-                    allocation_create_info,
-                    indices,
-                )
-                .unwrap(),
-            )
-        });
+        let index_buffer = Buffer::from_iter(
+            memory_allocator.clone(),
+            buffer_create_info,
+            allocation_create_info,
+            indices.unwrap_or_else(|| (0..(vertex_buffer.len() as u32)).collect()),
+        )
+        .unwrap();
 
         let vertex_count = vertex_buffer.len() as u32;
-        let primitive_count = vertex_count / 3;
+        let primitive_count = index_buffer.len() as u32 / 3;
+
+        let vertex_buffer = vertex_buffer.into_bytes();
+        let vertex_address = vertex_buffer.device_address().unwrap().get();
+        let index_address = index_buffer.device_address().unwrap().get();
+
         triangles.push(AccelerationStructureGeometryTrianglesData {
             flags: GeometryFlags::OPAQUE,
-            vertex_data: Some(vertex_buffer.into_bytes()),
+            vertex_data: Some(vertex_buffer),
             vertex_stride: description.stride,
             max_vertex: vertex_count,
-            index_data: index_buffer,
+            index_data: Some(IndexBuffer::U32(index_buffer)),
             transform_data: None,
             ..AccelerationStructureGeometryTrianglesData::new(
                 description.members.get("position").unwrap().format,
@@ -111,8 +112,10 @@ pub fn create_triangle_bottom_level_acceleration_structure(
             primitive_offset: 0,
             first_vertex: 0,
             transform_offset: 0,
-        })
-    }
+        });
+
+        (vertex_address, index_address)
+    };
 
     let geometries = AccelerationStructureGeometries::Triangles(triangles);
     let build_info = AccelerationStructureBuildGeometryInfo {
@@ -121,18 +124,21 @@ pub fn create_triangle_bottom_level_acceleration_structure(
         ..AccelerationStructureBuildGeometryInfo::new(geometries)
     };
 
-    build_acceleration_structure(
-        memory_allocator,
-        command_buffer_allocator,
-        queue,
-        AccelerationStructureType::BottomLevel,
-        build_info,
-        &max_primitive_counts,
-        build_range_infos,
+    (
+        build_acceleration_structure(
+            memory_allocator,
+            command_buffer_allocator,
+            queue,
+            AccelerationStructureType::BottomLevel,
+            build_info,
+            &max_primitive_counts,
+            build_range_infos,
+        ),
+        (vertex_address, index_address),
     )
 }
 
-pub fn create_aabb_bottom_level_acceleration_structure(
+pub fn create_bottom_level_acceleration_structure_aabbs(
     memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_allocator: &StandardCommandBufferAllocator,
     queue: Arc<Queue>,
@@ -202,18 +208,19 @@ pub fn create_top_level_acceleration_structure(
 ) -> (Arc<AccelerationStructure>, Box<dyn GpuFuture>) {
     let instances = instances
         .into_iter()
-        .map(|(blas, sbt_index, transforms)| {
+        .enumerate()
+        .map(|(i, (blas, sbt_index, transforms))| {
             let blas_ref = blas.device_address().get();
+            let obj_desc_index = i;
             transforms
                 .into_iter()
-                .map(move |transform| (transform, sbt_index, blas_ref))
+                .map(move |transform| (transform, sbt_index, blas_ref, obj_desc_index))
         })
         .flatten()
-        .enumerate()
         .map(
-            |(i, (transform, sbt_index, blas_ref))| AccelerationStructureInstance {
+            |(transform, sbt_index, blas_ref, obj_desc_index)| AccelerationStructureInstance {
                 transform: super::affine3a_to_rows_array_2d(transform),
-                instance_custom_index_and_mask: Packed24_8::new(i as _, 0xff),
+                instance_custom_index_and_mask: Packed24_8::new(obj_desc_index as _, 0xff),
                 instance_shader_binding_table_record_offset_and_flags: Packed24_8::new(
                     sbt_index,
                     GeometryInstanceFlags::TRIANGLE_FACING_CULL_DISABLE.into(),

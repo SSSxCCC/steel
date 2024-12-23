@@ -11,7 +11,11 @@ use crate::{
 use glam::{Affine3A, Vec3, Vec4};
 use shipyard::EntityId;
 use std::{collections::HashMap, iter::zip, sync::Arc};
-use steel_common::{asset::AssetId, platform::Platform};
+use steel_common::{
+    asset::AssetId,
+    data::{Data, Limit, Value},
+    platform::Platform,
+};
 use vulkano::{
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{
@@ -42,6 +46,36 @@ use vulkano::{
     shader::{EntryPoint, ShaderModule},
     Validated, VulkanError,
 };
+
+/// Rasterization render pipeline settings.
+pub struct RasterizationSettings {
+    /// The color to clear the image before drawing.
+    pub clear_color: Vec4,
+}
+
+impl Default for RasterizationSettings {
+    fn default() -> Self {
+        RasterizationSettings {
+            clear_color: Vec4::ZERO,
+        }
+    }
+}
+
+impl RasterizationSettings {
+    pub fn get_data(&self, data: &mut Data) {
+        data.add_value_with_limit(
+            "clear_color",
+            Value::Vec4(self.clear_color),
+            Limit::Vec4Color,
+        )
+    }
+
+    pub fn set_data(&mut self, data: &Data) {
+        if let Some(Value::Vec4(v)) = data.get("clear_color") {
+            self.clear_color = *v;
+        }
+    }
+}
 
 /// RasterizationPipeline stores many render objects that exist between frames.
 pub(crate) struct RasterizationPipeline {
@@ -375,13 +409,13 @@ impl RasterizationPipeline {
         context: &RenderContext,
         info: &FrameRenderInfo,
         camera: &CameraInfo,
+        settings: &RasterizationSettings,
         canvas: &Canvas,
         model_assets: &mut ModelAssets,
         texture_assets: &mut TextureAssets,
         image_assets: &mut ImageAssets,
         asset_manager: &mut AssetManager,
         platform: &Platform,
-        clear_color: Vec4,
         eid_image: Arc<ImageView>,
     ) -> Arc<PrimaryAutoCommandBuffer> {
         let viewport = Viewport {
@@ -416,7 +450,7 @@ impl RasterizationPipeline {
             .begin_render_pass(
                 RenderPassBeginInfo {
                     clear_values: vec![
-                        Some(clear_color.to_array().into()),
+                        Some(settings.clear_color.to_array().into()),
                         Some(crate::render::canvas::eid_to_u32_array(EntityId::dead()).into()),
                         Some(1.0.into()),
                     ],
@@ -456,12 +490,16 @@ impl RasterizationPipeline {
             push_constants,
         );
         draw_shapes(
-            &canvas.rectangles,
+            &canvas
+                .rectangles
+                .iter()
+                .map(|(model, color, _, eid)| (*model, *color, *eid))
+                .collect(),
             self.pipeline_shape2d.clone(),
             context.memory_allocator.clone(),
             &mut command_buffer_builder,
             push_constants,
-            mesh::RECTANGLE_VERTICES.to_vec(),
+            mesh::RECTANGLE_VERTICES.map(|(p, _)| p).to_vec(),
             mesh::RECTANGLE_INDICES.to_vec(),
         );
         draw_shapes(
@@ -470,7 +508,7 @@ impl RasterizationPipeline {
             context.memory_allocator.clone(),
             &mut command_buffer_builder,
             push_constants,
-            mesh::RECTANGLE_VERTICES.to_vec(),
+            mesh::RECTANGLE_VERTICES.map(|(p, _)| p).to_vec(),
             mesh::RECTANGLE_INDICES.to_vec(),
         );
         draw_textures(
@@ -485,7 +523,11 @@ impl RasterizationPipeline {
             platform,
         );
         draw_shapes(
-            &canvas.cuboids,
+            &canvas
+                .cuboids
+                .iter()
+                .map(|(model, color, _, eid)| (*model, *color, *eid))
+                .collect(),
             self.pipeline_shape.clone(),
             context.memory_allocator.clone(),
             &mut command_buffer_builder,

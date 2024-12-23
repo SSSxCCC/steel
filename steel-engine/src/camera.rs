@@ -27,18 +27,23 @@ impl CameraInfo {
         }
     }
 
+    /// The camera forward direction vector.
+    pub fn direction(&self) -> Vec3 {
+        let rotation = self.rotation.to_scaled_axis(); // x: pitch, y: yaw, z: roll
+        Vec3::new(
+            rotation.y.sin() * rotation.x.cos(),
+            rotation.x.sin(),
+            -rotation.y.cos() * rotation.x.cos(),
+        )
+    }
+
     /// Caculate the (projection * view) matrix of camera.
-    /// Steel engine uses right hand coordinate system, camera is toward -z.
+    /// Steel engine uses right hand coordinate system with +X=right, +Y=up and +Z=back, camera is toward -Z.
     pub fn projection_view(&self, window_size: &UVec2) -> Mat4 {
         // TODO: find out why using quaternion math below is not working!
         // let direction = self.rotation * Vec3::NEG_Z;
         // let up = self.rotation * Vec3::Y;
-        let rotation = self.rotation.to_scaled_axis(); // x: pitch, y: yaw, z: roll
-        let direction = Vec3::new(
-            rotation.y.sin() * rotation.x.cos(),
-            rotation.x.sin(),
-            -rotation.y.cos() * rotation.x.cos(),
-        );
+        let direction = self.direction();
         let right = direction.cross(Vec3::Y).normalize();
         let up = right.cross(direction).normalize();
         let view = Mat4::look_at_rh(self.position, self.position + direction, up);

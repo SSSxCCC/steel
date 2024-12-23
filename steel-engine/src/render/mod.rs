@@ -10,8 +10,11 @@ mod mesh;
 
 use self::canvas::CanvasRenderContext;
 use crate::edit::Edit;
-use glam::{UVec2, Vec4};
-use pipeline::raytracing::util::ash::AshContext;
+use glam::UVec2;
+use pipeline::{
+    rasterization::RasterizationSettings,
+    raytracing::{util::ash::AshContext, RayTracingSettings},
+};
 use shipyard::Unique;
 use std::sync::Arc;
 use steel_common::{
@@ -95,8 +98,9 @@ pub struct RenderManager {
     /// True means rendering with ray tracing pipeline, false means rendering with rasterization pipeline.
     ray_tracing: bool,
 
-    /// The color to clear the image before drawing.
-    pub clear_color: Vec4,
+    // TODO: move pipeline settings to Camera component
+    pub rasterization_settings: RasterizationSettings,
+    pub ray_tracing_settings: RayTracingSettings,
 }
 
 impl RenderManager {
@@ -121,7 +125,8 @@ impl RenderManager {
             image_index: [0, 0],
             ray_tracing_supported,
             ray_tracing: false,
-            clear_color: Vec4::ZERO,
+            rasterization_settings: RasterizationSettings::default(),
+            ray_tracing_settings: RayTracingSettings::default(),
         }
     }
 
@@ -176,14 +181,9 @@ impl Edit for RenderManager {
         }
 
         if self.ray_tracing {
-            // ray tracing config
+            self.ray_tracing_settings.get_data(&mut data);
         } else {
-            // rasterization config
-            data.add_value_with_limit(
-                "clear_color",
-                Value::Vec4(self.clear_color),
-                Limit::Vec4Color,
-            )
+            self.rasterization_settings.get_data(&mut data);
         }
 
         data
@@ -196,11 +196,7 @@ impl Edit for RenderManager {
             }
         }
 
-        // ray tracing config
-
-        // rasterization config
-        if let Some(Value::Vec4(v)) = data.get("clear_color") {
-            self.clear_color = *v;
-        }
+        self.ray_tracing_settings.set_data(data);
+        self.rasterization_settings.set_data(data);
     }
 }
