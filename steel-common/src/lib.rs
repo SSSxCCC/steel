@@ -24,6 +24,7 @@ pub fn create_context() -> (VulkanoContext, bool) {
     config
         .device_features
         .descriptor_binding_variable_descriptor_count = true;
+    config.device_features.shader_int64 = true;
 
     let library = VulkanLibrary::new().expect("failed to load Vulkan library");
     let instance =

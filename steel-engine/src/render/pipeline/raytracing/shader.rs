@@ -435,6 +435,85 @@ pub mod miss {
     }
 }
 
+pub mod closesthit {
+    vulkano_shaders::shader! {
+        ty: "closesthit",
+        spirv_version: "1.4",
+        src: r"
+            #version 460
+            #extension GL_EXT_ray_tracing : require
+            #extension GL_EXT_scalar_block_layout : require
+            #extension GL_EXT_buffer_reference2 : require
+            #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+            struct RayPayload {
+                vec3 position;
+                vec3 normal;
+                bool is_miss;
+                uint material;
+                bool front_face;
+            };
+
+            RayPayload new_RayPayload(vec3 position, vec3 outward_normal, vec3 ray_direction, uint material) {
+                bool front_face = dot(ray_direction, outward_normal) < 0.0;
+                vec3 normal = front_face ? outward_normal : -outward_normal;
+
+                return RayPayload(
+                    position,
+                    normal,
+                    false, // is_miss initialized to false
+                    material,
+                    front_face
+                );
+            }
+
+            hitAttributeEXT vec2 attribs;
+            layout(location = 0) rayPayloadInEXT RayPayload payload;
+
+            struct ObjDesc {
+                uint64_t vertex_address; // Address of the Vertex buffer
+                uint64_t index_address; // Address of the index buffer
+            };
+            layout(set = 0, binding = 3, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+
+            struct Vertex {
+                vec3 position;
+                vec3 normal;
+            };
+            layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
+            layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
+
+            void main() {
+                // object data
+                ObjDesc obj_desc = objDesc.i[gl_InstanceCustomIndexEXT];
+                Indices indices = Indices(obj_desc.index_address);
+                Vertices vertices = Vertices(obj_desc.vertex_address);
+
+                // indices of the triangle
+                uvec3 ind = indices.i[gl_PrimitiveID];
+
+                // vertex of the triangle
+                Vertex v0 = vertices.v[ind.x];
+                Vertex v1 = vertices.v[ind.y];
+                Vertex v2 = vertices.v[ind.z];
+
+                const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+
+                // computing the coordinates of the hit position
+                const vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+                const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));  // Transforming the position to world space
+
+                // computing the normal at hit position
+                const vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
+                const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));  // Transforming the normal to world space
+
+                // return hit record
+                payload = new_RayPayload(world_position, world_normal, gl_WorldRayDirectionEXT, gl_InstanceID);
+            }
+        ",
+    }
+}
+
 pub mod sphere_intersection {
     vulkano_shaders::shader! {
         ty: "intersection",
@@ -514,7 +593,7 @@ pub mod sphere_closesthit {
             void main() {
                 vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
                 vec3 normal = normalize(hit_pos - gl_ObjectToWorldEXT[3]);
-                payload = new_RayPayload(hit_pos, normal, gl_WorldRayDirectionEXT, gl_InstanceCustomIndexEXT);
+                payload = new_RayPayload(hit_pos, normal, gl_WorldRayDirectionEXT, gl_InstanceID);
             }
         ",
     }

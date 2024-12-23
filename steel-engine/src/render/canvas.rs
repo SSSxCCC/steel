@@ -37,13 +37,13 @@ pub struct Canvas {
     /// 3 vertex: (position, color, eid)
     pub(crate) triangles: Vec<[(Vec3, Vec4, EntityId); 3]>,
     /// (model matrix, color, eid)
-    pub(crate) rectangles: Vec<(Affine3A, Vec4, EntityId)>,
+    pub(crate) rectangles: Vec<(Affine3A, Vec4, Material, EntityId)>,
     /// (model matrix, color, eid)
     pub(crate) cicles: Vec<(Affine3A, Vec4, EntityId)>,
     /// (texture asset, model matrix, color, eid)
     pub(crate) textures: Vec<(AssetId, Affine3A, Vec4, EntityId)>,
     /// (model matrix, color, eid)
-    pub(crate) cuboids: Vec<(Affine3A, Vec4, EntityId)>,
+    pub(crate) cuboids: Vec<(Affine3A, Vec4, Material, EntityId)>,
     /// (model matrix, color, material, eid)
     pub(crate) spheres: Vec<(Affine3A, Vec4, Material, EntityId)>,
     /// (model asset, texture asset, model matrix, color, eid)
@@ -68,8 +68,8 @@ impl Canvas {
     }
 
     /// Draw a rectangle with model matrix, color, and [EntityId].
-    pub fn rectangle(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
-        self.rectangles.push((model, color, eid));
+    pub fn rectangle(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
+        self.rectangles.push((model, color, material, eid));
     }
 
     /// Draw a circle with model matrix, color, and [EntityId].
@@ -84,8 +84,8 @@ impl Canvas {
     }
 
     /// Draw a cuboid with model matrix, color, and [EntityId].
-    pub fn cuboid(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
-        self.cuboids.push((model, color, eid));
+    pub fn cuboid(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
+        self.cuboids.push((model, color, material, eid));
     }
 
     /// Draw a sphere with model matrix, color, material, and [EntityId].

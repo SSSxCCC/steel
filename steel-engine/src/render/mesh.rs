@@ -1,15 +1,17 @@
 use glam::Vec3;
 use std::sync::LazyLock;
 
-pub const RECTANGLE_VERTICES: [Vec3; 4] = [
-    Vec3::new(-0.5, -0.5, 0.0), // Bottom-left corner
-    Vec3::new(0.5, -0.5, 0.0),  // Bottom-right corner
-    Vec3::new(0.5, 0.5, 0.0),   // Top-right corner
-    Vec3::new(-0.5, 0.5, 0.0),  // Top-left corner
+/// Rectangle vertices with positions and normals.
+pub const RECTANGLE_VERTICES: [(Vec3, Vec3); 4] = [
+    (Vec3::new(-0.5, -0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)), // Bottom-left corner
+    (Vec3::new(0.5, -0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)),  // Bottom-right corner
+    (Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)),   // Top-right corner
+    (Vec3::new(-0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)),  // Top-left corner
 ];
 
 pub const RECTANGLE_INDICES: [u16; 6] = [0, 1, 2, 2, 3, 0];
 
+/// Cuboid vertices with only positions.
 pub const CUBOID_VERTICES: [Vec3; 8] = [
     Vec3::new(-0.5, -0.5, -0.5), // Bottom-left-back
     Vec3::new(-0.5, 0.5, -0.5),  // Top-left-back
@@ -21,6 +23,7 @@ pub const CUBOID_VERTICES: [Vec3; 8] = [
     Vec3::new(0.5, -0.5, 0.5),   // Bottom-right-front
 ];
 
+/// Cuboid indices.
 pub const CUBOID_INDICES: [u16; 36] = [
     0, 2, 1, 0, 3, 2, // Back face
     4, 5, 6, 4, 6, 7, // Front face
@@ -28,6 +31,50 @@ pub const CUBOID_INDICES: [u16; 36] = [
     3, 7, 6, 3, 6, 2, // Right face
     1, 2, 6, 1, 6, 5, // Top face
     0, 4, 7, 0, 7, 3, // Bottom face
+];
+
+/// Cuboid vertices with positions and normals. (unique per face)
+pub const CUBOID_VERTICES_WITH_NORMAL: [(Vec3, Vec3); 24] = [
+    // Back face (-Z)
+    (Vec3::new(-0.5, -0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
+    (Vec3::new(0.5, -0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
+    (Vec3::new(0.5, 0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
+    (Vec3::new(-0.5, 0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
+    // Front face (+Z)
+    (Vec3::new(-0.5, -0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
+    (Vec3::new(0.5, -0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
+    (Vec3::new(0.5, 0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
+    (Vec3::new(-0.5, 0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
+    // Left face (-X)
+    (Vec3::new(-0.5, -0.5, -0.5), Vec3::new(-1.0, 0.0, 0.0)),
+    (Vec3::new(-0.5, 0.5, -0.5), Vec3::new(-1.0, 0.0, 0.0)),
+    (Vec3::new(-0.5, 0.5, 0.5), Vec3::new(-1.0, 0.0, 0.0)),
+    (Vec3::new(-0.5, -0.5, 0.5), Vec3::new(-1.0, 0.0, 0.0)),
+    // Right face (+X)
+    (Vec3::new(0.5, -0.5, -0.5), Vec3::new(1.0, 0.0, 0.0)),
+    (Vec3::new(0.5, 0.5, -0.5), Vec3::new(1.0, 0.0, 0.0)),
+    (Vec3::new(0.5, 0.5, 0.5), Vec3::new(1.0, 0.0, 0.0)),
+    (Vec3::new(0.5, -0.5, 0.5), Vec3::new(1.0, 0.0, 0.0)),
+    // Top face (+Y)
+    (Vec3::new(-0.5, 0.5, -0.5), Vec3::new(0.0, 1.0, 0.0)),
+    (Vec3::new(0.5, 0.5, -0.5), Vec3::new(0.0, 1.0, 0.0)),
+    (Vec3::new(0.5, 0.5, 0.5), Vec3::new(0.0, 1.0, 0.0)),
+    (Vec3::new(-0.5, 0.5, 0.5), Vec3::new(0.0, 1.0, 0.0)),
+    // Bottom face (-Y)
+    (Vec3::new(-0.5, -0.5, -0.5), Vec3::new(0.0, -1.0, 0.0)),
+    (Vec3::new(0.5, -0.5, -0.5), Vec3::new(0.0, -1.0, 0.0)),
+    (Vec3::new(0.5, -0.5, 0.5), Vec3::new(0.0, -1.0, 0.0)),
+    (Vec3::new(-0.5, -0.5, 0.5), Vec3::new(0.0, -1.0, 0.0)),
+];
+
+/// Indices for the cuboid with unique vertices.
+pub const CUBOID_INDICES_WITH_NORMAL: [u16; 36] = [
+    0, 1, 2, 0, 2, 3, // Back face
+    4, 5, 6, 4, 6, 7, // Front face
+    8, 9, 10, 8, 10, 11, // Left face
+    12, 13, 14, 12, 14, 15, // Right face
+    16, 17, 18, 16, 18, 19, // Top face
+    20, 21, 22, 20, 22, 23, // Bottom face
 ];
 
 pub const SPHERE_VERTICES: LazyLock<[Vec3; SPHERE_VERTEX_COUNT]> =
