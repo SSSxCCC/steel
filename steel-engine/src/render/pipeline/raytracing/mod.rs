@@ -468,9 +468,10 @@ impl RayTracingPipeline {
 
         (
             rectangle_blas_future
-                .join(texture_blas_future)
                 .join(cuboid_blas_future)
                 .join(sphere_blas_future)
+                .join(texture_blas_future)
+                .join(model_blas_future)
                 .join(tlas_future)
                 .boxed(),
             command_buffer,
