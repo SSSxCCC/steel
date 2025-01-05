@@ -36,18 +36,18 @@ pub struct Canvas {
     pub(crate) lines: Vec<[(Vec3, Vec4, EntityId); 2]>,
     /// 3 vertex: (position, color, eid)
     pub(crate) triangles: Vec<[(Vec3, Vec4, EntityId); 3]>,
-    /// (model matrix, color, eid)
+    /// (model matrix, color, material, eid)
     pub(crate) rectangles: Vec<(Affine3A, Vec4, Material, EntityId)>,
     /// (model matrix, color, eid)
     pub(crate) cicles: Vec<(Affine3A, Vec4, EntityId)>,
-    /// (texture asset, model matrix, color, eid)
-    pub(crate) textures: Vec<(AssetId, Affine3A, Vec4, EntityId)>,
-    /// (model matrix, color, eid)
+    /// (texture asset, model matrix, color, material, eid)
+    pub(crate) textures: Vec<(AssetId, Affine3A, Vec4, Material, EntityId)>,
+    /// (model matrix, color, material, eid)
     pub(crate) cuboids: Vec<(Affine3A, Vec4, Material, EntityId)>,
     /// (model matrix, color, material, eid)
     pub(crate) spheres: Vec<(Affine3A, Vec4, Material, EntityId)>,
-    /// (model asset, texture asset, model matrix, color, eid)
-    pub(crate) models: Vec<(AssetId, AssetId, Affine3A, Vec4, EntityId)>,
+    /// (model asset, texture asset, model matrix, color, material, eid)
+    pub(crate) models: Vec<(AssetId, AssetId, Affine3A, Vec4, Material, EntityId)>,
 }
 
 impl Canvas {
@@ -67,7 +67,7 @@ impl Canvas {
             .push([(p1, color, eid), (p2, color, eid), (p3, color, eid)]);
     }
 
-    /// Draw a rectangle with model matrix, color, and [EntityId].
+    /// Draw a rectangle with model matrix, color, material, and [EntityId].
     pub fn rectangle(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
         self.rectangles.push((model, color, material, eid));
     }
@@ -78,12 +78,19 @@ impl Canvas {
         self.cicles.push((model, color, eid));
     }
 
-    /// Draw a texture with texture asset, model matrix, color, and [EntityId].
-    pub fn texture(&mut self, asset: AssetId, model: Affine3A, color: Vec4, eid: EntityId) {
-        self.textures.push((asset, model, color, eid));
+    /// Draw a texture with texture asset, model matrix, color, material, and [EntityId].
+    pub fn texture(
+        &mut self,
+        asset: AssetId,
+        model: Affine3A,
+        color: Vec4,
+        material: Material,
+        eid: EntityId,
+    ) {
+        self.textures.push((asset, model, color, material, eid));
     }
 
-    /// Draw a cuboid with model matrix, color, and [EntityId].
+    /// Draw a cuboid with model matrix, color, material, and [EntityId].
     pub fn cuboid(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
         self.cuboids.push((model, color, material, eid));
     }
@@ -93,17 +100,18 @@ impl Canvas {
         self.spheres.push((model, color, material, eid));
     }
 
-    /// Draw a model with model asset, texture asset, model matrix, color, and [EntityId].
+    /// Draw a model with model asset, texture asset, model matrix, color, material, and [EntityId].
     pub fn model(
         &mut self,
         model_asset: AssetId,
         texture_asset: AssetId,
         model: Affine3A,
         color: Vec4,
+        material: Material,
         eid: EntityId,
     ) {
         self.models
-            .push((model_asset, texture_asset, model, color, eid));
+            .push((model_asset, texture_asset, model, color, material, eid));
     }
 
     /// Clear all drawing data.
@@ -207,6 +215,11 @@ pub fn canvas_render_system(
             &camera,
             &render_manager.ray_tracing_settings,
             &canvas,
+            &mut model_assets,
+            &mut texture_assets,
+            &mut image_assets,
+            &mut asset_manager,
+            &platform,
             eid_image,
         )
     } else {

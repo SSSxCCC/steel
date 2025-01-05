@@ -499,7 +499,7 @@ impl RasterizationPipeline {
             context.memory_allocator.clone(),
             &mut command_buffer_builder,
             push_constants,
-            mesh::RECTANGLE_VERTICES.map(|(p, _)| p).to_vec(),
+            mesh::RECTANGLE_VERTICES.map(|(p, ..)| p).to_vec(),
             mesh::RECTANGLE_INDICES.to_vec(),
         );
         draw_shapes(
@@ -508,11 +508,15 @@ impl RasterizationPipeline {
             context.memory_allocator.clone(),
             &mut command_buffer_builder,
             push_constants,
-            mesh::RECTANGLE_VERTICES.map(|(p, _)| p).to_vec(),
+            mesh::RECTANGLE_VERTICES.map(|(p, ..)| p).to_vec(),
             mesh::RECTANGLE_INDICES.to_vec(),
         );
         draw_textures(
-            &canvas.textures,
+            &canvas
+                .textures
+                .iter()
+                .map(|(texture, model, color, _, eid)| (*texture, *model, *color, *eid))
+                .collect(),
             self.pipeline_texture.clone(),
             &mut command_buffer_builder,
             push_constants,
@@ -549,7 +553,15 @@ impl RasterizationPipeline {
             mesh::SPHERE_INDICES.to_vec(),
         );
         draw_models(
-            &canvas.models,
+            &canvas
+                .models
+                .iter()
+                .map(
+                    |(model_asset, texture_asset, model_matrix, color, _, eid)| {
+                        (*model_asset, *texture_asset, *model_matrix, *color, *eid)
+                    },
+                )
+                .collect(),
             self.pipeline_model.clone(),
             &mut command_buffer_builder,
             push_constants,

@@ -5,37 +5,45 @@ pub(crate) mod util;
 mod shader;
 
 use crate::{
+    asset::AssetManager,
     camera::CameraInfo,
-    render::{canvas::Canvas, mesh, FrameRenderInfo, RenderContext},
+    render::{
+        canvas::Canvas, image::ImageAssets, mesh, model::ModelAssets, texture::TextureAssets,
+        FrameRenderInfo, RenderContext,
+    },
 };
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Affine3A, Vec3, Vec4, Vec4Swizzles};
+use glam::{Affine3A, Vec2, Vec3, Vec4, Vec4Swizzles};
+use indexmap::IndexSet;
 use material::Material;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use shipyard::EntityId;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use steel_common::{
+    asset::AssetId,
     camera::CameraSettings,
     data::{Data, Limit, Value},
+    platform::Platform,
 };
-use util::{
-    ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup},
-    vulkano::TriangleVertex,
-};
+use util::ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup};
 use vulkano::{
     acceleration_structure::{AabbPositions, AccelerationStructure},
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer},
-    descriptor_set::{layout::DescriptorSetLayout, PersistentDescriptorSet, WriteDescriptorSet},
+    descriptor_set::{
+        layout::{DescriptorBindingFlags, DescriptorSetLayout},
+        PersistentDescriptorSet, WriteDescriptorSet,
+    },
     device::Device,
-    image::view::ImageView,
+    image::{sampler::Sampler, view::ImageView},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::{layout::PipelineDescriptorSetLayoutCreateInfo, PipelineLayout},
     sync::GpuFuture,
     VulkanObject,
 };
 
+// TODO: replace this with shader::raygen::EnumMaterial with padding.
 #[derive(Clone, Copy, Default, Zeroable, Pod)]
 #[repr(C)]
 pub(crate) struct EnumMaterialPod {
@@ -205,9 +213,21 @@ impl RayTracingPipeline {
             },
         ]);
 
+        let properties = context.device.physical_device().properties();
+        let max_descriptor_count = properties
+            .max_per_stage_descriptor_samplers
+            .min(properties.max_per_stage_descriptor_sampled_images);
+        let mut pipeline_descriptor_set_layout_create_info =
+            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages);
+        let binding = pipeline_descriptor_set_layout_create_info.set_layouts[0]
+            .bindings
+            .get_mut(&5)
+            .unwrap();
+        binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
+        binding.descriptor_count = max_descriptor_count;
         let pipeline_layout = PipelineLayout::new(
             context.device.clone(),
-            PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
+            pipeline_descriptor_set_layout_create_info
                 .into_pipeline_layout_create_info(context.device.clone())
                 .unwrap(),
         )
@@ -253,9 +273,16 @@ impl RayTracingPipeline {
         camera: &CameraInfo,
         settings: &RayTracingSettings,
         canvas: &Canvas,
+        model_assets: &mut ModelAssets,
+        texture_assets: &mut TextureAssets,
+        image_assets: &mut ImageAssets,
+        asset_manager: &mut AssetManager,
+        platform: &Platform,
         eid_image: Arc<ImageView>,
     ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
         let mut instances = Vec::new();
+        let mut texture_resources = IndexSet::new();
+        let mut texture_indices = Vec::new();
         let mut materials = Vec::new();
         let mut obj_descs = Vec::new();
         let mut eids = Vec::new();
@@ -263,6 +290,7 @@ impl RayTracingPipeline {
         let rectangle_blas_future = draw_shapes(
             &canvas.rectangles,
             context,
+            &mut texture_indices,
             &mut materials,
             &mut eids,
             &mut obj_descs,
@@ -274,17 +302,50 @@ impl RayTracingPipeline {
         let cuboid_blas_future = draw_shapes(
             &canvas.cuboids,
             context,
+            &mut texture_indices,
             &mut materials,
             &mut eids,
             &mut obj_descs,
             &mut instances,
-            mesh::CUBOID_VERTICES_WITH_NORMAL,
-            mesh::CUBOID_INDICES_WITH_NORMAL.map(|i| i as u32),
+            mesh::CUBOID_VERTICES_V2,
+            mesh::CUBOID_INDICES_V2.map(|i| i as u32),
+        );
+
+        let texture_blas_future = draw_textures(
+            &canvas.textures,
+            context,
+            &mut texture_indices,
+            &mut texture_resources,
+            &mut materials,
+            &mut eids,
+            &mut obj_descs,
+            &mut instances,
+            texture_assets,
+            image_assets,
+            asset_manager,
+            platform,
+        );
+
+        let model_blas_future = draw_models(
+            &canvas.models,
+            context,
+            &mut texture_indices,
+            &mut texture_resources,
+            &mut materials,
+            &mut eids,
+            &mut obj_descs,
+            &mut instances,
+            model_assets,
+            texture_assets,
+            image_assets,
+            asset_manager,
+            platform,
         );
 
         let sphere_blas_future = draw_spheres(
             &canvas.spheres,
             context,
+            &mut texture_indices,
             &mut materials,
             &mut eids,
             &mut instances,
@@ -298,19 +359,30 @@ impl RayTracingPipeline {
         );
 
         let material_buffer = create_buffer(materials, &context.memory_allocator);
+        let texture_indices_buffer = create_buffer(texture_indices, &context.memory_allocator);
         let mut descriptor_writes = vec![
             WriteDescriptorSet::acceleration_structure(0, tlas),
             WriteDescriptorSet::image_view(1, info.image.clone()),
             WriteDescriptorSet::buffer(2, material_buffer),
+            WriteDescriptorSet::buffer(4, texture_indices_buffer),
         ];
         if !obj_descs.is_empty() {
             let obj_desc_buffer = create_buffer(obj_descs, &context.memory_allocator);
             descriptor_writes.push(WriteDescriptorSet::buffer(3, obj_desc_buffer));
         }
+        let texture_resource_count = texture_resources.len();
+        if !texture_resources.is_empty() {
+            descriptor_writes.push(WriteDescriptorSet::image_view_sampler_array(
+                5,
+                0,
+                texture_resources,
+            ));
+        }
 
-        let descriptor_set = PersistentDescriptorSet::new(
+        let descriptor_set = PersistentDescriptorSet::new_variable(
             &context.descriptor_set_allocator,
             self.descriptor_set_layout.clone(),
+            texture_resource_count as _,
             descriptor_writes,
             [],
         )
@@ -396,6 +468,7 @@ impl RayTracingPipeline {
 
         (
             rectangle_blas_future
+                .join(texture_blas_future)
                 .join(cuboid_blas_future)
                 .join(sphere_blas_future)
                 .join(tlas_future)
@@ -408,11 +481,12 @@ impl RayTracingPipeline {
 fn draw_shapes(
     shapes: &Vec<(Affine3A, Vec4, Material, EntityId)>,
     context: &RenderContext,
+    texture_indices: &mut Vec<u32>,
     materials: &mut Vec<EnumMaterialPod>,
     eids: &mut Vec<EntityId>,
     obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
     instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
-    vertices: impl IntoIterator<Item = (Vec3, Vec3)>,
+    vertices: impl IntoIterator<Item = (Vec3, Vec3, Vec2)>,
     indices: impl IntoIterator<Item = u32>,
 ) -> Box<dyn GpuFuture> {
     if shapes.is_empty() {
@@ -422,6 +496,7 @@ fn draw_shapes(
     let mut transforms = Vec::new();
     for (model, color, material, eid) in shapes {
         transforms.push(*model);
+        texture_indices.push(u32::MAX);
         materials.push(EnumMaterialPod::from_material(*material, *color));
         eids.push(*eid);
     }
@@ -433,7 +508,7 @@ fn draw_shapes(
             context.graphics_queue.clone(),
             vertices
                 .into_iter()
-                .map(|(p, n)| TriangleVertex::new(p, n))
+                .map(|(p, n, t)| shader::closesthit::Vertex::new(p, n, t))
                 .collect(),
             Some(indices.into_iter().collect()),
         );
@@ -447,25 +522,186 @@ fn draw_shapes(
     blas_future
 }
 
+fn draw_textures(
+    textures: &Vec<(AssetId, Affine3A, Vec4, Material, EntityId)>,
+    context: &RenderContext,
+    texture_indices: &mut Vec<u32>,
+    texture_resources: &mut IndexSet<(Arc<ImageView>, Arc<Sampler>)>,
+    materials: &mut Vec<EnumMaterialPod>,
+    eids: &mut Vec<EntityId>,
+    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
+    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
+    texture_assets: &mut TextureAssets,
+    image_assets: &mut ImageAssets,
+    asset_manager: &mut AssetManager,
+    platform: &Platform,
+) -> Box<dyn GpuFuture> {
+    if textures.is_empty() {
+        return vulkano::sync::now(context.device.clone()).boxed();
+    }
+
+    let mut transforms = Vec::new();
+    for (texture, model, color, material, eid) in textures {
+        if let Some((image_view, sampler)) =
+            texture_assets.get_texture(*texture, image_assets, asset_manager, platform, context)
+        {
+            let model = *model
+                * Affine3A::from_scale(Vec3::new(
+                    image_view.image().extent()[0] as f32 / 100.0,
+                    image_view.image().extent()[1] as f32 / 100.0,
+                    1.0,
+                ));
+            transforms.push(model);
+            texture_resources.insert((image_view.clone(), sampler.clone()));
+            texture_indices.push(
+                texture_resources
+                    .get_index_of(&(image_view, sampler))
+                    .unwrap() as _,
+            );
+            materials.push(EnumMaterialPod::from_material(*material, *color));
+            eids.push(*eid);
+        }
+    }
+
+    if transforms.is_empty() {
+        return vulkano::sync::now(context.device.clone()).boxed();
+    }
+
+    let ((blas, blas_future), (vertex_address, index_address)) =
+        util::vulkano::create_bottom_level_acceleration_structure_triangles(
+            context.memory_allocator.clone(),
+            &context.command_buffer_allocator,
+            context.graphics_queue.clone(),
+            mesh::RECTANGLE_VERTICES
+                .into_iter()
+                .map(|(p, n, t)| shader::closesthit::Vertex::new(p, n, t))
+                .collect(),
+            Some(
+                mesh::RECTANGLE_INDICES
+                    .map(|i| i as u32)
+                    .into_iter()
+                    .collect(),
+            ),
+        );
+
+    obj_descs.push(shader::closesthit::ObjDesc {
+        vertex_address,
+        index_address,
+    });
+    instances.push((blas, 0, transforms));
+
+    blas_future
+}
+
+fn draw_models(
+    models: &Vec<(AssetId, AssetId, Affine3A, Vec4, Material, EntityId)>,
+    context: &RenderContext,
+    texture_indices: &mut Vec<u32>,
+    texture_resources: &mut IndexSet<(Arc<ImageView>, Arc<Sampler>)>,
+    materials: &mut Vec<EnumMaterialPod>,
+    eids: &mut Vec<EntityId>,
+    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
+    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
+    model_assets: &mut ModelAssets,
+    texture_assets: &mut TextureAssets,
+    image_assets: &mut ImageAssets,
+    asset_manager: &mut AssetManager,
+    platform: &Platform,
+) -> Box<dyn GpuFuture> {
+    let mut gpu_future = vulkano::sync::now(context.device.clone()).boxed();
+    if models.is_empty() {
+        return gpu_future;
+    }
+
+    let mut model_to_index = HashMap::new();
+    for (model_asset, texture_asset, model_matrix, color, material, eid) in models {
+        if let Some(model) = model_assets.get_model(*model_asset, asset_manager, platform) {
+            let index = *model_to_index.entry(*model_asset).or_insert_with(|| {
+                let ((blas, blas_future), (vertex_address, index_address)) =
+                    util::vulkano::create_bottom_level_acceleration_structure_triangles(
+                        context.memory_allocator.clone(),
+                        &context.command_buffer_allocator,
+                        context.graphics_queue.clone(),
+                        model
+                            .vertices
+                            .iter()
+                            .map(|v| shader::closesthit::Vertex {
+                                position: v.position,
+                                normal: v.normal,
+                                // the OBJ format assumes a coordinate system where a vertical coordinate of 0 means the bottom of the image
+                                tex_coord: [v.texture[0], 1.0 - v.texture[1]],
+                            })
+                            .collect(),
+                        Some(model.indices.iter().map(|i| *i as u32).collect()),
+                    );
+                let pre_future = std::mem::replace(
+                    &mut gpu_future,
+                    vulkano::sync::now(context.device.clone()).boxed(),
+                );
+                gpu_future = pre_future.join(blas_future).boxed();
+
+                obj_descs.push(shader::closesthit::ObjDesc {
+                    vertex_address,
+                    index_address,
+                });
+                instances.push((blas, 0, Vec::new()));
+                instances.len() - 1
+            });
+
+            let transforms = &mut instances[index].2;
+            transforms.push(*model_matrix);
+
+            materials.push(EnumMaterialPod::from_material(*material, *color));
+            eids.push(*eid);
+
+            let texture_index = if let Some((image_view, sampler)) = texture_assets.get_texture(
+                *texture_asset,
+                image_assets,
+                asset_manager,
+                platform,
+                context,
+            ) {
+                texture_resources.insert((image_view.clone(), sampler.clone()));
+                texture_resources
+                    .get_index_of(&(image_view, sampler))
+                    .unwrap() as _
+            } else {
+                u32::MAX
+            };
+            texture_indices.push(texture_index);
+        }
+    }
+
+    gpu_future
+}
+
 fn draw_spheres(
     spheres: &Vec<(Affine3A, Vec4, Material, EntityId)>,
     context: &RenderContext,
+    texture_indices: &mut Vec<u32>,
     materials: &mut Vec<EnumMaterialPod>,
     eids: &mut Vec<EntityId>,
     instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
 ) -> Box<dyn GpuFuture> {
+    // Empty instance vector will make blas creation fail, we avoid this issue by adding an invisble instance.
+    // TODO: how to create an empty tlas?
+    let spheres = if spheres.is_empty() {
+        &vec![(
+            Affine3A::from_scale(Vec3::ZERO),
+            Vec4::ZERO,
+            Material::Lambertian,
+            EntityId::dead(),
+        )]
+    } else {
+        spheres
+    };
+
     let mut transforms = Vec::new();
     for (model, color, material, eid) in spheres {
         transforms.push(*model);
+        texture_indices.push(u32::MAX);
         materials.push(EnumMaterialPod::from_material(*material, *color));
         eids.push(*eid);
-    }
-
-    // Empty instance vector will make blas creation fail, we avoid this issue by adding an invisble instance.
-    // TODO: how to create an empty tlas?
-    if transforms.is_empty() {
-        transforms.push(Affine3A::from_scale(Vec3::ZERO));
-        materials.push(EnumMaterialPod::new_lambertian(Vec3::ZERO));
     }
 
     let (sphere_blas, blas_future) =

@@ -142,7 +142,9 @@ pub fn renderer2d_to_canvas_system(
                 }
                 _ => (),
             },
-            RenderObject2D::Texture(asset) => canvas.texture(*asset, model, renderer2d.color, eid),
+            RenderObject2D::Texture(asset) => {
+                canvas.texture(*asset, model, renderer2d.color, material, eid)
+            }
         }
     }
 }
