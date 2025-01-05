@@ -1,12 +1,32 @@
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use std::sync::LazyLock;
 
-/// Rectangle vertices with positions and normals.
-pub const RECTANGLE_VERTICES: [(Vec3, Vec3); 4] = [
-    (Vec3::new(-0.5, -0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)), // Bottom-left corner
-    (Vec3::new(0.5, -0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)),  // Bottom-right corner
-    (Vec3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)),   // Top-right corner
-    (Vec3::new(-0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0)),  // Top-left corner
+// Rectangle vertices with positions, normals, and texture coordinates.
+pub const RECTANGLE_VERTICES: [(Vec3, Vec3, Vec2); 4] = [
+    // Bottom-left corner
+    (
+        Vec3::new(-0.5, -0.5, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    // Bottom-right corner
+    (
+        Vec3::new(0.5, -0.5, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    // Top-right corner
+    (
+        Vec3::new(0.5, 0.5, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    // Top-left corner
+    (
+        Vec3::new(-0.5, 0.5, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(0.0, 0.0),
+    ),
 ];
 
 pub const RECTANGLE_INDICES: [u16; 6] = [0, 1, 2, 2, 3, 0];
@@ -33,42 +53,138 @@ pub const CUBOID_INDICES: [u16; 36] = [
     0, 4, 7, 0, 7, 3, // Bottom face
 ];
 
-/// Cuboid vertices with positions and normals. (unique per face)
-pub const CUBOID_VERTICES_WITH_NORMAL: [(Vec3, Vec3); 24] = [
+// Cuboid vertices with positions, normals, and texture coordinates.
+pub const CUBOID_VERTICES_V2: [(Vec3, Vec3, Vec2); 24] = [
     // Back face (-Z)
-    (Vec3::new(-0.5, -0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
-    (Vec3::new(0.5, -0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
-    (Vec3::new(0.5, 0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
-    (Vec3::new(-0.5, 0.5, -0.5), Vec3::new(0.0, 0.0, -1.0)),
+    (
+        Vec3::new(-0.5, -0.5, -0.5),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, -0.5, -0.5),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, 0.5, -0.5),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    (
+        Vec3::new(-0.5, 0.5, -0.5),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec2::new(0.0, 0.0),
+    ),
     // Front face (+Z)
-    (Vec3::new(-0.5, -0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
-    (Vec3::new(0.5, -0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
-    (Vec3::new(0.5, 0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
-    (Vec3::new(-0.5, 0.5, 0.5), Vec3::new(0.0, 0.0, 1.0)),
+    (
+        Vec3::new(-0.5, -0.5, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, -0.5, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, 0.5, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    (
+        Vec3::new(-0.5, 0.5, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec2::new(0.0, 0.0),
+    ),
     // Left face (-X)
-    (Vec3::new(-0.5, -0.5, -0.5), Vec3::new(-1.0, 0.0, 0.0)),
-    (Vec3::new(-0.5, 0.5, -0.5), Vec3::new(-1.0, 0.0, 0.0)),
-    (Vec3::new(-0.5, 0.5, 0.5), Vec3::new(-1.0, 0.0, 0.0)),
-    (Vec3::new(-0.5, -0.5, 0.5), Vec3::new(-1.0, 0.0, 0.0)),
+    (
+        Vec3::new(-0.5, -0.5, -0.5),
+        Vec3::new(-1.0, 0.0, 0.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    (
+        Vec3::new(-0.5, 0.5, -0.5),
+        Vec3::new(-1.0, 0.0, 0.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    (
+        Vec3::new(-0.5, 0.5, 0.5),
+        Vec3::new(-1.0, 0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    (
+        Vec3::new(-0.5, -0.5, 0.5),
+        Vec3::new(-1.0, 0.0, 0.0),
+        Vec2::new(0.0, 0.0),
+    ),
     // Right face (+X)
-    (Vec3::new(0.5, -0.5, -0.5), Vec3::new(1.0, 0.0, 0.0)),
-    (Vec3::new(0.5, 0.5, -0.5), Vec3::new(1.0, 0.0, 0.0)),
-    (Vec3::new(0.5, 0.5, 0.5), Vec3::new(1.0, 0.0, 0.0)),
-    (Vec3::new(0.5, -0.5, 0.5), Vec3::new(1.0, 0.0, 0.0)),
+    (
+        Vec3::new(0.5, -0.5, -0.5),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, 0.5, -0.5),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, 0.5, 0.5),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    (
+        Vec3::new(0.5, -0.5, 0.5),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec2::new(0.0, 0.0),
+    ),
     // Top face (+Y)
-    (Vec3::new(-0.5, 0.5, -0.5), Vec3::new(0.0, 1.0, 0.0)),
-    (Vec3::new(0.5, 0.5, -0.5), Vec3::new(0.0, 1.0, 0.0)),
-    (Vec3::new(0.5, 0.5, 0.5), Vec3::new(0.0, 1.0, 0.0)),
-    (Vec3::new(-0.5, 0.5, 0.5), Vec3::new(0.0, 1.0, 0.0)),
+    (
+        Vec3::new(-0.5, 0.5, -0.5),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, 0.5, -0.5),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, 0.5, 0.5),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    (
+        Vec3::new(-0.5, 0.5, 0.5),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec2::new(0.0, 0.0),
+    ),
     // Bottom face (-Y)
-    (Vec3::new(-0.5, -0.5, -0.5), Vec3::new(0.0, -1.0, 0.0)),
-    (Vec3::new(0.5, -0.5, -0.5), Vec3::new(0.0, -1.0, 0.0)),
-    (Vec3::new(0.5, -0.5, 0.5), Vec3::new(0.0, -1.0, 0.0)),
-    (Vec3::new(-0.5, -0.5, 0.5), Vec3::new(0.0, -1.0, 0.0)),
+    (
+        Vec3::new(-0.5, -0.5, -0.5),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec2::new(0.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, -0.5, -0.5),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+    ),
+    (
+        Vec3::new(0.5, -0.5, 0.5),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec2::new(1.0, 0.0),
+    ),
+    (
+        Vec3::new(-0.5, -0.5, 0.5),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec2::new(0.0, 0.0),
+    ),
 ];
 
 /// Indices for the cuboid with unique vertices.
-pub const CUBOID_INDICES_WITH_NORMAL: [u16; 36] = [
+pub const CUBOID_INDICES_V2: [u16; 36] = [
     0, 1, 2, 0, 2, 3, // Back face
     4, 5, 6, 4, 6, 7, // Front face
     8, 9, 10, 8, 10, 11, // Left face

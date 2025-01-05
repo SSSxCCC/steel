@@ -1,4 +1,5 @@
-use glam::{Affine3A, Vec3};
+use crate::render::pipeline::raytracing::shader;
+use glam::{Affine3A, Vec2, Vec3};
 use std::sync::Arc;
 use vulkano::{
     acceleration_structure::{
@@ -11,32 +12,24 @@ use vulkano::{
         AccelerationStructureType, BuildAccelerationStructureFlags, BuildAccelerationStructureMode,
         GeometryFlags, GeometryInstanceFlags,
     },
-    buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, IndexBuffer, Subbuffer},
+    buffer::{Buffer, BufferCreateInfo, BufferUsage, IndexBuffer, Subbuffer},
     command_buffer::{
         allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
         PrimaryCommandBufferAbstract,
     },
     device::Queue,
+    format::Format,
     memory::allocator::{AllocationCreateInfo, MemoryAllocator, MemoryTypeFilter},
-    pipeline::graphics::vertex_input::Vertex,
     sync::GpuFuture,
     DeviceSize, Packed24_8,
 };
 
-#[derive(BufferContents, Vertex)]
-#[repr(C)]
-pub struct TriangleVertex {
-    #[format(R32G32B32_SFLOAT)]
-    pub position: [f32; 3],
-    #[format(R32G32B32_SFLOAT)]
-    pub normal: [f32; 3],
-}
-
-impl TriangleVertex {
-    pub fn new(position: Vec3, normal: Vec3) -> Self {
-        TriangleVertex {
+impl shader::closesthit::Vertex {
+    pub fn new(position: Vec3, normal: Vec3, tex_coord: Vec2) -> Self {
+        shader::closesthit::Vertex {
             position: position.to_array(),
             normal: normal.to_array(),
+            tex_coord: tex_coord.to_array(),
         }
     }
 }
@@ -47,15 +40,9 @@ pub fn create_bottom_level_acceleration_structure_triangles(
     memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_allocator: &StandardCommandBufferAllocator,
     queue: Arc<Queue>,
-    vertices: Vec<TriangleVertex>,
+    vertices: Vec<shader::closesthit::Vertex>,
     indices: Option<Vec<u32>>,
 ) -> ((Arc<AccelerationStructure>, Box<dyn GpuFuture>), (u64, u64)) {
-    let description = TriangleVertex::per_vertex();
-    assert_eq!(
-        description.stride,
-        std::mem::size_of::<TriangleVertex>() as u32
-    );
-
     let mut triangles = vec![];
     let mut max_primitive_counts = vec![];
     let mut build_range_infos = vec![];
@@ -76,7 +63,7 @@ pub fn create_bottom_level_acceleration_structure_triangles(
             memory_allocator.clone(),
             buffer_create_info.clone(),
             allocation_create_info.clone(),
-            vertices.into_iter().map(|v| TriangleVertex::from(v)),
+            vertices,
         )
         .unwrap();
 
@@ -98,13 +85,11 @@ pub fn create_bottom_level_acceleration_structure_triangles(
         triangles.push(AccelerationStructureGeometryTrianglesData {
             flags: GeometryFlags::OPAQUE,
             vertex_data: Some(vertex_buffer),
-            vertex_stride: description.stride,
+            vertex_stride: std::mem::size_of::<shader::closesthit::Vertex>() as _,
             max_vertex: vertex_count,
             index_data: Some(IndexBuffer::U32(index_buffer)),
             transform_data: None,
-            ..AccelerationStructureGeometryTrianglesData::new(
-                description.members.get("position").unwrap().format,
-            )
+            ..AccelerationStructureGeometryTrianglesData::new(Format::R32G32B32_SFLOAT)
         });
         max_primitive_counts.push(primitive_count);
         build_range_infos.push(AccelerationStructureBuildRangeInfo {

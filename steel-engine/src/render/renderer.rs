@@ -161,7 +161,14 @@ pub fn renderer_to_canvas_system(
             RenderObject::Model {
                 model_asset,
                 texture_asset,
-            } => canvas.model(*model_asset, *texture_asset, model, renderer.color, eid),
+            } => canvas.model(
+                *model_asset,
+                *texture_asset,
+                model,
+                renderer.color,
+                material,
+                eid,
+            ),
         }
     }
 }

@@ -12,20 +12,20 @@ pub mod raygen {
                 uint state;
             };
 
-            // Step function for PCG32
+            // Step function for PCG32.
             void pcg_oneseq_32_step_r(inout PCG32si rng) {
                 const uint PCG_DEFAULT_MULTIPLIER_32 = 747796405u;
                 const uint PCG_DEFAULT_INCREMENT_32 = 2891336453u;
                 rng.state = (rng.state * PCG_DEFAULT_MULTIPLIER_32 + PCG_DEFAULT_INCREMENT_32);
             }
 
-            // PCG output function
+            // PCG output function.
             uint pcg_output_rxs_m_xs_32_32(uint state) {
                 uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
                 return (word >> 22u) ^ word;
             }
 
-            // Create a new RNG with a seed
+            // Create a new RNG with a seed.
             PCG32si pcg_new(uint seed) {
                 PCG32si rng;
                 rng.state = seed;
@@ -35,25 +35,25 @@ pub mod raygen {
                 return rng;
             }
 
-            // Generate a random uint
+            // Generate a random uint.
             uint next_u32(inout PCG32si rng) {
                 uint old_state = rng.state;
                 pcg_oneseq_32_step_r(rng);
                 return pcg_output_rxs_m_xs_32_32(old_state);
             }
 
-            // Generate a random float [0.0, 1.0)
+            // Generate a random float [0.0, 1.0).
             float next_f32(inout PCG32si rng) {
-                const uint float_size = 32u;  // Number of bits in a float
-                const uint float_precision = 24u;  // Precision for floating point numbers (23 bits + 1 sign bit)
+                const uint float_size = 32u; // number of bits in a float
+                const uint float_precision = 24u; // precision for floating point numbers (23 bits + 1 sign bit)
                 const float scale = 1.0 / float(1 << float_precision);
 
                 uint value = next_u32(rng);
-                value >>= (float_size - float_precision);  // Shift to get the desired precision
+                value >>= (float_size - float_precision); // shift to get the desired precision
                 return scale * float(value);
             }
 
-            // Generate a random float in the range [min, max]
+            // Generate a random float in the range [min, max].
             float next_f32_range(inout PCG32si rng, float min, float max) {
                 return min + (max - min) * next_f32(rng);
             }
@@ -63,14 +63,14 @@ pub mod raygen {
             #define PI 3.1415926538
 
             vec3 random_in_unit_sphere(inout PCG32si rng) {
-                // Generate random spherical coordinates (direction)
-                float theta = next_f32_range(rng, 0.0, 2.0 * PI);  // Uniform azimuthal angle
-                float phi = next_f32_range(rng, -1.0, 1.0);        // Uniform cosine of polar angle
+                // generate random spherical coordinates (direction)
+                float theta = next_f32_range(rng, 0.0, 2.0 * PI); // uniform azimuthal angle
+                float phi = next_f32_range(rng, -1.0, 1.0); // uniform cosine of polar angle
 
-                // Sample radius as the cube root of a uniform random value to ensure uniform distribution in volume
+                // sample radius as the cube root of a uniform random value to ensure uniform distribution in volume
                 float r = pow(next_f32(rng), 1.0 / 3.0);  // Cube root of a uniform random number in [0, 1]
 
-                // Convert spherical coordinates (r, theta, phi) to Cartesian coordinates
+                // convert spherical coordinates (r, theta, phi) to Cartesian coordinates
                 float x = r * sqrt(1.0 - phi * phi) * cos(theta);
                 float y = r * sqrt(1.0 - phi * phi) * sin(theta);
                 float z = r * phi;
@@ -88,21 +88,21 @@ pub mod raygen {
             }
 
             vec3 random_in_unit_disk(inout PCG32si rng) {
-                // Generate random angle between 0 and 2π
+                // generate random angle between 0 and 2π
                 float theta = next_f32_range(rng, 0.0, 2.0 * PI);
 
-                // Generate random radius squared between 0 and 1, then take the square root to make it uniform in area
+                // generate random radius squared between 0 and 1, then take the square root to make it uniform in area
                 float r2 = next_f32(rng);  // Uniformly sample r^2 (radius squared)
                 float r = sqrt(r2);        // Take square root to get radius
 
-                // Convert polar coordinates to Cartesian coordinates
+                // convert polar coordinates to Cartesian coordinates
                 float x = r * cos(theta);
                 float y = r * sin(theta);
 
                 return vec3(x, y, 0.0);
             }
 
-            // =============== Ray and Payload structs ===============
+            // =============== Ray and HitRecord structs ===============
 
             struct Ray {
                 vec3 origin;
@@ -113,22 +113,24 @@ pub mod raygen {
                 return Ray(vec3(0.0), vec3(0.0));
             }
 
-            struct RayPayload {
+            struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                bool is_miss;
+                vec3 tex_color;
                 uint material;
+                bool is_miss;
                 bool front_face;
             };
 
-            RayPayload default_RayPayload() {
-                RayPayload payload;
-                payload.position = vec3(0.0);
-                payload.normal = vec3(0.0);
-                payload.is_miss = false;
-                payload.material = 0u;
-                payload.front_face = false;
-                return payload;
+            HitRecord default_HitRecord() {
+                HitRecord hit;
+                hit.position = vec3(0.0);
+                hit.normal = vec3(0.0);
+                hit.tex_color = vec3(1.0);
+                hit.material = 0u;
+                hit.is_miss = false;
+                hit.front_face = false;
+                return hit;
             }
 
             // =============== Materials ===============
@@ -148,7 +150,7 @@ pub mod raygen {
                 return Scatter(vec3(0.0), default_Ray());
             }
 
-            // Materials
+            // Materials.
             struct Lambertian {
                 vec3 albedo;
             };
@@ -162,65 +164,65 @@ pub mod raygen {
                 float ir;
             };
 
-            // Scatter functions for different materials
-            bool scatter_Lambertian(Lambertian material, Ray ray, RayPayload ray_payload, inout PCG32si rng, inout Scatter scatter) {
-                vec3 scatter_direction = ray_payload.normal + normalize(random_in_unit_sphere(rng));
-                scatter_direction = (length(scatter_direction) < 1e-8) ? ray_payload.normal : scatter_direction;
+            // Scatter functions for different materials.
+            bool scatter_Lambertian(Lambertian material, Ray ray, HitRecord hit, inout PCG32si rng, inout Scatter scatter) {
+                vec3 scatter_direction = hit.normal + normalize(random_in_unit_sphere(rng));
+                scatter_direction = (length(scatter_direction) < 1e-8) ? hit.normal : scatter_direction;
 
-                scatter.ray.origin = ray_payload.position;
+                scatter.ray.origin = hit.position;
                 scatter.ray.direction = scatter_direction;
-                scatter.color = material.albedo;
+                scatter.color = material.albedo * hit.tex_color;
 
                 return true;
             }
 
-            bool scatter_Metal(Metal material, Ray ray, RayPayload ray_payload, inout PCG32si rng, inout Scatter scatter) {
-                vec3 reflected = reflect(normalize(ray.direction), ray_payload.normal);
+            bool scatter_Metal(Metal material, Ray ray, HitRecord hit, inout PCG32si rng, inout Scatter scatter) {
+                vec3 reflected = reflect(normalize(ray.direction), hit.normal);
                 vec3 scatter_direction = reflected + material.fuzz * random_in_unit_sphere(rng);
 
-                if (dot(scatter_direction, ray_payload.normal) > 0.0) {
-                    scatter.ray.origin = ray_payload.position;
+                if (dot(scatter_direction, hit.normal) > 0.0) {
+                    scatter.ray.origin = hit.position;
                     scatter.ray.direction = scatter_direction;
-                    scatter.color = material.albedo;
+                    scatter.color = material.albedo * hit.tex_color;
                     return true;
                 }
                 return false;
             }
 
-            bool scatter_Dielectric(Dielectric material, Ray ray, RayPayload ray_payload, inout PCG32si rng, inout Scatter scatter) {
-                float refraction_ratio = ray_payload.front_face ? (1.0 / material.ir) : material.ir;
+            bool scatter_Dielectric(Dielectric material, Ray ray, HitRecord hit, inout PCG32si rng, inout Scatter scatter) {
+                float refraction_ratio = hit.front_face ? (1.0 / material.ir) : material.ir;
                 vec3 unit_direction = normalize(ray.direction);
-                float cos_theta = min(dot(-unit_direction, ray_payload.normal), 1.0);
+                float cos_theta = min(dot(-unit_direction, hit.normal), 1.0);
                 float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
                 bool cannot_refract = refraction_ratio * sin_theta > 1.0;
 
                 vec3 direction = (cannot_refract || reflectance(cos_theta, refraction_ratio) > next_f32(rng))
-                    ? reflect(unit_direction, ray_payload.normal)
-                    : refract(unit_direction, ray_payload.normal, refraction_ratio);
+                    ? reflect(unit_direction, hit.normal)
+                    : refract(unit_direction, hit.normal, refraction_ratio);
 
-                scatter.ray.origin = ray_payload.position;
+                scatter.ray.origin = hit.position;
                 scatter.ray.direction = direction;
-                scatter.color = vec3(1.0, 1.0, 1.0); // White for Dielectric
+                scatter.color = vec3(1.0, 1.0, 1.0); // white for dielectric
 
                 return true;
             }
 
-            // Scatter function for EnumMaterial
             struct EnumMaterial {
                 vec4 data;
                 uint t;
             };
 
-            bool scatter_EnumMaterial(EnumMaterial material, Ray ray, RayPayload ray_payload, inout PCG32si rng, inout Scatter scatter) {
+            // Scatter function for EnumMaterial.
+            bool scatter_EnumMaterial(EnumMaterial material, Ray ray, HitRecord hit, inout PCG32si rng, inout Scatter scatter) {
                 if (material.t == 0u) {
                     Lambertian material = Lambertian(material.data.xyz);
-                    return scatter_Lambertian(material, ray, ray_payload, rng, scatter);
+                    return scatter_Lambertian(material, ray, hit, rng, scatter);
                 } else if (material.t == 1u) {
                     Metal material = Metal(material.data.xyz, material.data.w);
-                    return scatter_Metal(material, ray, ray_payload, rng, scatter);
+                    return scatter_Metal(material, ray, hit, rng, scatter);
                 } else if (material.t == 2u) {
                     Dielectric material = Dielectric(material.data.x);
-                    return scatter_Dielectric(material, ray, ray_payload, rng, scatter);
+                    return scatter_Dielectric(material, ray, hit, rng, scatter);
                 } else {
                     return false;
                 }
@@ -228,7 +230,7 @@ pub mod raygen {
 
             // =============== Camera ===============
 
-            // Camera structure
+            // Camera structure.
             struct Camera {
                 vec3 origin;
                 uint type; // 0 is orthographic, 1 is perspective
@@ -242,7 +244,7 @@ pub mod raygen {
                 float lens_radius;
             };
 
-            // Camera creation function
+            // Camera creation function.
             Camera create_camera(uint type, vec3 origin, vec3 direction, float data, float aspect_ratio, float lens_radius, float focus_dist) {
                 vec3 w = normalize(direction);
                 vec3 u = normalize(cross(w, vec3(0.0, 1.0, 0.0)));
@@ -278,7 +280,7 @@ pub mod raygen {
                 return cam;
             }
 
-            // Function to generate a ray from the camera
+            // Function to generate a ray from the camera.
             Ray get_ray(Camera cam, float s, float t, inout PCG32si rng) {
                 vec3 rd = cam.lens_radius * random_in_unit_disk(rng);
                 vec3 offset = cam.u * rd.x + cam.v * rd.y;
@@ -301,7 +303,7 @@ pub mod raygen {
                 EnumMaterial materials[];
             };
 
-            layout(location = 0) rayPayloadEXT RayPayload payload;
+            layout(location = 0) rayPayloadEXT HitRecord hit;
 
             layout(push_constant) uniform PushConstants {
                 vec3 camera_position;
@@ -318,15 +320,15 @@ pub mod raygen {
             } pcs;
 
             void main() {
-                // Launch ID and size (inbuilt variables in GLSL)
+                // launch ID and size (inbuilt variables in GLSL)
                 uvec3 launch_id = gl_LaunchIDEXT;
                 uvec3 launch_size = gl_LaunchSizeEXT;
 
-                // Random seed initialization
+                // random seed initialization
                 uint rand_seed = (launch_id.y * launch_size.x + launch_id.x) ^ pcs.seed;
                 PCG32si rng = pcg_new(rand_seed);
 
-                // Camera setup
+                // camera setup
                 Camera camera = create_camera(
                     pcs.camera_type,
                     pcs.camera_position,
@@ -351,7 +353,7 @@ pub mod raygen {
                     Ray ray = get_ray(camera, u, v, rng);
 
                     for (uint j = 0; j <= pcs.max_bounces; j++) {
-                        payload = default_RayPayload();
+                        hit = default_HitRecord();
                         traceRayEXT(
                             top_level_as,
                             gl_RayFlagsOpaqueEXT,
@@ -361,12 +363,12 @@ pub mod raygen {
                             0
                         );
 
-                        if (payload.is_miss) {
-                            color *= payload.position;
+                        if (hit.is_miss) {
+                            color *= hit.position;
                             break;
                         } else {
                             Scatter scatter = default_Scatter();
-                            if (scatter_EnumMaterial(materials[payload.material], ray, payload, rng, scatter)) {
+                            if (scatter_EnumMaterial(materials[hit.material], ray, hit, rng, scatter)) {
                                 color *= scatter.color;
                                 ray = scatter.ray;
                             } else {
@@ -412,24 +414,26 @@ pub mod miss {
                 vec3 miss_color_bottom;
             } pcs;
 
-            layout(location = 0) rayPayloadInEXT RayPayload {
+            layout(location = 0) rayPayloadInEXT HitRecord {
                 vec3 position;
                 vec3 normal;
-                bool is_miss;
+                vec3 tex_color;
                 uint material;
+                bool is_miss;
                 bool front_face;
-            } payload;
+            } hit;
 
             void main() {
                 vec3 world_ray_direction = normalize(gl_WorldRayDirectionEXT);
                 float t = 0.5 * (world_ray_direction.y + 1.0);
                 vec3 color = mix(pcs.miss_color_bottom, pcs.miss_color_top, t);
 
-                payload.is_miss = true;
-                payload.position = color;
-                payload.normal = vec3(0.0, 0.0, 0.0);
-                payload.material = 0;
-                payload.front_face = false;
+                hit.is_miss = true;
+                hit.position = color;
+                hit.normal = vec3(0.0);
+                hit.tex_color = vec3(1.0);
+                hit.material = 0;
+                hit.front_face = false;
             }
         ",
     }
@@ -445,47 +449,54 @@ pub mod closesthit {
             #extension GL_EXT_scalar_block_layout : require
             #extension GL_EXT_buffer_reference2 : require
             #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+            #extension GL_EXT_nonuniform_qualifier : require
 
-            struct RayPayload {
+            struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                bool is_miss;
+                vec3 tex_color;
                 uint material;
+                bool is_miss;
                 bool front_face;
             };
 
-            RayPayload new_RayPayload(vec3 position, vec3 outward_normal, vec3 ray_direction, uint material) {
+            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec3 tex_color, uint material) {
                 bool front_face = dot(ray_direction, outward_normal) < 0.0;
                 vec3 normal = front_face ? outward_normal : -outward_normal;
 
-                return RayPayload(
+                return HitRecord(
                     position,
                     normal,
-                    false, // is_miss initialized to false
+                    tex_color,
                     material,
+                    false, // is_miss initialized to false
                     front_face
                 );
             }
 
             hitAttributeEXT vec2 attribs;
-            layout(location = 0) rayPayloadInEXT RayPayload payload;
+            layout(location = 0) rayPayloadInEXT HitRecord hit;
 
             struct ObjDesc {
-                uint64_t vertex_address; // Address of the Vertex buffer
-                uint64_t index_address; // Address of the index buffer
+                uint64_t vertex_address; // address of the vertex buffer
+                uint64_t index_address; // address of the index buffer
             };
-            layout(set = 0, binding = 3, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+            layout(set = 0, binding = 3, scalar) buffer ObjDesc_ { ObjDesc i[]; } obj_descs;
 
             struct Vertex {
                 vec3 position;
                 vec3 normal;
+                vec2 tex_coord;
             };
-            layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
-            layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
+            layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // positions of an object
+            layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // triangle indices
+
+            layout(set = 0, binding = 4, scalar) buffer TextureIndices { uint i[]; } tex_i;
+            layout(set = 0, binding = 5) uniform sampler2D[] tex;
 
             void main() {
                 // object data
-                ObjDesc obj_desc = objDesc.i[gl_InstanceCustomIndexEXT];
+                ObjDesc obj_desc = obj_descs.i[gl_InstanceCustomIndexEXT];
                 Indices indices = Indices(obj_desc.index_address);
                 Vertices vertices = Vertices(obj_desc.vertex_address);
 
@@ -501,14 +512,22 @@ pub mod closesthit {
 
                 // computing the coordinates of the hit position
                 const vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
-                const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));  // Transforming the position to world space
+                const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));  // transform the position to world space
 
                 // computing the normal at hit position
                 const vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
-                const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));  // Transforming the normal to world space
+                const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));  // transform the normal to world space
+
+                // computing the texture coordinate and texture color at hit position
+                vec2 tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
+                vec3 tex_color = vec3(1.0);
+                const uint MAX_UINT = 4294967295u;
+                if (tex_i.i[gl_InstanceID] != MAX_UINT) {
+                    tex_color = texture(tex[tex_i.i[gl_InstanceID]], tex_coord).xyz;
+                }
 
                 // return hit record
-                payload = new_RayPayload(world_position, world_normal, gl_WorldRayDirectionEXT, gl_InstanceID);
+                hit = new_HitRecord(world_position, world_normal, gl_WorldRayDirectionEXT, tex_color, gl_InstanceID);
             }
         ",
     }
@@ -537,7 +556,7 @@ pub mod sphere_intersection {
 
                 float discriminant = half_b * half_b - a * c;
                 if (discriminant < 0.0) {
-                    return;  // No intersection
+                    return; // no intersection
                 }
 
                 float sqrtd = sqrt(discriminant);
@@ -546,12 +565,12 @@ pub mod sphere_intersection {
 
                 if (root0 >= t_min && root0 <= t_max) {
                     t = root0;
-                    reportIntersectionEXT(root0, 0);  // Report intersection
+                    reportIntersectionEXT(root0, 0); // report intersection
                 }
 
                 if (root1 >= t_min && root1 <= t_max) {
                     t = root1;
-                    reportIntersectionEXT(root1, 0);  // Report intersection
+                    reportIntersectionEXT(root1, 0); // report intersection
                 }
             }
         ",
@@ -566,34 +585,36 @@ pub mod sphere_closesthit {
             #version 460
             #extension GL_EXT_ray_tracing : require
 
-            struct RayPayload {
+            struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                bool is_miss;
+                vec3 tex_color;
                 uint material;
+                bool is_miss;
                 bool front_face;
             };
 
-            RayPayload new_RayPayload(vec3 position, vec3 outward_normal, vec3 ray_direction, uint material) {
+            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec3 tex_color, uint material) {
                 bool front_face = dot(ray_direction, outward_normal) < 0.0;
                 vec3 normal = front_face ? outward_normal : -outward_normal;
 
-                return RayPayload(
+                return HitRecord(
                     position,
                     normal,
-                    false, // is_miss initialized to false
+                    tex_color,
                     material,
+                    false, // is_miss initialized to false
                     front_face
                 );
             }
 
             hitAttributeEXT float t;
-            layout(location = 0) rayPayloadInEXT RayPayload payload;
+            layout(location = 0) rayPayloadInEXT HitRecord hit;
 
             void main() {
                 vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
                 vec3 normal = normalize(hit_pos - gl_ObjectToWorldEXT[3]);
-                payload = new_RayPayload(hit_pos, normal, gl_WorldRayDirectionEXT, gl_InstanceID);
+                hit = new_HitRecord(hit_pos, normal, gl_WorldRayDirectionEXT, vec3(1.0), gl_InstanceID);
             }
         ",
     }
