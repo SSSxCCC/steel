@@ -6,7 +6,7 @@ use std::{
     io::{BufReader, BufWriter},
     path::{Path, PathBuf},
 };
-use steel_common::{asset::AssetId, data::SceneData};
+use steel_common::{asset::AssetId, camera::SceneCamera, data::SceneData};
 
 /// Delete windows path prefix:
 /// ```
@@ -44,7 +44,7 @@ pub struct LocalData {
     pub language: Option<Language>,
     pub last_open_project_path: PathBuf,
     pub open_last_project_on_start: bool,
-    pub scene_asset_and_data: Option<(Option<AssetId>, SceneData)>,
+    pub scene_data: Option<(SceneCamera, Option<AssetId>, SceneData)>,
 }
 
 impl LocalData {
@@ -64,7 +64,7 @@ impl LocalData {
                     language: None,
                     last_open_project_path,
                     open_last_project_on_start: false,
-                    scene_asset_and_data: None,
+                    scene_data: None,
                 }
             }
         }

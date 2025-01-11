@@ -45,9 +45,9 @@ impl MenuBar {
         project: &mut Project,
         world_data: &mut Option<WorldData>,
         local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
         texts: &mut Texts,
-        scene_camera: &mut SceneCamera,
     ) {
         self.open_project_dialog(
             editor_state,
@@ -59,13 +59,14 @@ impl MenuBar {
             context,
             project,
             local_data,
+            scene_camera,
             window_title,
             texts,
         );
 
         self.asset_system_introduction_dialog(ctx, texts);
 
-        self.scene_camera_edit_window(data_window, ctx, project, texts, scene_camera);
+        self.scene_camera_edit_window(data_window, ctx, project, scene_camera, texts);
 
         egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -87,7 +88,7 @@ impl MenuBar {
                             log::info!("Menu->Project->Compile");
                             scene_window.close(Some(gui));
                             game_window.close(Some(gui));
-                            project.compile(local_data, gui_game, context);
+                            project.compile(local_data, scene_camera, gui_game, context);
                             ui.close_menu();
                         }
                     }
@@ -383,6 +384,7 @@ impl MenuBar {
         context: &VulkanoContext,
         project: &mut Project,
         local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
         texts: &Texts,
     ) {
@@ -419,7 +421,7 @@ impl MenuBar {
                             window_title,
                             gui_game,
                         );
-                        project.compile(local_data, gui_game, context);
+                        project.compile(local_data, scene_camera, gui_game, context);
                         self.show_open_project_dialog = false;
                     }
                 }
@@ -440,8 +442,8 @@ impl MenuBar {
         data_window: &mut DataWindow,
         ctx: &egui::Context,
         project: &mut Project,
-        texts: &Texts,
         scene_camera: &mut SceneCamera,
+        texts: &Texts,
     ) {
         if !project.is_compiled() {
             self.show_scene_camera_edit_window = false;

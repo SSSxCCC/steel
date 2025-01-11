@@ -79,6 +79,7 @@ fn _main(event_loop: EventLoop<()>) {
     let mut project = Project::new(
         ray_tracing_supported,
         &mut local_data,
+        &mut scene_camera,
         &mut window_title,
         &context,
         &mut gui,
@@ -144,7 +145,7 @@ fn _main(event_loop: EventLoop<()>) {
             match event {
                 WindowEvent::CloseRequested => {
                     log::debug!("WindowEvent::CloseRequested");
-                    project.exit(&mut local_data);
+                    project.exit(&mut local_data, scene_camera);
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(_) => {
@@ -206,9 +207,9 @@ fn _main(event_loop: EventLoop<()>) {
                     &mut project,
                     &mut world_data,
                     &mut local_data,
+                    &mut scene_camera,
                     &mut window_title,
                     &input_editor,
-                    &mut scene_camera,
                 );
 
                 let is_running = project.is_running();

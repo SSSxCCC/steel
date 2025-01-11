@@ -1,8 +1,9 @@
 use crate::data::{Data, Limit, Value};
 use glam::{Quat, Vec3};
+use serde::{Deserialize, Serialize};
 
 /// Camera info for scene window.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SceneCamera {
     pub position: Vec3,
     pub rotation: Quat,
@@ -56,7 +57,7 @@ impl SceneCamera {
 }
 
 /// The camera settings.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum CameraSettings {
     Orthographic {
         width: f32,
@@ -231,7 +232,7 @@ impl CameraSettings {
 
 /// The orthographic camera size settings. Since we can not fix the screen aspect ratio,
 /// we must choose to either set the width or height, or set the minimum width and height.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum OrthographicCameraSize {
     /// Set a width and caculate height by width / aspect_ratio.
     FixedWidth = 0,
