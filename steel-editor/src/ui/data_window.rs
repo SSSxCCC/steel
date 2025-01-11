@@ -106,9 +106,12 @@ impl DataWindow {
         texts: &Texts,
     ) {
         for (i, &entity) in es.iter().enumerate() {
-            let entity_data = entities
-                .get(&entity)
-                .expect(format!("entity_level: non-existent entity: {entity:?}").as_str());
+            let entity_data = if let Some(entity_data) = entities.get(&entity) {
+                entity_data
+            } else {
+                log::warn!("entity_level: non-existent entity: {entity:?}");
+                continue;
+            };
 
             let mut entity_item = |ui: &mut egui::Ui| {
                 let drag_id = egui::Id::new(entity);
@@ -257,7 +260,8 @@ impl DataWindow {
             let mut new_entities_to_add = Vec::new();
             for entity in &entities_to_add {
                 let entity_data = entities.get(entity).expect(
-                    format!("entity_level::duplicate: non-existent entity: {entity:?}").as_str(),
+                    format!("get_entities_data_of_entity: non-existent entity: {entity:?}")
+                        .as_str(),
                 );
                 entities_data.insert(*entity, entity_data.clone()); // TODO: avoid clone here
                 for e in entity_data.children().into_iter().flatten() {
@@ -301,7 +305,7 @@ impl DataWindow {
             prefab_data
         };
         let (mut prefab_data, prefab_root_entity_to_nested_prefabs_index) =
-            PrefabData::new(&entities, get_prefab_data_fn);
+            PrefabData::new(entities, get_prefab_data_fn);
         prefab_data.cut();
 
         // open file dialog to select a path to save prefab data

@@ -92,7 +92,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
         scene: Some(AssetId::new("init_scene".parse().unwrap())),
     }); // init scene will be modified to init scene asset id temporily while compiling
 
-    log::debug!("Start main loop!");
+    log::info!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
         Event::Resumed => {
             log::debug!("Event::Resumed");
@@ -129,7 +129,7 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
             }
             match event {
                 WindowEvent::CloseRequested => {
-                    log::debug!("WindowEvent::CloseRequested");
+                    log::info!("WindowEvent::CloseRequested");
                     *control_flow = ControlFlow::Exit;
                 }
                 WindowEvent::Resized(_) => {

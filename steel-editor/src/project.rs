@@ -307,10 +307,6 @@ impl Project {
                 scene: None,
             });
 
-            // restore game world from scene data
-            app.command_mut(CommandMut::Reload(&scene_data));
-            app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
-
             // init a watcher to monitor file changes for asset system
             let (sender, receiver) = std::sync::mpsc::channel();
             let mut watcher = notify::recommended_watcher(move |result| match result {
@@ -331,6 +327,11 @@ impl Project {
             if let Err(e) = Self::_scan_asset_dir(abs_asset_dir, &app) {
                 log::warn!("Project::_scan_asset_dir error: {e}");
             }
+
+            // restore game world from scene data, this must be done after scanning
+            // asset dir to ensure that all prefabs can be found when loading scene
+            app.command_mut(CommandMut::Reload(&scene_data));
+            app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
 
             // create ProjectCompiledState
             state.compiled = Some(ProjectCompiledState {

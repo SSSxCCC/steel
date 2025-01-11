@@ -85,7 +85,7 @@ fn _main(event_loop: EventLoop<()>) {
         &mut gui,
     );
 
-    log::debug!("Start main loop!");
+    log::info!("Start main loop!");
     event_loop.run(move |event, event_loop, control_flow| match event {
         Event::Resumed => {
             log::debug!("Event::Resumed");
@@ -144,7 +144,7 @@ fn _main(event_loop: EventLoop<()>) {
             }
             match event {
                 WindowEvent::CloseRequested => {
-                    log::debug!("WindowEvent::CloseRequested");
+                    log::info!("WindowEvent::CloseRequested");
                     project.exit(&mut local_data, scene_camera);
                     *control_flow = ControlFlow::Exit;
                 }
