@@ -424,34 +424,13 @@ impl DataWindow {
                 .expect("Already checked file.starts_with(&asset_dir) is true!");
             let asset_info =
                 Project::get_asset_info_and_insert(&asset_dir, asset_path, app, false)?;
-            let get_prefab_data_fn = |prefab_asset: AssetId| {
-                let mut prefab_data = None;
-                app.command(Command::GetPrefabData(prefab_asset, &mut prefab_data));
-                prefab_data
-            };
-            let prefab_data = get_prefab_data_fn(asset_info.id)
-                .ok_or(EditorError::new("failed to get prefab data!"))?;
-            let (entities_data, entity_map) = prefab_data.to_entities_data(get_prefab_data_fn);
-            let mut old_id_to_new_id = HashMap::new();
-            app.command(Command::AddEntities(&entities_data, &mut old_id_to_new_id));
 
-            // prefab asset is successfully loaded, we must update Prefab components
-            let mut entity_id_to_prefab_entity_id_with_path = HashMap::new();
-            for (entity_id_with_path, old_id) in entity_map {
-                let new_id = old_id_to_new_id.get(&old_id).ok_or(EditorError::new(
-                    "old_id_to_new_id should contain all EntityId!",
-                ))?;
-                entity_id_to_prefab_entity_id_with_path.insert(*new_id, entity_id_with_path);
-            }
-            let root_entity = *entities_data
-                .root()
-                .and_then(|e| old_id_to_new_id.get(&e))
-                .ok_or(EditorError::new("there should be a root entity in prefab!"))?;
-            app.command(Command::LoadPrefab(
-                root_entity,
+            let mut prefab_root_entity = Err("".into());
+            app.command(Command::AddEntitiesFromPrefab(
                 asset_info.id,
-                entity_id_to_prefab_entity_id_with_path,
+                &mut prefab_root_entity,
             ));
+            prefab_root_entity?;
         }
         Ok(())
     }

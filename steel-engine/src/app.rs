@@ -569,6 +569,12 @@ impl App for SteelApp {
                 self.world.run(crate::prefab::load_prefab_system);
                 self.world.remove_unique::<LoadPrefabParam>().unwrap();
             }
+            Command::AddEntitiesFromPrefab(prefab_asset, prefab_root_entity) => {
+                *prefab_root_entity = crate::prefab::add_entities_from_prefab(
+                    &self.world.all_storages().unwrap(),
+                    prefab_asset,
+                )
+            }
         }
     }
 }

@@ -9,6 +9,7 @@ use glam::UVec2;
 use shipyard::EntityId;
 use std::{
     collections::HashMap,
+    error::Error,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -104,6 +105,8 @@ pub enum Command<'a> {
     CreatePrefab(EntityId, AssetId, HashMap<EntityId, u64>),
     /// prefab_root_entity, prefab_asset, entity_id_to_prefab_entity_id_with_path
     LoadPrefab(EntityId, AssetId, HashMap<EntityId, EntityIdWithPath>),
+    /// prefab_asset, prefab_root_entity
+    AddEntitiesFromPrefab(AssetId, &'a mut Result<EntityId, Box<dyn Error>>),
 }
 
 /// Helper struct to define window index constants: WindowIndex::GAME and WindowIndex::SCENE.

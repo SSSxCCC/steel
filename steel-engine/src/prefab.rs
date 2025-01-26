@@ -2,13 +2,15 @@ pub use steel_common::prefab::*;
 
 use crate::{
     asset::AssetManager,
+    data::EntitiesDataExt,
     edit::Edit,
     hierarchy::{Children, Parent},
 };
 use shipyard::{
-    AddComponent, Component, EntityId, Get, Unique, UniqueView, UniqueViewMut, View, ViewMut,
+    AddComponent, AllStorages, Component, EntityId, Get, Unique, UniqueView, UniqueViewMut, View,
+    ViewMut,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc};
 use steel_common::{
     asset::AssetId,
     data::{Data, Limit, Value},
@@ -234,4 +236,49 @@ impl PrefabAssets {
         self.prefabs.remove(&asset_id);
         None
     }
+}
+
+/// Add entities to the ecs world from a prefab, return the root entity id of the prefab.
+pub fn add_entities_from_prefab(
+    all_storages: &AllStorages,
+    prefab_asset: AssetId,
+) -> Result<EntityId, Box<dyn Error>> {
+    let get_prefab_data_fn = |prefab_asset: AssetId| {
+        all_storages.run(
+            |mut prefab_assets: UniqueViewMut<PrefabAssets>,
+             mut asset_manager: UniqueViewMut<AssetManager>,
+             platform: UniqueView<Platform>| {
+                prefab_assets.get_prefab_data(
+                    prefab_asset,
+                    asset_manager.as_mut(),
+                    platform.as_ref(),
+                )
+            },
+        )
+    };
+    let prefab_data = get_prefab_data_fn(prefab_asset).ok_or("failed to get prefab data!")?;
+    let (entities_data, entity_map) = prefab_data.to_entities_data(get_prefab_data_fn);
+    let old_id_to_new_id = entities_data.add_to_world(all_storages);
+
+    // prefab asset is successfully loaded, we must update Prefab components
+    let mut entity_id_to_prefab_entity_id_with_path = HashMap::new();
+    for (entity_id_with_path, old_id) in entity_map {
+        let new_id = *old_id_to_new_id
+            .get(&old_id)
+            .ok_or("old_id_to_new_id did not contain all EntityId!")?;
+        entity_id_to_prefab_entity_id_with_path.insert(new_id, entity_id_with_path);
+    }
+    let prefab_root_entity = *entities_data
+        .root()
+        .and_then(|e| old_id_to_new_id.get(&e))
+        .ok_or("Could not find root entity in prefab!")?;
+    all_storages.add_unique(LoadPrefabParam {
+        prefab_root_entity,
+        prefab_asset,
+        entity_id_to_prefab_entity_id_with_path,
+    });
+    all_storages.run(crate::prefab::load_prefab_system);
+    all_storages.remove_unique::<LoadPrefabParam>().unwrap();
+
+    Ok(prefab_root_entity)
 }
