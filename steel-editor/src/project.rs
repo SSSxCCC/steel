@@ -717,8 +717,8 @@ impl Project {
         return self.compiled_ref().is_some();
     }
 
-    pub fn app(&mut self) -> Option<&mut Box<dyn App>> {
-        Some(&mut self.compiled_mut()?.app)
+    pub fn app(&self) -> Option<&Box<dyn App>> {
+        Some(&self.compiled_ref()?.app)
     }
 
     fn compiled_ref(&self) -> Option<&ProjectCompiledState> {

@@ -232,7 +232,7 @@ impl DataWindow {
         }
     }
 
-    pub fn duplicate_entity(entity: EntityId, entities: &EntitiesData, app: &mut Box<dyn App>) {
+    pub fn duplicate_entity(entity: EntityId, entities: &EntitiesData, app: &Box<dyn App>) {
         let entities_data = Self::get_entities_data_of_entity(entity, entities);
         let mut old_id_to_new_id = HashMap::new();
         app.command(Command::AddEntities(&entities_data, &mut old_id_to_new_id));
@@ -267,7 +267,7 @@ impl DataWindow {
         entities_data
     }
 
-    pub fn delete_entity(&mut self, entity: EntityId, app: &mut Box<dyn App>) {
+    pub fn delete_entity(&mut self, entity: EntityId, app: &Box<dyn App>) {
         app.command(Command::DestroyEntity(entity));
         self.selected_entity = EntityId::dead();
     }
@@ -275,7 +275,7 @@ impl DataWindow {
     pub fn save_as_prefab(
         entity: EntityId,
         entities: &EntitiesData,
-        app: &mut Box<dyn App>,
+        app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
     ) {
         if let Err(e) = Self::save_as_prefab_inner(entity, entities, app, asset_dir) {
@@ -286,7 +286,7 @@ impl DataWindow {
     fn save_as_prefab_inner(
         entity: EntityId,
         entities: &EntitiesData,
-        app: &mut Box<dyn App>,
+        app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
     ) -> Result<(), Box<dyn Error>> {
         // get all entities that we will save as prefab
@@ -400,18 +400,18 @@ impl DataWindow {
         Ok(())
     }
 
-    pub fn create_new_entity(app: &mut Box<dyn App>) {
+    pub fn create_new_entity(app: &Box<dyn App>) {
         app.command(Command::CreateEntity);
     }
 
-    pub fn create_entities_from_prefab(app: &mut Box<dyn App>, asset_dir: impl AsRef<Path>) {
+    pub fn create_entities_from_prefab(app: &Box<dyn App>, asset_dir: impl AsRef<Path>) {
         if let Err(e) = Self::create_entities_from_prefab_inner(app, asset_dir) {
             log::error!("DataWindow::create_entities_from_prefab error: {e:?}");
         }
     }
 
     fn create_entities_from_prefab_inner(
-        app: &mut Box<dyn App>,
+        app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
     ) -> Result<(), Box<dyn Error>> {
         let file = rfd::FileDialog::new().set_directory(&asset_dir).pick_file();
@@ -537,7 +537,7 @@ impl DataWindow {
         &mut self,
         ui: &mut egui::Ui,
         entity_data: &mut EntityData,
-        app: &mut Box<dyn App>,
+        app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
         texts: &Texts,
     ) {

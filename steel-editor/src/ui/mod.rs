@@ -322,12 +322,7 @@ impl Editor {
         }
     }
 
-    fn click_entity(
-        &mut self,
-        ctx: &egui::Context,
-        app: &mut Box<dyn App>,
-        input: &WinitInputHelper,
-    ) {
+    fn click_entity(&mut self, ctx: &egui::Context, app: &Box<dyn App>, input: &WinitInputHelper) {
         if input.mouse_pressed(0) {
             if let Some((x, y)) = input.mouse() {
                 let x = x - self.scene_window.position().x * ctx.pixels_per_point();

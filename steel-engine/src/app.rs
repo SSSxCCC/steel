@@ -303,7 +303,7 @@ impl App for SteelApp {
         self.world.run_workload("init").unwrap();
     }
 
-    fn update(&mut self, info: UpdateInfo) {
+    fn update(&self, info: UpdateInfo) {
         self.world.add_unique(EguiContext::new(info.ctx.clone()));
 
         let workload = if info.update {
@@ -316,7 +316,7 @@ impl App for SteelApp {
         self.world.remove_unique::<EguiContext>().unwrap();
     }
 
-    fn draw(&mut self, mut info: DrawInfo) -> Box<dyn GpuFuture> {
+    fn draw(&self, mut info: DrawInfo) -> Box<dyn GpuFuture> {
         if let Some(editor) = &info.editor_info {
             self.world
                 .run(|mut camera: UniqueViewMut<CameraInfo>| camera.set(editor.camera));

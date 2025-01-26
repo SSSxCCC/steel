@@ -194,9 +194,9 @@ fn _main(event_loop: EventLoop<()>) {
                 let mut gpu_future = renderer.acquire().unwrap();
 
                 let gui_editor = gui_editor.as_mut().unwrap();
-                let mut world_data = project.app().map(|e| {
+                let mut world_data = project.app().map(|app| {
                     let mut world_data = WorldData::default();
-                    e.command(Command::Save(&mut world_data));
+                    app.command(Command::Save(&mut world_data));
                     world_data
                 });
                 editor.ui(

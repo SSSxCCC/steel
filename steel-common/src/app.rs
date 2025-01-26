@@ -21,8 +21,8 @@ use winit::event::WindowEvent;
 /// You usually do not need to manually implement this trait, just use steel::app::SteelApp.
 pub trait App {
     fn init(&mut self, info: InitInfo);
-    fn update(&mut self, info: UpdateInfo);
-    fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
+    fn update(&self, info: UpdateInfo);
+    fn draw(&self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn command(&self, cmd: Command);
 }
 
