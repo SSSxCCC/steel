@@ -180,7 +180,7 @@ pub struct EntityData {
 
 impl EntityData {
     /// Get the name in Name component.
-    /// Returns None if it does not exist.
+    /// Return None if it does not exist.
     pub fn name(&self) -> Option<&String> {
         self.components
             .get("Name")
@@ -192,7 +192,7 @@ impl EntityData {
     }
 
     /// Get the parent entity id of this entity.
-    /// Returns [EntityId::dead] if this entity is at top layer.
+    /// Return [EntityId::dead] if this entity is at top layer.
     pub fn parent(&self) -> EntityId {
         self.components
             .get("Parent")
@@ -204,7 +204,7 @@ impl EntityData {
     }
 
     /// Get the children entity ids of this entity.
-    /// Returns None if there are no children.
+    /// Return None if there are no children.
     pub fn children(&self) -> Option<&Vec<EntityId>> {
         self.components
             .get("Children")
@@ -214,8 +214,43 @@ impl EntityData {
             })
     }
 
+    /// Get the mutable children entity ids of this entity.
+    /// Return None if the children component does not exist.
+    pub fn children_mut(&mut self) -> Option<&mut Vec<EntityId>> {
+        match self.components.get_mut("Children") {
+            Some(data) => match data.values.get_mut("unnamed-0") {
+                Some(Value::VecEntity(v)) => Some(v),
+                _ => panic!("Children entity vector not found in Children component"),
+            },
+            None => None,
+        }
+    }
+
+    /// Create the Children component if it does not already exist.
+    pub fn ensure_children_component(&mut self) {
+        if !self.components.contains_key("Children") {
+            let mut children_component = Data::default();
+            children_component
+                .values
+                .insert("unnamed-0".to_string(), Value::VecEntity(Vec::new()));
+            self.components
+                .insert("Children".to_string(), children_component);
+        }
+    }
+
+    /// Trim the Children component by removing all EntityId::dead entries.
+    /// Remove the Children component if it becomes empty.
+    pub fn trim_children(&mut self) {
+        if let Some(children) = self.children_mut() {
+            children.retain(|&id| id != EntityId::dead());
+            if children.is_empty() {
+                self.components.shift_remove("Children");
+            }
+        }
+    }
+
     /// Get prefab_asset, prefab_entity_index, prefab_entity_path, and prefab_root_entity at the same time.
-    /// Returns None if this entity is not created from a prefab.
+    /// Return None if this entity is not created from a prefab.
     pub fn prefab_info(&self) -> Option<(AssetId, u64, &EntityIdPath, EntityId)> {
         if let (
             Some(prefab_asset),
@@ -240,7 +275,7 @@ impl EntityData {
     }
 
     /// Get the prefab asset that this entity belongs to.
-    /// Returns None if this entity is not in a prefab.
+    /// Return None if this entity is not in a prefab.
     pub fn prefab_asset(&self) -> Option<AssetId> {
         self.components
             .get("Prefab")
@@ -252,7 +287,7 @@ impl EntityData {
     }
 
     /// Get the entity id index of this entity in the prefab.
-    /// Returns None if this entity is not in a prefab.
+    /// Return None if this entity is not in a prefab.
     pub fn prefab_entity_index(&self) -> Option<u64> {
         self.components
             .get("Prefab")
@@ -264,7 +299,7 @@ impl EntityData {
     }
 
     /// Get the entity id path of this entity in the prefab.
-    /// Returns None if this entity is not in a prefab.
+    /// Return None if this entity is not in a prefab.
     pub fn prefab_entity_path(&self) -> Option<&EntityIdPath> {
         self.components
             .get("Prefab")
@@ -276,7 +311,7 @@ impl EntityData {
     }
 
     /// Get the prefab root entity id in the scene.
-    /// Returns None if this entity is not in a prefab.
+    /// Return None if this entity is not in a prefab.
     pub fn prefab_root_entity(&self) -> Option<EntityId> {
         self.components
             .get("Prefab")
@@ -675,10 +710,18 @@ impl PrefabData {
     /// The first entity of input entities must be the root, so that after creating the prefab,
     /// we can regard the first entity as the root entity.
     pub fn new(
-        entities: &EntitiesData,
+        mut entities: EntitiesData,
         get_prefab_data_fn: impl Fn(AssetId) -> Option<Arc<PrefabData>> + Copy,
     ) -> (Self, HashMap<EntityId, u64>) {
-        Self::new_with_prefab_data_override(entities, get_prefab_data_fn, None)
+        // remove Parent component in root entity so that hierarchy maintain system
+        // can work correctly when we create entities from this prefab in the scene
+        let root_entity_data = entities
+            .get_index_mut(0)
+            .expect("PrefabData::new: prefab should have at least one entity!")
+            .1;
+        root_entity_data.components.shift_remove("Parent");
+
+        Self::new_with_prefab_data_override(&entities, get_prefab_data_fn, None)
     }
 
     /// This function has an extra parameter 'prefab_data_override' compared to [Self::new].
@@ -891,8 +934,8 @@ impl PrefabData {
         // record deleted entities.
         for (i, &nested_prefab) in nested_prefabs.iter().enumerate() {
             if let Some(prefab_data) = get_prefab_data_fn(nested_prefab) {
-                // we use prepare_entity_map to get all entities in this nested prefab, the value of this map is useless for us
-                let nested_entity_map = prefab_data.prepare_entity_map(get_prefab_data_fn);
+                // get all entities in this nested prefab
+                let (_, nested_entity_map) = prefab_data.to_entities_data(get_prefab_data_fn);
                 for (EntityIdWithPath(e, p), _) in nested_entity_map {
                     // generate EntityIdWithPath in new prefab
                     let mut path = vec![i as u64];
@@ -1142,30 +1185,59 @@ impl PrefabData {
         &self,
         get_prefab_data_fn: impl Fn(AssetId) -> Option<Arc<PrefabData>> + Copy,
     ) -> (EntitiesData, HashMap<EntityIdWithPath, EntityId>) {
-        let entity_index_map = self.prepare_entity_map(get_prefab_data_fn);
-        let entity_map = entity_index_map
-            .iter()
-            .map(|(k, &v)| (k.clone(), v))
-            .collect();
+        let mut entity_map = self.prepare_entity_map(get_prefab_data_fn);
         let mut entities_data = EntitiesData::default();
-        for (EntityIdWithPath(id, path), &entity_id) in &entity_index_map {
+        let mut keys_to_remove = Vec::new();
+        for (EntityIdWithPath(id, path), &entity_id) in &entity_map {
             if let Some(entity_data) =
                 self.get_entity_data(*id, path, &entity_map, get_prefab_data_fn)
             {
                 entities_data.insert(entity_id, entity_data);
+            } else {
+                // this entity is deleted, we should remove it from entity_map
+                keys_to_remove.push(EntityIdWithPath(*id, path.clone()));
             }
         }
+        for key in keys_to_remove {
+            entity_map.remove(&key);
+        }
+
+        // we must fix hierarchy components here, because a Children component may
+        // be overrided by multiple prefabs, which will cause abcense of entities
+        let mut children_to_add = HashMap::new();
+        for (e, entity_data) in &entities_data {
+            let parent = entity_data.parent();
+            if let Some(parent_entity_data) = entities_data.get(&parent) {
+                if !parent_entity_data
+                    .children()
+                    .is_some_and(|children| children.contains(e))
+                {
+                    children_to_add
+                        .entry(parent)
+                        .or_insert_with(Vec::new)
+                        .push(*e);
+                }
+            }
+        }
+        for (parent, children) in children_to_add {
+            let parent_entity_data = entities_data.get_mut(&parent).unwrap();
+            parent_entity_data.children_mut().unwrap().extend(children);
+        }
+        for entity_data in &mut entities_data.values_mut() {
+            entity_data.trim_children();
+        }
+
         (entities_data, entity_map)
     }
 
     /// Create a map that maps every [EntityIdWithPath] in self prefab to a new [EntityId].
-    /// This returns a [IndexMap] for a stable order of the entities to be stored.
-    /// You can use .into_iter().collect() to convert to a [HashMap].
+    /// Note that the map returned by this function may contains entities that should have been deleted in self prefab.
+    /// If you want to get the exact entities in self prefab, you should use [Self::to_entities_data].
     fn prepare_entity_map(
         &self,
         get_prefab_data_fn: impl Fn(AssetId) -> Option<Arc<PrefabData>> + Copy,
-    ) -> IndexMap<EntityIdWithPath, EntityId> {
-        let mut entity_map = IndexMap::new();
+    ) -> HashMap<EntityIdWithPath, EntityId> {
+        let mut entity_map = HashMap::new();
         self.prepare_entity_map_recursive(
             get_prefab_data_fn,
             &mut Vec::new(),
@@ -1182,7 +1254,7 @@ impl PrefabData {
         id_path_prefix: &mut Vec<u64>,
         entity_id_index: &mut u64,
         deleted_entities: &mut HashSet<EntityIdWithPath>,
-        entity_map: &mut IndexMap<EntityIdWithPath, EntityId>,
+        entity_map: &mut HashMap<EntityIdWithPath, EntityId>,
     ) {
         for (EntityIdWithPath(id, path), deleted_components) in &self.delete {
             // empty components list means that this entity is deleted.
@@ -1343,7 +1415,7 @@ impl PrefabData {
                         ) = nested_prefab_data
                             .entities
                             .get_index(0)
-                            .expect("PrefabData::update: noraml prefab should have at least one entity!")
+                            .expect("PrefabData::update: prefab should have at least one entity!")
                             .0;
                         if nested_prefab_root_entity.index() == prefab_entity_index
                             && *nested_prefab_root_entity_path == prefab_entity_path[1..]
@@ -1382,7 +1454,7 @@ impl PrefabData {
 
         // create new prefab data
         let (new_prefab_data, prefab_root_entity_to_nested_prefabs_index) =
-            PrefabData::new(&mapped_entities, get_prefab_data_fn);
+            PrefabData::new(mapped_entities.clone(), get_prefab_data_fn);
 
         // create entity_id to prefab_entity_id_with_path map for updating prefab
         let mut entity_id_to_prefab_entity_id_with_path = HashMap::new();
@@ -1550,7 +1622,9 @@ impl EntityDataWithIdPaths {
                             *e = if let Some(e) = entity_map.get(&entity_id_with_path) {
                                 *e
                             } else {
-                                log::warn!("EntityDataWithIdPaths::map: {entity_id_with_path:?} not found.");
+                                if *e != EntityId::dead() {
+                                    log::warn!("EntityDataWithIdPaths::map: {entity_id_with_path:?} not found.");
+                                }
                                 EntityId::dead()
                             };
                         }

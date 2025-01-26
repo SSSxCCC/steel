@@ -70,9 +70,9 @@ impl Editor {
         project: &mut Project,
         world_data: &mut Option<WorldData>,
         local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
         input: &WinitInputHelper,
-        scene_camera: &mut SceneCamera,
     ) {
         gui.immediate_ui(|gui| {
             let ctx = gui.context();
@@ -93,9 +93,9 @@ impl Editor {
                 project,
                 world_data,
                 local_data,
+                scene_camera,
                 window_title,
                 &mut self.texts,
-                scene_camera,
             );
 
             if project.is_compiled() {

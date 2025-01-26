@@ -20,6 +20,7 @@ use std::{
 use steel_common::{
     app::{App, Command, CommandMut, InitInfo},
     asset::{AssetId, AssetIdType, AssetInfo},
+    camera::SceneCamera,
     data::{PrefabData, SceneData, WorldData},
     platform::Platform,
 };
@@ -79,6 +80,7 @@ impl Project {
     pub fn new(
         ray_tracing_supported: bool,
         local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
         context: &VulkanoContext,
         gui_game: &mut Option<Gui>,
@@ -99,18 +101,18 @@ impl Project {
                 window_title,
                 gui_game,
             );
-            project.compile(local_data, gui_game, context);
+            project.compile(local_data, scene_camera, gui_game, context);
         }
 
         project
     }
 
     /// Called when the editor is exiting.
-    pub fn exit(&self, local_data: &mut LocalData) {
+    pub fn exit(&self, local_data: &mut LocalData, scene_camera: SceneCamera) {
         if let Some(compiled) = self.compiled_ref() {
             assert!(local_data.open_last_project_on_start);
             let scene_data = compiled.save_scene(None);
-            local_data.scene_asset_and_data = Some((compiled.scene, scene_data));
+            local_data.scene_data = Some((scene_camera, compiled.scene, scene_data));
             local_data.save();
         }
     }
@@ -136,7 +138,7 @@ impl Project {
                 local_data.last_open_project_path = path.clone();
                 local_data.open_last_project_on_start = true;
                 if self.state.is_some() {
-                    local_data.scene_asset_and_data = None; // we are closing previous project, just clear scene data
+                    local_data.scene_data = None; // we are closing previous project, just clear scene data
                 }
                 local_data.save();
 
@@ -230,7 +232,7 @@ impl Project {
         gui_game: &mut Option<Gui>,
     ) {
         local_data.open_last_project_on_start = false;
-        local_data.scene_asset_and_data = None;
+        local_data.scene_data = None;
         local_data.save();
 
         *window_title = Some("Steel Editor".into());
@@ -242,11 +244,12 @@ impl Project {
     pub fn compile(
         &mut self,
         local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
         gui_game: &mut Option<Gui>,
         context: &VulkanoContext,
     ) {
         log::info!("Project::compile start");
-        match self._compile(local_data, gui_game, context) {
+        match self._compile(local_data, scene_camera, gui_game, context) {
             Err(error) => log::error!("Project::compile error: {error}"),
             Ok(_) => log::info!("Project::compile end"),
         }
@@ -255,21 +258,24 @@ impl Project {
     fn _compile(
         &mut self,
         local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
         gui_game: &mut Option<Gui>,
         context: &VulkanoContext,
     ) -> Result<(), Box<dyn Error>> {
         if let Some(state) = self.state.as_mut() {
             let mut scene = None;
             let mut scene_data = SceneData::default();
-            let mut load_from_local_data = false;
+            let mut local_scene_camera = None;
             if let Some(compiled) = &mut state.compiled {
                 // save scene data before unloading library
                 scene = compiled.scene.take();
                 scene_data = compiled.save_scene(None);
-            } else if let Some(scene_asset_and_data) = local_data.scene_asset_and_data.clone() {
-                load_from_local_data = true;
-                (scene, scene_data) = scene_asset_and_data;
-                local_data.save();
+            } else if let Some((scene_camera, local_scene, local_scene_data)) =
+                local_data.scene_data.clone()
+            {
+                local_scene_camera = Some(scene_camera);
+                scene = local_scene;
+                scene_data = local_scene_data;
             }
 
             *gui_game = None; // destroy Gui struct before release dynlib to fix egui crash problem
@@ -301,10 +307,6 @@ impl Project {
                 scene: None,
             });
 
-            // restore game world from scene data
-            app.command_mut(CommandMut::Reload(&scene_data));
-            app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
-
             // init a watcher to monitor file changes for asset system
             let (sender, receiver) = std::sync::mpsc::channel();
             let mut watcher = notify::recommended_watcher(move |result| match result {
@@ -326,6 +328,11 @@ impl Project {
                 log::warn!("Project::_scan_asset_dir error: {e}");
             }
 
+            // restore game world from scene data, this must be done after scanning
+            // asset dir to ensure that all prefabs can be found when loading scene
+            app.command_mut(CommandMut::Reload(&scene_data));
+            app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
+
             // create ProjectCompiledState
             state.compiled = Some(ProjectCompiledState {
                 app,
@@ -338,9 +345,13 @@ impl Project {
                 last_rename_from_event: None,
             });
 
-            // ensure that we load from local data only once
-            if load_from_local_data {
-                local_data.scene_asset_and_data = None;
+            // if we are loading from local data
+            if let Some(local_scene_camera) = local_scene_camera {
+                // load scene camera
+                *scene_camera = local_scene_camera;
+
+                // ensure that we load from local data only once
+                local_data.scene_data = None;
                 local_data.save();
             }
 
