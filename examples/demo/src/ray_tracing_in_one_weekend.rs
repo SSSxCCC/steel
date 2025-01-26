@@ -2,8 +2,7 @@ use glam::{vec3, Quat, Vec3};
 use parry3d::shape::SharedShape;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use shipyard::{
-    AllStoragesViewMut, Component, EntitiesView, EntityId, IntoIter, IntoWithId, Remove,
-    UniqueViewMut, ViewMut,
+    AllStoragesViewMut, Component, EntityId, IntoIter, IntoWithId, Remove, UniqueViewMut, ViewMut,
 };
 use steel::{
     data::Data,
@@ -160,13 +159,11 @@ fn attach(all_storage: &AllStoragesViewMut, e: EntityId, parent: EntityId) {
     all_storage.run(
         |mut hierarchy: UniqueViewMut<Hierarchy>,
          mut childrens: ViewMut<Children>,
-         mut parents: ViewMut<Parent>,
-         entities: EntitiesView| {
+         mut parents: ViewMut<Parent>| {
             steel::hierarchy::attach_before(
                 &mut hierarchy,
                 &mut childrens,
                 &mut parents,
-                &entities,
                 e,
                 parent,
                 EntityId::dead(),

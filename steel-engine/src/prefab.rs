@@ -239,6 +239,45 @@ impl PrefabAssets {
 }
 
 /// Add entities to the ecs world from a prefab, return the root entity id of the prefab.
+/// # Example
+/// ```rust
+/// use shipyard::{AllStoragesView, EntityId, UniqueViewMut, ViewMut};
+/// use steel::{
+///     asset::AssetManager,
+///     hierarchy::{Children, Hierarchy, Parent},
+///     input::Input,
+/// };
+///
+/// fn my_system(all_storages: AllStoragesView) {
+///     if all_storages
+///         .get_unique::<&Input>()
+///         .unwrap()
+///         .mouse_pressed(0)
+///     {
+///         let prefab_asset = all_storages
+///             .get_unique::<&AssetManager>()
+///             .unwrap()
+///             .get_asset_id("foo.prefab")
+///             .unwrap();
+///         let root1 = steel::prefab::add_entities_from_prefab(&all_storages, prefab_asset).unwrap();
+///         let root2 = steel::prefab::add_entities_from_prefab(&all_storages, prefab_asset).unwrap();
+///         all_storages.run(
+///             |mut hierarchy: UniqueViewMut<Hierarchy>,
+///              mut childrens: ViewMut<Children>,
+///              mut parents: ViewMut<Parent>| {
+///                 steel::hierarchy::attach_after(
+///                     &mut hierarchy,
+///                     &mut childrens,
+///                     &mut parents,
+///                     root1,
+///                     root2,
+///                     EntityId::dead(),
+///                 );
+///             },
+///         );
+///     }
+/// }
+/// ```
 pub fn add_entities_from_prefab(
     all_storages: &AllStorages,
     prefab_asset: AssetId,

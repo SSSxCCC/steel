@@ -1,7 +1,7 @@
 use crate::edit::Edit;
 use shipyard::{
-    AllStoragesViewMut, Component, EntitiesView, EntityId, Get, Remove, Unique, UniqueViewMut,
-    ViewMut,
+    AddComponent, AllStoragesViewMut, Component, EntitiesView, EntityId, Get, Remove, Unique,
+    UniqueViewMut, ViewMut,
 };
 use std::collections::HashSet;
 use steel_common::data::{Data, Limit, Value};
@@ -235,9 +235,8 @@ fn check_in_hierarchy(
 }
 
 /// Dettach a child form its parent.
-/// This function must be called after hierarchy_maintain_system, or may panic.
 fn dettach(
-    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    hierarchy: &mut Hierarchy,
     childrens: &mut ViewMut<Children>,
     parents: &mut ViewMut<Parent>,
     eid: EntityId,
@@ -262,37 +261,85 @@ fn dettach(
 }
 
 /// Attach a child to a parent previous to before entity. If before is EntityId::dead(), attach as the last child.
-/// This function must be called after hierarchy_maintain_system, or may panic.
+/// # Example
+/// ```rust
+/// use shipyard::{EntitiesViewMut, EntityId, UniqueView, UniqueViewMut, ViewMut};
+/// use steel::{
+///     hierarchy::{Children, Hierarchy, Parent},
+///     input::Input,
+/// };
+/// fn my_system(
+///     mut hierarchy: UniqueViewMut<Hierarchy>,
+///     mut childrens: ViewMut<Children>,
+///     mut parents: ViewMut<Parent>,
+///     mut entities: EntitiesViewMut,
+///     input: UniqueView<Input>,
+/// ) {
+///     if input.mouse_pressed(0) {
+///         let child = entities.add_entity((), ());
+///         let parent = entities.add_entity((), ());
+///         steel::hierarchy::attach_before(
+///             &mut hierarchy,
+///             &mut childrens,
+///             &mut parents,
+///             child,
+///             parent,
+///             EntityId::dead(),
+///         );
+///     }
+/// }
+/// ```
 pub fn attach_before(
-    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    hierarchy: &mut Hierarchy,
     childrens: &mut ViewMut<Children>,
     parents: &mut ViewMut<Parent>,
-    entities: &EntitiesView,
     eid: EntityId,
     parent: EntityId,
     before: EntityId,
 ) {
     log::trace!("Attach {eid:?} to {parent:?} before {before:?}");
-    attach(
-        hierarchy, childrens, parents, entities, eid, parent, before, true,
-    );
+    attach(hierarchy, childrens, parents, eid, parent, before, true);
 }
 
 /// Attach a child to a parent next to after entity. If after is EntityId::dead(), attach as the first child.
-/// This function must be called after hierarchy_maintain_system, or may panic.
+/// # Example
+/// ```rust
+/// use shipyard::{EntitiesViewMut, EntityId, UniqueView, UniqueViewMut, ViewMut};
+/// use steel::{
+///     hierarchy::{Children, Hierarchy, Parent},
+///     input::Input,
+/// };
+/// fn my_system(
+///     mut hierarchy: UniqueViewMut<Hierarchy>,
+///     mut childrens: ViewMut<Children>,
+///     mut parents: ViewMut<Parent>,
+///     mut entities: EntitiesViewMut,
+///     input: UniqueView<Input>,
+/// ) {
+///     if input.mouse_pressed(0) {
+///         let child = entities.add_entity((), ());
+///         let parent = entities.add_entity((), ());
+///         steel::hierarchy::attach_after(
+///             &mut hierarchy,
+///             &mut childrens,
+///             &mut parents,
+///             child,
+///             parent,
+///             EntityId::dead(),
+///         );
+///     }
+/// }
+/// ```
 pub fn attach_after(
-    hierarchy: &mut UniqueViewMut<Hierarchy>,
+    hierarchy: &mut Hierarchy,
     childrens: &mut ViewMut<Children>,
     parents: &mut ViewMut<Parent>,
-    entities: &EntitiesView,
     eid: EntityId,
     parent: EntityId,
     after: EntityId,
 ) {
     log::trace!("Attach {eid:?} to {parent:?} after {after:?}");
-    attach(
-        hierarchy, childrens, parents, entities, eid, parent, after, false,
-    );
+    attach(hierarchy, childrens, parents, eid, parent, after, false);
 }
 
 /// Attach a child to a parent adjacent to adjacent entity.
@@ -300,11 +347,10 @@ pub fn attach_after(
 /// attach previous to adjacent. If adjacent is EntityId::dead(), attach as the last child.
 /// ### If prev is false:
 /// attach next to adjacent. If adjacent is EntityId::dead(), attach as the first child.
-pub fn attach(
-    hierarchy: &mut UniqueViewMut<Hierarchy>,
+fn attach(
+    hierarchy: &mut Hierarchy,
     childrens: &mut ViewMut<Children>,
     parents: &mut ViewMut<Parent>,
-    entities: &EntitiesView,
     eid: EntityId,
     parent: EntityId,
     adjacent: EntityId,
@@ -324,9 +370,9 @@ pub fn attach(
             children.0.insert(i, eid);
         } else {
             // in this case our parent entity is missing a Children component
-            entities.add_component(parent, childrens, Children(vec![eid]));
+            childrens.add_component_unchecked(parent, Children(vec![eid]));
         }
-        entities.add_component(eid, parents, Parent(parent));
+        parents.add_component_unchecked(eid, Parent(parent));
     }
 }
 

@@ -442,13 +442,11 @@ impl App for SteelApp {
                 self.world.run(
                     |mut hierarchy: UniqueViewMut<Hierarchy>,
                      mut childrens: ViewMut<Children>,
-                     mut parents: ViewMut<Parent>,
-                     entities: EntitiesView| {
+                     mut parents: ViewMut<Parent>| {
                         crate::hierarchy::attach_before(
                             &mut hierarchy,
                             &mut childrens,
                             &mut parents,
-                            &entities,
                             eid,
                             parent,
                             before,
@@ -460,13 +458,11 @@ impl App for SteelApp {
                 self.world.run(
                     |mut hierarchy: UniqueViewMut<Hierarchy>,
                      mut childrens: ViewMut<Children>,
-                     mut parents: ViewMut<Parent>,
-                     entities: EntitiesView| {
+                     mut parents: ViewMut<Parent>| {
                         crate::hierarchy::attach_after(
                             &mut hierarchy,
                             &mut childrens,
                             &mut parents,
-                            &entities,
                             eid,
                             parent,
                             after,
