@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 use steel_common::{
-    app::{App, Command, CommandMut},
+    app::{App, Command},
     asset::{AssetId, AssetInfo},
     data::{Data, EntitiesData, EntityData, Limit, PrefabData, Value, WorldData},
 };
@@ -69,7 +69,7 @@ impl DataWindow {
             if let Some(drop_parent) = drop_parent {
                 if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released())
                 {
-                    project.app().unwrap().command_mut(CommandMut::AttachBefore(
+                    project.app().unwrap().command(Command::AttachBefore(
                         drag_entity,
                         drop_parent,
                         drop_before,
@@ -234,21 +234,14 @@ impl DataWindow {
     pub fn duplicate_entity(entity: EntityId, entities: &EntitiesData, app: &mut Box<dyn App>) {
         let entities_data = Self::get_entities_data_of_entity(entity, entities);
         let mut old_id_to_new_id = HashMap::new();
-        app.command_mut(CommandMut::AddEntities(
-            &entities_data,
-            &mut old_id_to_new_id,
-        ));
+        app.command(Command::AddEntities(&entities_data, &mut old_id_to_new_id));
         let new_id = *old_id_to_new_id.get(&entity).unwrap();
 
         // attach duplicated entity next to the original entity
         let entity_data = entities
             .get(&entity)
             .expect(format!("duplicate_entity: non-existent entity: {entity:?}").as_str());
-        app.command_mut(CommandMut::AttachAfter(
-            new_id,
-            entity_data.parent(),
-            entity,
-        ));
+        app.command(Command::AttachAfter(new_id, entity_data.parent(), entity));
     }
 
     /// Get EntitiesData of an entity with its ancestors. This function will keep input entity as the first
@@ -274,7 +267,7 @@ impl DataWindow {
     }
 
     pub fn delete_entity(&mut self, entity: EntityId, app: &mut Box<dyn App>) {
-        app.command_mut(CommandMut::DestroyEntity(entity));
+        app.command(Command::DestroyEntity(entity));
         self.selected_entity = EntityId::dead();
     }
 
@@ -407,7 +400,7 @@ impl DataWindow {
     }
 
     pub fn create_new_entity(app: &mut Box<dyn App>) {
-        app.command_mut(CommandMut::CreateEntity);
+        app.command(Command::CreateEntity);
     }
 
     pub fn create_entities_from_prefab(app: &mut Box<dyn App>, asset_dir: impl AsRef<Path>) {
@@ -439,10 +432,7 @@ impl DataWindow {
                 .ok_or(EditorError::new("failed to get prefab data!"))?;
             let (entities_data, entity_map) = prefab_data.to_entities_data(get_prefab_data_fn);
             let mut old_id_to_new_id = HashMap::new();
-            app.command_mut(CommandMut::AddEntities(
-                &entities_data,
-                &mut old_id_to_new_id,
-            ));
+            app.command(Command::AddEntities(&entities_data, &mut old_id_to_new_id));
 
             // prefab asset is successfully loaded, we must update Prefab components
             let mut entity_id_to_prefab_entity_id_with_path = HashMap::new();
@@ -586,7 +576,7 @@ impl DataWindow {
                 {
                     // TODO: use a more generic way to prevent some components from being destroyed by user
                     if ui.button("-").clicked() {
-                        app.command_mut(CommandMut::DestroyComponent(
+                        app.command(Command::DestroyComponent(
                             self.selected_entity,
                             component_name,
                         ));
@@ -606,7 +596,7 @@ impl DataWindow {
             {
                 // TODO: use a more generic way to prevent some components from being created by user
                 if ui.button(component).clicked() {
-                    app.command_mut(CommandMut::CreateComponent(self.selected_entity, component));
+                    app.command(Command::CreateComponent(self.selected_entity, component));
                     ui.close_menu();
                 }
             }

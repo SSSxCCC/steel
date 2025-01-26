@@ -18,7 +18,7 @@ use std::{
     },
 };
 use steel_common::{
-    app::{App, Command, CommandMut, InitInfo},
+    app::{App, Command, InitInfo},
     asset::{AssetId, AssetIdType, AssetInfo},
     camera::SceneCamera,
     data::{PrefabData, SceneData, WorldData},
@@ -330,8 +330,8 @@ impl Project {
 
             // restore game world from scene data, this must be done after scanning
             // asset dir to ensure that all prefabs can be found when loading scene
-            app.command_mut(CommandMut::Reload(&scene_data));
-            app.command_mut(CommandMut::SetCurrentScene(scene.clone()));
+            app.command(Command::Reload(&scene_data));
+            app.command(Command::SetCurrentScene(scene.clone()));
 
             // create ProjectCompiledState
             state.compiled = Some(ProjectCompiledState {
@@ -936,12 +936,10 @@ impl Project {
 
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
+            compiled.app.command(Command::Reload(&compiled.scene_data));
             compiled
                 .app
-                .command_mut(CommandMut::Reload(&compiled.scene_data));
-            compiled
-                .app
-                .command_mut(CommandMut::SetCurrentScene(compiled.scene.clone()));
+                .command(Command::SetCurrentScene(compiled.scene.clone()));
         }
     }
 
@@ -1003,8 +1001,8 @@ impl Project {
 
     pub fn new_scene(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command_mut(CommandMut::ClearEntity);
-            compiled.app.command_mut(CommandMut::SetCurrentScene(None));
+            compiled.app.command(Command::ClearEntity);
+            compiled.app.command(Command::SetCurrentScene(None));
             compiled.scene = None;
         }
     }
@@ -1025,7 +1023,7 @@ impl Project {
                         Ok(asset_info) => {
                             compiled
                                 .app
-                                .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
+                                .command(Command::SetCurrentScene(Some(asset_info.id)));
                             compiled.scene = Some(asset_info.id);
                         }
                         Err(e) => {
@@ -1056,14 +1054,12 @@ impl Project {
             match crate::utils::load_from_file::<SceneData>(&scene_abs) {
                 Ok(scene_data) => {
                     compiled.scene_data = scene_data;
-                    compiled
-                        .app
-                        .command_mut(CommandMut::Reload(&compiled.scene_data));
+                    compiled.app.command(Command::Reload(&compiled.scene_data));
                     match Self::get_asset_info_and_insert(asset_dir, scene, &compiled.app, false) {
                         Ok(asset_info) => {
                             compiled
                                 .app
-                                .command_mut(CommandMut::SetCurrentScene(Some(asset_info.id)));
+                                .command(Command::SetCurrentScene(Some(asset_info.id)));
                             compiled.scene = Some(asset_info.id);
                         }
                         Err(e) => {

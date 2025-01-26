@@ -8,8 +8,8 @@ use crate::{
 use indexmap::IndexMap;
 use shipyard::{
     track::{All, Deletion, Insertion, Modification, Removal, Untracked},
-    AddComponent, Component, EntitiesView, EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView,
-    UniqueViewMut, View, ViewMut, World,
+    AddComponent, AllStorages, Component, Delete, EntitiesView, EntitiesViewMut, EntityId, Get,
+    IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View, ViewMut,
 };
 use std::{collections::HashMap, sync::Arc};
 use steel_common::{asset::AssetId, platform::Platform};
@@ -17,14 +17,15 @@ use steel_common::{asset::AssetId, platform::Platform};
 /// ComponentFn stores many functions of a component, like component create and destroy functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this component.
 pub struct ComponentFn {
-    pub create: fn(&mut World, EntityId),
-    pub create_with_data: fn(&mut World, EntityId, &Data),
-    pub destroy: fn(&mut World, EntityId),
-    pub save_to_data: fn(&mut WorldData, &World),
-    pub load_from_data: fn(&mut World, &WorldData),
+    pub create: fn(&AllStorages, EntityId),
+    pub create_with_data: fn(&AllStorages, EntityId, &Data),
+    pub destroy: fn(&AllStorages, EntityId),
+    pub save_to_data: fn(&mut WorldData, &AllStorages),
+    pub load_from_data: fn(&AllStorages, &WorldData),
 }
 
 /// A map of ComponentFn, key is component name.
+#[derive(Unique)]
 pub struct ComponentRegistry(IndexMap<&'static str, ComponentFn>);
 
 impl std::ops::Deref for ComponentRegistry {
@@ -151,27 +152,36 @@ impl ComponentRegistry {
         );
     }
 
-    fn create_fn<C: Component + Edit + Default + Send + Sync>(world: &mut World, entity: EntityId) {
-        world.add_component(entity, (C::default(),))
+    fn create_fn<C: Component + Edit + Default + Send + Sync>(
+        all_storages: &AllStorages,
+        entity: EntityId,
+    ) {
+        all_storages.run(|mut c: ViewMut<C>| {
+            c.add_component_unchecked(entity, C::default());
+        });
     }
 
     fn create_with_data_fn<C: Component + Edit + Default + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         entity: EntityId,
         data: &Data,
     ) {
-        world.add_component(entity, (C::from_data(data),))
+        all_storages.run(|mut c: ViewMut<C>| {
+            c.add_component_unchecked(entity, C::from_data(data));
+        })
     }
 
-    fn destroy_fn<C: Component + Edit + Send + Sync>(world: &mut World, entity: EntityId) {
-        world.delete_component::<C>(entity)
+    fn destroy_fn<C: Component + Edit + Send + Sync>(all_storages: &AllStorages, entity: EntityId) {
+        all_storages.run(|mut c: ViewMut<C>| {
+            c.delete(entity);
+        });
     }
 
     fn save_to_data_fn<C: Component + Edit + Send + Sync>(
         world_data: &mut WorldData,
-        world: &World,
+        all_storages: &AllStorages,
     ) {
-        world.run(|c: View<C>| {
+        all_storages.run(|c: View<C>| {
             for (e, c) in c.iter().with_id() {
                 let entity_data = world_data
                     .entities
@@ -187,12 +197,12 @@ impl ComponentRegistry {
     /// Currently we must write different generic functions for different tracking type, see https://github.com/leudz/shipyard/issues/157.
     /// TODO: find a way to write only one generic function to cover all tracking type.
     fn load_from_data_untracked_fn<C: Component<Tracking = Untracked> + Edit + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
-        world.run(|mut c: ViewMut<C>| {
+        all_storages.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c, world_data);
+                Self::load_from_data_inner(id, c, world_data);
             }
         })
     }
@@ -200,12 +210,12 @@ impl ComponentRegistry {
     fn load_from_data_track_insertion_fn<
         C: Component<Tracking = Insertion> + Edit + Send + Sync,
     >(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
-        world.run(|mut c: ViewMut<C>| {
+        all_storages.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c, world_data);
+                Self::load_from_data_inner(id, c, world_data);
             }
         })
     }
@@ -213,50 +223,50 @@ impl ComponentRegistry {
     fn load_from_data_track_modification_fn<
         C: Component<Tracking = Modification> + Edit + Send + Sync,
     >(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
-        world.run(|mut c: ViewMut<C>| {
+        all_storages.run(|mut c: ViewMut<C>| {
             for (id, mut c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c.as_mut(), world_data);
+                Self::load_from_data_inner(id, c.as_mut(), world_data);
             }
         })
     }
 
     fn load_from_data_track_deletion_fn<C: Component<Tracking = Deletion> + Edit + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
-        world.run(|mut c: ViewMut<C>| {
+        all_storages.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c, world_data);
+                Self::load_from_data_inner(id, c, world_data);
             }
         })
     }
 
     fn load_from_data_track_removal_fn<C: Component<Tracking = Removal> + Edit + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
-        world.run(|mut c: ViewMut<C>| {
+        all_storages.run(|mut c: ViewMut<C>| {
             for (id, c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c, world_data);
+                Self::load_from_data_inner(id, c, world_data);
             }
         })
     }
 
     fn load_from_data_track_all_fn<C: Component<Tracking = All> + Edit + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
-        world.run(|mut c: ViewMut<C>| {
+        all_storages.run(|mut c: ViewMut<C>| {
             for (id, mut c) in (&mut c).iter().with_id() {
-                Self::_load_from_data(id, c.as_mut(), world_data);
+                Self::load_from_data_inner(id, c.as_mut(), world_data);
             }
         })
     }
 
-    fn _load_from_data<C: Edit>(id: EntityId, c: &mut C, world_data: &WorldData) {
+    fn load_from_data_inner<C: Edit>(id: EntityId, c: &mut C, world_data: &WorldData) {
         if let Some(entity_data) = world_data.entities.get(&id) {
             if let Some(component_data) = entity_data.components.get(C::name()) {
                 c.set_data(component_data);
@@ -344,12 +354,13 @@ where
 /// UniqueFn stores many functions of a unique, like unique save_to_data and load_from_data functions.
 /// These functions are used by steel-editor so that we can use steel-editor ui to edit this unique.
 pub struct UniqueFn {
-    pub save_to_data: fn(&mut WorldData, &World),
-    pub load_from_data: fn(&mut World, &WorldData),
-    pub load_from_scene_data: fn(&mut World, &WorldData),
+    pub save_to_data: fn(&mut WorldData, &AllStorages),
+    pub load_from_data: fn(&AllStorages, &WorldData),
+    pub load_from_scene_data: fn(&AllStorages, &WorldData),
 }
 
 /// A map of UniqueFn, key is unique name.
+#[derive(Unique)]
 pub struct UniqueRegistry(IndexMap<&'static str, UniqueFn>);
 
 impl std::ops::Deref for UniqueRegistry {
@@ -384,25 +395,35 @@ impl UniqueRegistry {
         );
     }
 
-    fn save_to_data_fn<U: Unique + Edit + Send + Sync>(world_data: &mut WorldData, world: &World) {
-        world.run(|u: UniqueView<U>| world_data.uniques.insert(U::name().into(), u.get_data()));
+    fn save_to_data_fn<U: Unique + Edit + Send + Sync>(
+        world_data: &mut WorldData,
+        all_storages: &AllStorages,
+    ) {
+        let u = all_storages.get_unique::<&U>().unwrap();
+        world_data.uniques.insert(U::name().into(), u.get_data());
     }
 
     fn load_from_data_fn<U: Unique + Edit + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
         if let Some(unique_data) = world_data.uniques.get(U::name()) {
-            world.run(|mut u: UniqueViewMut<U>| u.set_data(unique_data));
+            all_storages
+                .get_unique::<&mut U>()
+                .unwrap()
+                .set_data(unique_data);
         }
     }
 
     fn load_from_scene_data_fn<U: Unique + Edit + Send + Sync>(
-        world: &mut World,
+        all_storages: &AllStorages,
         world_data: &WorldData,
     ) {
         if let Some(unique_data) = world_data.uniques.get(U::name()) {
-            world.run(|mut u: UniqueViewMut<U>| u.load_data(unique_data));
+            all_storages
+                .get_unique::<&mut U>()
+                .unwrap()
+                .load_data(unique_data);
         }
     }
 }
@@ -410,43 +431,37 @@ impl UniqueRegistry {
 /// WorldData extension functions in steel core library.
 pub trait WorldDataExt {
     /// Add entities and uniques of self into ecs world. Return old_id_to_new_id map.
-    fn add_to_world(
-        &self,
-        world: &mut World,
-        component_registry: &ComponentRegistry,
-        unique_registry: &UniqueRegistry,
-    ) -> HashMap<EntityId, EntityId>;
+    fn add_to_world(&self, all_storages: &AllStorages) -> HashMap<EntityId, EntityId>;
 }
 
 impl WorldDataExt for WorldData {
-    fn add_to_world(
-        &self,
-        world: &mut World,
-        component_registry: &ComponentRegistry,
-        unique_registry: &UniqueRegistry,
-    ) -> HashMap<EntityId, EntityId> {
+    fn add_to_world(&self, all_storages: &AllStorages) -> HashMap<EntityId, EntityId> {
         // create new_world_data from self by changing old entity ids to new entity ids.
         let mut new_world_data = WorldData::default();
-        let old_id_to_new_id = create_old_id_to_new_id_map(&self.entities, world);
+        let old_id_to_new_id = create_old_id_to_new_id_map(&self.entities, all_storages);
         fill_new_entities_data(
             &mut new_world_data.entities,
             &self.entities,
             &old_id_to_new_id,
-            &world,
+            &all_storages,
         );
         for (unique_name, unique_data) in &self.uniques {
-            let new_unique_data = update_eid_in_data(unique_data, &old_id_to_new_id, &world);
+            let new_unique_data = update_eid_in_data(unique_data, &old_id_to_new_id, &all_storages);
             new_world_data
                 .uniques
                 .insert(unique_name.clone(), new_unique_data);
         }
 
         // create components in ecs world.
-        create_components_in_world(&new_world_data.entities, world, component_registry);
+        create_components_in_world(&new_world_data.entities, all_storages);
 
         // load uniques in ecs world.
-        for unique_fn in unique_registry.values() {
-            (unique_fn.load_from_scene_data)(world, &new_world_data);
+        for unique_fn in all_storages
+            .get_unique::<&UniqueRegistry>()
+            .unwrap()
+            .values()
+        {
+            (unique_fn.load_from_scene_data)(all_storages, &new_world_data);
         }
 
         old_id_to_new_id
@@ -456,26 +471,23 @@ impl WorldDataExt for WorldData {
 /// EntitiesData extension functions in steel core library.
 pub trait EntitiesDataExt {
     /// Add entities of self into ecs world. Return old_id_to_new_id map.
-    fn add_to_world(
-        &self,
-        world: &mut World,
-        component_registry: &ComponentRegistry,
-    ) -> HashMap<EntityId, EntityId>;
+    fn add_to_world(&self, all_storages: &AllStorages) -> HashMap<EntityId, EntityId>;
 }
 
 impl EntitiesDataExt for EntitiesData {
-    fn add_to_world(
-        &self,
-        world: &mut World,
-        component_registry: &ComponentRegistry,
-    ) -> HashMap<EntityId, EntityId> {
+    fn add_to_world(&self, all_storages: &AllStorages) -> HashMap<EntityId, EntityId> {
         // create new_entities_data from self by changing old entity ids to new entity ids.
         let mut new_entities_data = EntitiesData::default();
-        let old_id_to_new_id = create_old_id_to_new_id_map(self, world);
-        fill_new_entities_data(&mut new_entities_data, self, &old_id_to_new_id, &world);
+        let old_id_to_new_id = create_old_id_to_new_id_map(self, all_storages);
+        fill_new_entities_data(
+            &mut new_entities_data,
+            self,
+            &old_id_to_new_id,
+            all_storages,
+        );
 
         // create components in ecs world.
-        create_components_in_world(&new_entities_data, world, component_registry);
+        create_components_in_world(&new_entities_data, all_storages);
 
         old_id_to_new_id
     }
@@ -484,11 +496,17 @@ impl EntitiesDataExt for EntitiesData {
 /// Create old_id_to_new_id map, the new ids are generated by adding new entities in ecs world.
 fn create_old_id_to_new_id_map(
     entities_data: &EntitiesData,
-    world: &mut World,
+    all_storages: &AllStorages,
 ) -> HashMap<EntityId, EntityId> {
     let mut old_id_to_new_id = HashMap::new();
     for old_id in entities_data.keys() {
-        old_id_to_new_id.insert(*old_id, world.add_entity(()));
+        old_id_to_new_id.insert(
+            *old_id,
+            all_storages
+                .borrow::<EntitiesViewMut>()
+                .unwrap()
+                .add_entity((), ()),
+        );
     }
     old_id_to_new_id
 }
@@ -498,13 +516,14 @@ fn fill_new_entities_data(
     new_entities_data: &mut EntitiesData,
     old_entities_data: &EntitiesData,
     old_id_to_new_id: &HashMap<EntityId, EntityId>,
-    world: &World,
+    all_storages: &AllStorages,
 ) {
     for (old_id, entity_data) in old_entities_data {
         let new_id = *old_id_to_new_id.get(old_id).unwrap();
         let mut new_entity_data = EntityData::default();
         for (component_name, component_data) in &entity_data.components {
-            let new_component_data = update_eid_in_data(component_data, &old_id_to_new_id, world);
+            let new_component_data =
+                update_eid_in_data(component_data, &old_id_to_new_id, all_storages);
             new_entity_data
                 .components
                 .insert(component_name.clone(), new_component_data);
@@ -517,14 +536,14 @@ fn fill_new_entities_data(
 fn update_eid_in_data(
     data: &Data,
     old_id_to_new_id: &HashMap<EntityId, EntityId>,
-    world: &World,
+    all_storages: &AllStorages,
 ) -> Data {
     let get_id_fn = |e: &EntityId| {
         if let Some(new_id) = old_id_to_new_id.get(e) {
             *new_id
         } else if *e == EntityId::dead() {
             EntityId::dead()
-        } else if world.run(|entities: EntitiesView| entities.is_alive(*e)) {
+        } else if all_storages.borrow::<EntitiesView>().unwrap().is_alive(*e) {
             *e
         } else {
             panic!("non-exist EntityId: {e:?}");
@@ -544,15 +563,15 @@ fn update_eid_in_data(
 }
 
 /// Create components in ecs world according to entities_data.
-fn create_components_in_world(
-    entities_data: &EntitiesData,
-    world: &mut World,
-    component_registry: &ComponentRegistry,
-) {
+fn create_components_in_world(entities_data: &EntitiesData, all_storages: &AllStorages) {
     for (eid, entity_data) in entities_data {
         for (component_name, component_data) in &entity_data.components {
-            if let Some(component_fn) = component_registry.get(component_name.as_str()) {
-                (component_fn.create_with_data)(world, *eid, component_data);
+            if let Some(component_fn) = all_storages
+                .get_unique::<&ComponentRegistry>()
+                .unwrap()
+                .get(component_name.as_str())
+            {
+                (component_fn.create_with_data)(all_storages, *eid, component_data);
             }
         }
     }

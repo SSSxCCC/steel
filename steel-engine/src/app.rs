@@ -96,10 +96,6 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 pub struct SteelApp {
     /// The ecs world, contains entities, components, and uniques.
     pub world: World,
-    /// Registered components.
-    pub component_registry: ComponentRegistry,
-    /// Registered uniques.
-    pub unique_registry: UniqueRegistry,
 
     pre_init_workload: Option<Workload>,
     init_workload: Option<Workload>,
@@ -118,10 +114,11 @@ pub struct SteelApp {
 impl SteelApp {
     /// Create a new SteelApp.
     pub fn new() -> Self {
+        let world = World::new();
+        world.add_unique(ComponentRegistry::new());
+        world.add_unique(UniqueRegistry::new());
         SteelApp {
-            world: World::new(),
-            component_registry: ComponentRegistry::new(),
-            unique_registry: UniqueRegistry::new(),
+            world,
             pre_init_workload: Some(Workload::new("pre_init")),
             init_workload: Some(Workload::new("init")),
             post_init_workload: Some(Workload::new("post_init")),
@@ -152,6 +149,7 @@ impl SteelApp {
         .add_unique(Canvas::default())
         .add_unique(Input::new())
         .add_unique(Time::new())
+        .add_system(Schedule::PreUpdate, crate::scene::scene_maintain_system)
         .add_system(
             Schedule::PreUpdate,
             crate::hierarchy::hierarchy_maintain_system,
@@ -179,14 +177,20 @@ impl SteelApp {
 
     /// Register a component type so that this component can be edited in steel-editor.
     /// Trait bounds <C: ComponentRegistryExt> equals to <C: Component + Edit + Default + Send + Sync>.
-    pub fn register_component<C: ComponentRegistryExt>(mut self) -> Self {
-        self.component_registry.register::<C>();
+    pub fn register_component<C: ComponentRegistryExt>(self) -> Self {
+        self.world
+            .get_unique::<&mut ComponentRegistry>()
+            .unwrap()
+            .register::<C>();
         self
     }
 
     /// Register a unique type so that this unique can be edited in steel-editor.
-    pub fn register_unique<U: Unique + Edit + Send + Sync>(mut self) -> Self {
-        self.unique_registry.register::<U>();
+    pub fn register_unique<U: Unique + Edit + Send + Sync>(self) -> Self {
+        self.world
+            .get_unique::<&mut UniqueRegistry>()
+            .unwrap()
+            .register::<U>();
         self
     }
 
@@ -197,9 +201,12 @@ impl SteelApp {
     }
 
     /// Add a unique into ecs world, also register this unique type so that this unique can be edited in steel-editor.
-    pub fn add_and_register_unique<U: Unique + Edit + Send + Sync>(mut self, unique: U) -> Self {
+    pub fn add_and_register_unique<U: Unique + Edit + Send + Sync>(self, unique: U) -> Self {
         self.world.add_unique(unique);
-        self.unique_registry.register::<U>();
+        self.world
+            .get_unique::<&mut UniqueRegistry>()
+            .unwrap()
+            .register::<U>();
         self
     }
 
@@ -301,12 +308,6 @@ impl App for SteelApp {
     fn update(&mut self, info: UpdateInfo) {
         self.world.add_unique(EguiContext::new(info.ctx.clone()));
 
-        SceneManager::maintain_system(
-            &mut self.world,
-            &self.component_registry,
-            &self.unique_registry,
-        );
-
         let workload = if info.update {
             "update_all"
         } else {
@@ -340,12 +341,57 @@ impl App for SteelApp {
         match cmd {
             Command::Save(world_data) => {
                 world_data.clear();
-                for component_fn in self.component_registry.values() {
-                    (component_fn.save_to_data)(world_data, &self.world);
+                for component_fn in self
+                    .world
+                    .get_unique::<&ComponentRegistry>()
+                    .unwrap()
+                    .values()
+                {
+                    (component_fn.save_to_data)(world_data, &self.world.all_storages().unwrap());
                 }
-                for unique_fn in self.unique_registry.values() {
-                    (unique_fn.save_to_data)(world_data, &self.world);
+                for unique_fn in self.world.get_unique::<&UniqueRegistry>().unwrap().values() {
+                    (unique_fn.save_to_data)(world_data, &self.world.all_storages().unwrap());
                 }
+            }
+            Command::Load(world_data) => {
+                for component_fn in self
+                    .world
+                    .get_unique::<&ComponentRegistry>()
+                    .unwrap()
+                    .values()
+                {
+                    (component_fn.load_from_data)(&self.world.all_storages().unwrap(), world_data);
+                }
+                for unique_fn in self.world.get_unique::<&UniqueRegistry>().unwrap().values() {
+                    (unique_fn.load_from_data)(&self.world.all_storages().unwrap(), world_data);
+                }
+            }
+            Command::Reload(scene_data) => {
+                SceneManager::load(&mut self.world.all_storages_mut().unwrap(), scene_data);
+            }
+            Command::SetCurrentScene(scene) => {
+                self.world.run(
+                    |mut scene_manager: UniqueViewMut<SceneManager>,
+                     asset_manager: UniqueView<AssetManager>| {
+                        scene_manager.set_current_scene(scene, &asset_manager);
+                    },
+                );
+            }
+            Command::CreateEntity => {
+                self.world.all_storages_mut().unwrap().add_entity((
+                    Name::new("New Entity"),
+                    Transform::default(),
+                    Renderer2D::default(),
+                ));
+            }
+            Command::AddEntities(entities_data, old_id_to_new_id) => {
+                *old_id_to_new_id = entities_data.add_to_world(&self.world.all_storages().unwrap());
+            }
+            Command::DestroyEntity(id) => {
+                self.world.all_storages_mut().unwrap().delete_entity(id);
+            }
+            Command::ClearEntity => {
+                self.world.all_storages_mut().unwrap().clear();
             }
             Command::GetEntityCount(entity_count) => {
                 *entity_count = self
@@ -364,9 +410,71 @@ impl App for SteelApp {
                     .remove_unique::<GetEntityAtScreenParam>()
                     .unwrap();
             }
+            Command::CreateComponent(id, component_name) => {
+                if let Some(component_fn) = self
+                    .world
+                    .get_unique::<&ComponentRegistry>()
+                    .unwrap()
+                    .get(component_name)
+                {
+                    (component_fn.create)(&self.world.all_storages().unwrap(), id);
+                }
+            }
+            Command::DestroyComponent(id, component_name) => {
+                if let Some(component_fn) = self
+                    .world
+                    .get_unique::<&ComponentRegistry>()
+                    .unwrap()
+                    .get(component_name.as_str())
+                {
+                    (component_fn.destroy)(&self.world.all_storages().unwrap(), id);
+                }
+            }
             Command::GetComponents(components) => {
-                *components = self.component_registry.keys().map(|s| *s).collect();
+                *components = self
+                    .world
+                    .get_unique::<&ComponentRegistry>()
+                    .unwrap()
+                    .keys()
+                    .map(|s| *s)
+                    .collect();
                 // TODO: cache components
+            }
+            Command::AttachBefore(eid, parent, before) => {
+                self.world.run(
+                    |mut hierarchy: UniqueViewMut<Hierarchy>,
+                     mut childrens: ViewMut<Children>,
+                     mut parents: ViewMut<Parent>,
+                     entities: EntitiesView| {
+                        crate::hierarchy::attach_before(
+                            &mut hierarchy,
+                            &mut childrens,
+                            &mut parents,
+                            &entities,
+                            eid,
+                            parent,
+                            before,
+                        );
+                    },
+                );
+            }
+            Command::AttachAfter(eid, parent, after) => {
+                self.world.run(
+                    |mut hierarchy: UniqueViewMut<Hierarchy>,
+                     mut childrens: ViewMut<Children>,
+                     mut parents: ViewMut<Parent>,
+                     entities: EntitiesView| {
+                        crate::hierarchy::attach_after(
+                            &mut hierarchy,
+                            &mut childrens,
+                            &mut parents,
+                            &entities,
+                            eid,
+                            parent,
+                            after,
+                        );
+                    },
+                );
             }
             Command::UpdateInput(events) => {
                 self.world
@@ -462,93 +570,6 @@ impl App for SteelApp {
                 });
                 self.world.run(crate::data::load_prefab_system);
                 self.world.remove_unique::<LoadPrefabParam>().unwrap();
-            }
-        }
-    }
-
-    fn command_mut(&mut self, cmd: CommandMut) {
-        match cmd {
-            CommandMut::Load(world_data) => {
-                for component_fn in self.component_registry.values() {
-                    (component_fn.load_from_data)(&mut self.world, world_data);
-                }
-                for unique_fn in self.unique_registry.values() {
-                    (unique_fn.load_from_data)(&mut self.world, world_data);
-                }
-            }
-            CommandMut::Reload(scene_data) => {
-                SceneManager::load(
-                    &mut self.world,
-                    scene_data,
-                    &self.component_registry,
-                    &self.unique_registry,
-                );
-            }
-            CommandMut::SetCurrentScene(scene) => {
-                SceneManager::set_current_scene(&mut self.world, scene);
-            }
-            CommandMut::CreateEntity => {
-                self.world.add_entity((
-                    Name::new("New Entity"),
-                    Transform::default(),
-                    Renderer2D::default(),
-                ));
-            }
-            CommandMut::AddEntities(entities_data, old_id_to_new_id) => {
-                *old_id_to_new_id =
-                    entities_data.add_to_world(&mut self.world, &self.component_registry);
-            }
-            CommandMut::DestroyEntity(id) => {
-                self.world.delete_entity(id);
-            }
-            CommandMut::ClearEntity => {
-                self.world.clear();
-            }
-            CommandMut::CreateComponent(id, component_name) => {
-                if let Some(component_fn) = self.component_registry.get(component_name) {
-                    (component_fn.create)(&mut self.world, id);
-                }
-            }
-            CommandMut::DestroyComponent(id, component_name) => {
-                if let Some(component_fn) = self.component_registry.get(component_name.as_str()) {
-                    (component_fn.destroy)(&mut self.world, id);
-                }
-            }
-            CommandMut::AttachBefore(eid, parent, before) => {
-                self.world.run(
-                    |mut hierarchy: UniqueViewMut<Hierarchy>,
-                     mut childrens: ViewMut<Children>,
-                     mut parents: ViewMut<Parent>,
-                     entities: EntitiesView| {
-                        crate::hierarchy::attach_before(
-                            &mut hierarchy,
-                            &mut childrens,
-                            &mut parents,
-                            &entities,
-                            eid,
-                            parent,
-                            before,
-                        );
-                    },
-                );
-            }
-            CommandMut::AttachAfter(eid, parent, after) => {
-                self.world.run(
-                    |mut hierarchy: UniqueViewMut<Hierarchy>,
-                     mut childrens: ViewMut<Children>,
-                     mut parents: ViewMut<Parent>,
-                     entities: EntitiesView| {
-                        crate::hierarchy::attach_after(
-                            &mut hierarchy,
-                            &mut childrens,
-                            &mut parents,
-                            &entities,
-                            eid,
-                            parent,
-                            after,
-                        );
-                    },
-                );
             }
         }
     }

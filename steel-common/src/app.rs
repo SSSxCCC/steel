@@ -22,7 +22,6 @@ pub trait App {
     fn update(&mut self, info: UpdateInfo);
     fn draw(&mut self, info: DrawInfo) -> Box<dyn GpuFuture>;
     fn command(&self, cmd: Command);
-    fn command_mut(&mut self, cmd: CommandMut);
 }
 
 /// The InitInfo contains some initialization data, and is passed to [App::init].
@@ -65,12 +64,27 @@ pub struct EditorInfo<'a> {
 /// Command is sent by editor through [App::command] method to read the game world.
 pub enum Command<'a> {
     Save(&'a mut WorldData),
+    Load(&'a WorldData),
+    Reload(&'a SceneData),
+    SetCurrentScene(Option<AssetId>),
 
+    CreateEntity,
+    /// entities_data, old_id_to_new_id map
+    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
+    DestroyEntity(EntityId),
+    ClearEntity,
     GetEntityCount(&'a mut usize),
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid.
     GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
 
+    CreateComponent(EntityId, &'static str),
+    DestroyComponent(EntityId, &'a String),
     GetComponents(&'a mut Vec<&'static str>),
+
+    // attached_entity, parent, before
+    AttachBefore(EntityId, EntityId, EntityId),
+    // attached_entity, parent, after
+    AttachAfter(EntityId, EntityId, EntityId),
 
     UpdateInput(&'a Vec<WindowEvent<'static>>),
 
@@ -89,27 +103,6 @@ pub enum Command<'a> {
     CreatePrefab(EntityId, AssetId, HashMap<EntityId, u64>),
     /// prefab_root_entity, prefab_asset, entity_id_to_prefab_entity_id_with_path
     LoadPrefab(EntityId, AssetId, HashMap<EntityId, EntityIdWithPath>),
-}
-
-/// CommandMut is sent by editor through [App::command] method to modify the game world.
-pub enum CommandMut<'a> {
-    Load(&'a WorldData),
-    Reload(&'a SceneData),
-    SetCurrentScene(Option<AssetId>),
-
-    CreateEntity,
-    /// entities_data, old_id_to_new_id map
-    AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
-    DestroyEntity(EntityId),
-    ClearEntity,
-
-    CreateComponent(EntityId, &'static str),
-    DestroyComponent(EntityId, &'a String),
-
-    // attached_entity, parent, before
-    AttachBefore(EntityId, EntityId, EntityId),
-    // attached_entity, parent, after
-    AttachAfter(EntityId, EntityId, EntityId),
 }
 
 /// Helper struct to define window index constants: WindowIndex::GAME and WindowIndex::SCENE.
