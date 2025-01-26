@@ -1,8 +1,9 @@
 use crate::{
     asset::AssetId,
     camera::SceneCamera,
-    data::{EntitiesData, EntityIdWithPath, PrefabData, SceneData, WorldData},
+    data::{EntitiesData, SceneData, WorldData},
     platform::Platform,
+    prefab::{EntityIdWithPath, PrefabData},
 };
 use glam::UVec2;
 use shipyard::EntityId;

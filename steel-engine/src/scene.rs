@@ -1,14 +1,11 @@
 use crate::{
     asset::AssetManager,
-    data::{LoadScenePrefabsParam, PrefabAssets, WorldDataExt},
+    data::WorldDataExt,
+    prefab::{LoadScenePrefabsParam, PrefabAssets},
 };
 use shipyard::{AllStorages, AllStoragesViewMut, Unique, UniqueView, UniqueViewMut};
 use std::collections::HashMap;
-use steel_common::{
-    asset::AssetId,
-    data::{EntityIdWithPath, SceneData},
-    platform::Platform,
-};
+use steel_common::{asset::AssetId, data::SceneData, platform::Platform, prefab::EntityIdWithPath};
 
 /// The SceneManager unique. You can use [SceneManager::current_scene] to get the current scene
 /// and use [SceneManager::switch_scene] to change scene at the start of next frame.
@@ -85,7 +82,7 @@ impl SceneManager {
         all_storages.add_unique(LoadScenePrefabsParam {
             prefab_asset_and_entity_id_to_prefab_entity_id_with_path,
         });
-        all_storages.run(crate::data::load_scene_prefabs_system);
+        all_storages.run(crate::prefab::load_scene_prefabs_system);
         all_storages
             .remove_unique::<LoadScenePrefabsParam>()
             .unwrap();

@@ -10,6 +10,7 @@ pub mod input;
 pub mod name;
 pub mod physics2d;
 pub mod platform;
+pub mod prefab;
 pub mod render;
 pub mod scene;
 pub mod shape;

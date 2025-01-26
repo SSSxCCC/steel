@@ -3,14 +3,12 @@ pub use steel_common::app::*;
 use crate::{
     asset::AssetManager,
     camera::{Camera, CameraInfo},
-    data::{
-        ComponentRegistry, ComponentRegistryExt, CreatePrefabParam, EntitiesDataExt,
-        LoadPrefabParam, Prefab, PrefabAssets, UniqueRegistry,
-    },
+    data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry},
     edit::Edit,
     hierarchy::{Children, Hierarchy, Parent},
     input::Input,
     name::Name,
+    prefab::{CreatePrefabParam, LoadPrefabParam, Prefab, PrefabAssets},
     render::{
         canvas::{Canvas, GetEntityAtScreenParam},
         image::ImageAssets,
@@ -555,7 +553,7 @@ impl App for SteelApp {
                     prefab_asset,
                     prefab_root_entity_to_nested_prefabs_index,
                 });
-                self.world.run(crate::data::create_prefab_system);
+                self.world.run(crate::prefab::create_prefab_system);
                 self.world.remove_unique::<CreatePrefabParam>().unwrap();
             }
             Command::LoadPrefab(
@@ -568,7 +566,7 @@ impl App for SteelApp {
                     prefab_asset,
                     entity_id_to_prefab_entity_id_with_path,
                 });
-                self.world.run(crate::data::load_prefab_system);
+                self.world.run(crate::prefab::load_prefab_system);
                 self.world.remove_unique::<LoadPrefabParam>().unwrap();
             }
         }

@@ -16,7 +16,8 @@ use std::{
 use steel_common::{
     app::{App, Command},
     asset::{AssetId, AssetInfo},
-    data::{Data, EntitiesData, EntityData, Limit, PrefabData, Value, WorldData},
+    data::{Data, EntitiesData, EntityData, Limit, Value, WorldData},
+    prefab::PrefabData,
 };
 
 pub struct DataWindow {

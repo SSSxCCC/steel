@@ -6,6 +6,7 @@ pub mod camera;
 pub mod data;
 pub mod ext;
 pub mod platform;
+pub mod prefab;
 
 use vulkano::{
     device::{DeviceExtensions, Features},

@@ -21,8 +21,9 @@ use steel_common::{
     app::{App, Command, InitInfo},
     asset::{AssetId, AssetIdType, AssetInfo},
     camera::SceneCamera,
-    data::{PrefabData, SceneData, WorldData},
+    data::{SceneData, WorldData},
     platform::Platform,
+    prefab::PrefabData,
 };
 use vulkano_util::context::VulkanoContext;
 
