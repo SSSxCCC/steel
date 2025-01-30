@@ -44,17 +44,18 @@
                   }
                 }
               },
-              "Renderer": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 1
+                  "type": {
+                    "Int32": 0
                   },
-                  "model_asset": {
+                  "asset": {
                     "Asset": 125169608
-                  },
-                  "texture_asset": {
-                    "Asset": 360035086
-                  },
+                  }
+                }
+              },
+              "Texture": {
+                "values": {
                   "color": {
                     "Vec4": [
                       1.0,
@@ -62,6 +63,9 @@
                       1.0,
                       1.0
                     ]
+                  },
+                  "asset": {
+                    "Asset": 360035086
                   }
                 }
               }
@@ -142,11 +146,29 @@
     "RenderManager": {
       "values": {
         "ray_tracing": {
-          "Bool": false
+          "Bool": true
         },
-        "clear_color": {
-          "Vec4": [
-            0.0,
+        "camera_lens_radius": {
+          "Float32": 0.0
+        },
+        "camera_focus_dist": {
+          "Float32": 10.0
+        },
+        "samples": {
+          "UInt32": 30
+        },
+        "max_bounces": {
+          "UInt32": 30
+        },
+        "miss_color_top": {
+          "Vec3": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "miss_color_bottom": {
+          "Vec3": [
             0.0,
             0.0,
             0.0

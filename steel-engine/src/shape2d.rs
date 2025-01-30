@@ -40,7 +40,7 @@ impl Shape2D {
         data.add_value_with_limit(
             "shape_type",
             Value::Int32(self.shape_type() as i32),
-            Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]),
+            Limit::Int32Enum(vec![(0, "Circle".into()), (1, "Rectangle".into())]),
         );
         if let Some(shape) = self.as_ball() {
             data.values

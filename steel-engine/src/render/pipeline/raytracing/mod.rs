@@ -5,26 +5,22 @@ pub(crate) mod util;
 mod shader;
 
 use crate::{
-    asset::AssetManager,
     camera::CameraInfo,
     render::{
-        canvas::Canvas, image::ImageAssets, mesh, model::ModelAssets, texture::TextureAssets,
-        FrameRenderInfo, RenderContext,
+        canvas::Canvas, mesh::MeshData, texture::TextureData, FrameRenderInfo, RenderContext,
     },
 };
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Affine3A, Vec2, Vec3, Vec4, Vec4Swizzles};
+use glam::{Affine3A, Vec3, Vec4, Vec4Swizzles};
 use indexmap::IndexSet;
 use material::Material;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use shipyard::EntityId;
 use std::{collections::HashMap, sync::Arc};
 use steel_common::{
-    asset::AssetId,
     camera::CameraSettings,
     data::{Data, Limit, Value},
-    platform::Platform,
 };
 use util::ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup};
 use vulkano::{
@@ -36,7 +32,7 @@ use vulkano::{
         PersistentDescriptorSet, WriteDescriptorSet,
     },
     device::Device,
-    image::{sampler::Sampler, view::ImageView},
+    image::view::ImageView,
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::{layout::PipelineDescriptorSetLayoutCreateInfo, PipelineLayout},
     sync::GpuFuture,
@@ -77,12 +73,13 @@ impl EnumMaterialPod {
         }
     }
 
+    // TODO: move color to texture
     pub fn from_material(material: Material, color: Vec4) -> Self {
         let color = color.xyz() * color.w;
         match material {
-            Material::Lambertian => Self::new_lambertian(color),
-            Material::Metal { fuzz } => Self::new_metal(color, fuzz),
-            Material::Dielectric { ri } => Self::new_dielectric(ri), // TODO: color
+            Material::Lambertian { albedo } => Self::new_lambertian(color * albedo),
+            Material::Metal { albedo, fuzz } => Self::new_metal(color * albedo, fuzz),
+            Material::Dielectric { ri } => Self::new_dielectric(ri),
         }
     }
 }
@@ -110,7 +107,7 @@ impl Default for RayTracingSettings {
             camera_focus_dist: 10.0,
             samples: 30,
             max_bounces: 30,
-            miss_color_top: Vec3::ZERO,
+            miss_color_top: Vec3::ONE,
             miss_color_bottom: Vec3::ZERO,
         }
     }
@@ -186,6 +183,10 @@ impl RayTracingPipeline {
         let raygen_shader_module = shader::raygen::load(context.device.clone()).unwrap();
         let miss_shader_module = shader::miss::load(context.device.clone()).unwrap();
         let closesthit_shader_module = shader::closesthit::load(context.device.clone()).unwrap();
+        let circle_intersection_shader_module =
+            shader::circle_intersection::load(context.device.clone()).unwrap();
+        let circle_closesthit_shader_module =
+            shader::circle_closesthit::load(context.device.clone()).unwrap();
         let sphere_intersection_shader_module =
             shader::sphere_intersection::load(context.device.clone()).unwrap();
         let sphere_closesthit_shader_module =
@@ -195,6 +196,8 @@ impl RayTracingPipeline {
             raygen_shader_module,
             miss_shader_module,
             closesthit_shader_module,
+            circle_intersection_shader_module,
+            circle_closesthit_shader_module,
             sphere_intersection_shader_module,
             sphere_closesthit_shader_module,
         ]);
@@ -210,6 +213,11 @@ impl RayTracingPipeline {
                 closest_hit_shader: 4,
                 any_hit_shader: vk::SHADER_UNUSED_KHR,
                 intersection_shader: 3,
+            },
+            ShaderGroup::ProceduralHitGroup {
+                closest_hit_shader: 6,
+                any_hit_shader: vk::SHADER_UNUSED_KHR,
+                intersection_shader: 5,
             },
         ]);
 
@@ -273,82 +281,68 @@ impl RayTracingPipeline {
         camera: &CameraInfo,
         settings: &RayTracingSettings,
         canvas: &Canvas,
-        model_assets: &mut ModelAssets,
-        texture_assets: &mut TextureAssets,
-        image_assets: &mut ImageAssets,
-        asset_manager: &mut AssetManager,
-        platform: &Platform,
         eid_image: Arc<ImageView>,
     ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
         let mut instances = Vec::new();
+        let mut obj_descs = Vec::new();
         let mut texture_resources = IndexSet::new();
         let mut texture_indices = Vec::new();
         let mut materials = Vec::new();
-        let mut obj_descs = Vec::new();
         let mut eids = Vec::new();
 
-        let rectangle_blas_future = draw_shapes(
-            &canvas.rectangles,
+        let mesh_blas_future = draw_meshs(
+            &canvas.meshs,
             context,
-            &mut texture_indices,
-            &mut materials,
-            &mut eids,
-            &mut obj_descs,
             &mut instances,
-            mesh::RECTANGLE_VERTICES,
-            mesh::RECTANGLE_INDICES.map(|i| i as u32),
-        );
-
-        let cuboid_blas_future = draw_shapes(
-            &canvas.cuboids,
-            context,
-            &mut texture_indices,
-            &mut materials,
-            &mut eids,
             &mut obj_descs,
-            &mut instances,
-            mesh::CUBOID_VERTICES_V2,
-            mesh::CUBOID_INDICES_V2.map(|i| i as u32),
-        );
-
-        let texture_blas_future = draw_textures(
-            &canvas.textures,
-            context,
-            &mut texture_indices,
             &mut texture_resources,
+            &mut texture_indices,
             &mut materials,
             &mut eids,
-            &mut obj_descs,
-            &mut instances,
-            texture_assets,
-            image_assets,
-            asset_manager,
-            platform,
         );
 
-        let model_blas_future = draw_models(
-            &canvas.models,
+        let circle_blas_future = draw_shapes(
+            &canvas.circles,
+            1,
+            AabbPositions {
+                min: [-0.5, -0.5, 0.0],
+                max: [0.5, 0.5, 0.0],
+            },
             context,
-            &mut texture_indices,
+            &mut instances,
             &mut texture_resources,
-            &mut materials,
-            &mut eids,
-            &mut obj_descs,
-            &mut instances,
-            model_assets,
-            texture_assets,
-            image_assets,
-            asset_manager,
-            platform,
-        );
-
-        let sphere_blas_future = draw_spheres(
-            &canvas.spheres,
-            context,
             &mut texture_indices,
             &mut materials,
             &mut eids,
+        );
+
+        // Empty instance vector will make blas creation fail, we avoid this issue by adding an invisble instance.
+        // TODO: how to create an empty tlas?
+        let spheres = if canvas.spheres.is_empty() {
+            &vec![(
+                Vec4::ZERO,
+                None,
+                Material::default(),
+                Affine3A::from_scale(Vec3::ZERO),
+                EntityId::dead(),
+            )]
+        } else {
+            &canvas.spheres
+        };
+
+        let sphere_blas_future = draw_shapes(
+            spheres,
+            2,
+            AabbPositions {
+                min: [-0.5, -0.5, -0.5],
+                max: [0.5, 0.5, 0.5],
+            },
+            context,
             &mut instances,
+            &mut texture_resources,
+            &mut texture_indices,
+            &mut materials,
+            &mut eids,
         );
 
         let (tlas, tlas_future) = util::vulkano::create_top_level_acceleration_structure(
@@ -358,8 +352,14 @@ impl RayTracingPipeline {
             instances,
         );
 
-        let material_buffer = create_buffer(materials, &context.memory_allocator);
-        let texture_indices_buffer = create_buffer(texture_indices, &context.memory_allocator);
+        let material_buffer = create_buffer(
+            materials.into_iter().flatten().collect::<Vec<_>>(),
+            &context.memory_allocator,
+        );
+        let texture_indices_buffer = create_buffer(
+            texture_indices.into_iter().flatten().collect::<Vec<_>>(),
+            &context.memory_allocator,
+        );
         let mut descriptor_writes = vec![
             WriteDescriptorSet::acceleration_structure(0, tlas),
             WriteDescriptorSet::image_view(1, info.image.clone()),
@@ -375,7 +375,9 @@ impl RayTracingPipeline {
             descriptor_writes.push(WriteDescriptorSet::image_view_sampler_array(
                 5,
                 0,
-                texture_resources,
+                texture_resources
+                    .into_iter()
+                    .map(|t| (t.image_view, t.sampler)),
             ));
         }
 
@@ -467,11 +469,9 @@ impl RayTracingPipeline {
         }
 
         (
-            rectangle_blas_future
-                .join(cuboid_blas_future)
+            mesh_blas_future
+                .join(circle_blas_future)
                 .join(sphere_blas_future)
-                .join(texture_blas_future)
-                .join(model_blas_future)
                 .join(tlas_future)
                 .boxed(),
             command_buffer,
@@ -479,244 +479,121 @@ impl RayTracingPipeline {
     }
 }
 
-fn draw_shapes(
-    shapes: &Vec<(Affine3A, Vec4, Material, EntityId)>,
+fn draw_meshs(
+    meshs: &Vec<(
+        Arc<MeshData>,
+        Vec4,
+        Option<TextureData>,
+        Material,
+        Affine3A,
+        EntityId,
+    )>,
     context: &RenderContext,
-    texture_indices: &mut Vec<u32>,
-    materials: &mut Vec<EnumMaterialPod>,
-    eids: &mut Vec<EntityId>,
-    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
     instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
-    vertices: impl IntoIterator<Item = (Vec3, Vec3, Vec2)>,
-    indices: impl IntoIterator<Item = u32>,
+    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
+    texture_resources: &mut IndexSet<TextureData>,
+    texture_indices: &mut Vec<Vec<u32>>,
+    materials: &mut Vec<Vec<EnumMaterialPod>>,
+    eids: &mut Vec<Vec<EntityId>>,
+) -> Box<dyn GpuFuture> {
+    let mut gpu_future = vulkano::sync::now(context.device.clone()).boxed();
+    if meshs.is_empty() {
+        return gpu_future;
+    }
+
+    let mut mesh_to_index = HashMap::new();
+    for (mesh, color, texture_data, material, model_matrix, eid) in meshs {
+        let i = *mesh_to_index.entry(mesh.clone()).or_insert_with(|| {
+            let ((blas, blas_future), (vertex_address, index_address)) =
+                util::vulkano::create_bottom_level_acceleration_structure_triangles(
+                    context.memory_allocator.clone(),
+                    &context.command_buffer_allocator,
+                    context.graphics_queue.clone(),
+                    mesh.vertices
+                        .iter()
+                        .map(|v| shader::closesthit::Vertex::new(v.position, v.normal, v.tex_coord))
+                        .collect(),
+                    Some(mesh.indices.clone()),
+                );
+
+            let pre_future = std::mem::replace(
+                &mut gpu_future,
+                vulkano::sync::now(context.device.clone()).boxed(),
+            );
+            gpu_future = pre_future.join(blas_future).boxed();
+
+            instances.push((blas, 0, Vec::new()));
+            obj_descs.push(shader::closesthit::ObjDesc {
+                vertex_address,
+                index_address,
+            });
+
+            texture_indices.push(Vec::new());
+            materials.push(Vec::new());
+            eids.push(Vec::new());
+
+            instances.len() - 1
+        });
+
+        let transforms = &mut instances[i].2;
+        transforms.push(*model_matrix);
+
+        materials[i].push(EnumMaterialPod::from_material(*material, *color));
+        eids[i].push(*eid);
+
+        let texture_index = if let Some(texture_data) = texture_data {
+            texture_resources.insert(texture_data.clone());
+            texture_resources.get_index_of(texture_data).unwrap() as _
+        } else {
+            u32::MAX
+        };
+        texture_indices[i].push(texture_index);
+    }
+
+    gpu_future
+}
+
+fn draw_shapes(
+    shapes: &Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
+    sbt_index: u32,
+    aabb: AabbPositions,
+    context: &RenderContext,
+    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
+    texture_resources: &mut IndexSet<TextureData>,
+    texture_indices: &mut Vec<Vec<u32>>,
+    materials: &mut Vec<Vec<EnumMaterialPod>>,
+    eids: &mut Vec<Vec<EntityId>>,
 ) -> Box<dyn GpuFuture> {
     if shapes.is_empty() {
         return vulkano::sync::now(context.device.clone()).boxed();
     }
 
     let mut transforms = Vec::new();
-    for (model, color, material, eid) in shapes {
+    let i = texture_indices.len();
+    texture_indices.push(Vec::new());
+    materials.push(Vec::new());
+    eids.push(Vec::new());
+    for (color, texture_data, material, model, eid) in shapes {
         transforms.push(*model);
-        texture_indices.push(u32::MAX);
-        materials.push(EnumMaterialPod::from_material(*material, *color));
-        eids.push(*eid);
+        let texture_index = if let Some(texture_data) = texture_data {
+            texture_resources.insert(texture_data.clone());
+            texture_resources.get_index_of(texture_data).unwrap() as _
+        } else {
+            u32::MAX
+        };
+        texture_indices[i].push(texture_index);
+        materials[i].push(EnumMaterialPod::from_material(*material, *color));
+        eids[i].push(*eid);
     }
 
-    let ((blas, blas_future), (vertex_address, index_address)) =
-        util::vulkano::create_bottom_level_acceleration_structure_triangles(
-            context.memory_allocator.clone(),
-            &context.command_buffer_allocator,
-            context.graphics_queue.clone(),
-            vertices
-                .into_iter()
-                .map(|(p, n, t)| shader::closesthit::Vertex::new(p, n, t))
-                .collect(),
-            Some(indices.into_iter().collect()),
-        );
+    let (blas, blas_future) = util::vulkano::create_bottom_level_acceleration_structure_aabbs(
+        context.memory_allocator.clone(),
+        &context.command_buffer_allocator,
+        context.graphics_queue.clone(),
+        vec![aabb],
+    );
 
-    obj_descs.push(shader::closesthit::ObjDesc {
-        vertex_address,
-        index_address,
-    });
-    instances.push((blas, 0, transforms));
-
-    blas_future
-}
-
-fn draw_textures(
-    textures: &Vec<(AssetId, Affine3A, Vec4, Material, EntityId)>,
-    context: &RenderContext,
-    texture_indices: &mut Vec<u32>,
-    texture_resources: &mut IndexSet<(Arc<ImageView>, Arc<Sampler>)>,
-    materials: &mut Vec<EnumMaterialPod>,
-    eids: &mut Vec<EntityId>,
-    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
-    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
-    texture_assets: &mut TextureAssets,
-    image_assets: &mut ImageAssets,
-    asset_manager: &mut AssetManager,
-    platform: &Platform,
-) -> Box<dyn GpuFuture> {
-    if textures.is_empty() {
-        return vulkano::sync::now(context.device.clone()).boxed();
-    }
-
-    let mut transforms = Vec::new();
-    for (texture, model, color, material, eid) in textures {
-        if let Some((image_view, sampler)) =
-            texture_assets.get_texture(*texture, image_assets, asset_manager, platform, context)
-        {
-            let model = *model
-                * Affine3A::from_scale(Vec3::new(
-                    image_view.image().extent()[0] as f32 / 100.0,
-                    image_view.image().extent()[1] as f32 / 100.0,
-                    1.0,
-                ));
-            transforms.push(model);
-            texture_resources.insert((image_view.clone(), sampler.clone()));
-            texture_indices.push(
-                texture_resources
-                    .get_index_of(&(image_view, sampler))
-                    .unwrap() as _,
-            );
-            materials.push(EnumMaterialPod::from_material(*material, *color));
-            eids.push(*eid);
-        }
-    }
-
-    if transforms.is_empty() {
-        return vulkano::sync::now(context.device.clone()).boxed();
-    }
-
-    let ((blas, blas_future), (vertex_address, index_address)) =
-        util::vulkano::create_bottom_level_acceleration_structure_triangles(
-            context.memory_allocator.clone(),
-            &context.command_buffer_allocator,
-            context.graphics_queue.clone(),
-            mesh::RECTANGLE_VERTICES
-                .into_iter()
-                .map(|(p, n, t)| shader::closesthit::Vertex::new(p, n, t))
-                .collect(),
-            Some(
-                mesh::RECTANGLE_INDICES
-                    .map(|i| i as u32)
-                    .into_iter()
-                    .collect(),
-            ),
-        );
-
-    obj_descs.push(shader::closesthit::ObjDesc {
-        vertex_address,
-        index_address,
-    });
-    instances.push((blas, 0, transforms));
-
-    blas_future
-}
-
-fn draw_models(
-    models: &Vec<(AssetId, AssetId, Affine3A, Vec4, Material, EntityId)>,
-    context: &RenderContext,
-    texture_indices: &mut Vec<u32>,
-    texture_resources: &mut IndexSet<(Arc<ImageView>, Arc<Sampler>)>,
-    materials: &mut Vec<EnumMaterialPod>,
-    eids: &mut Vec<EntityId>,
-    obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
-    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
-    model_assets: &mut ModelAssets,
-    texture_assets: &mut TextureAssets,
-    image_assets: &mut ImageAssets,
-    asset_manager: &mut AssetManager,
-    platform: &Platform,
-) -> Box<dyn GpuFuture> {
-    let mut gpu_future = vulkano::sync::now(context.device.clone()).boxed();
-    if models.is_empty() {
-        return gpu_future;
-    }
-
-    let mut model_to_index = HashMap::new();
-    for (model_asset, texture_asset, model_matrix, color, material, eid) in models {
-        if let Some(model) = model_assets.get_model(*model_asset, asset_manager, platform) {
-            let index = *model_to_index.entry(*model_asset).or_insert_with(|| {
-                let ((blas, blas_future), (vertex_address, index_address)) =
-                    util::vulkano::create_bottom_level_acceleration_structure_triangles(
-                        context.memory_allocator.clone(),
-                        &context.command_buffer_allocator,
-                        context.graphics_queue.clone(),
-                        model
-                            .vertices
-                            .iter()
-                            .map(|v| shader::closesthit::Vertex {
-                                position: v.position,
-                                normal: v.normal,
-                                // the OBJ format assumes a coordinate system where a vertical coordinate of 0 means the bottom of the image
-                                tex_coord: [v.texture[0], 1.0 - v.texture[1]],
-                            })
-                            .collect(),
-                        Some(model.indices.iter().map(|i| *i as u32).collect()),
-                    );
-                let pre_future = std::mem::replace(
-                    &mut gpu_future,
-                    vulkano::sync::now(context.device.clone()).boxed(),
-                );
-                gpu_future = pre_future.join(blas_future).boxed();
-
-                obj_descs.push(shader::closesthit::ObjDesc {
-                    vertex_address,
-                    index_address,
-                });
-                instances.push((blas, 0, Vec::new()));
-                instances.len() - 1
-            });
-
-            let transforms = &mut instances[index].2;
-            transforms.push(*model_matrix);
-
-            materials.push(EnumMaterialPod::from_material(*material, *color));
-            eids.push(*eid);
-
-            let texture_index = if let Some((image_view, sampler)) = texture_assets.get_texture(
-                *texture_asset,
-                image_assets,
-                asset_manager,
-                platform,
-                context,
-            ) {
-                texture_resources.insert((image_view.clone(), sampler.clone()));
-                texture_resources
-                    .get_index_of(&(image_view, sampler))
-                    .unwrap() as _
-            } else {
-                u32::MAX
-            };
-            texture_indices.push(texture_index);
-        }
-    }
-
-    gpu_future
-}
-
-fn draw_spheres(
-    spheres: &Vec<(Affine3A, Vec4, Material, EntityId)>,
-    context: &RenderContext,
-    texture_indices: &mut Vec<u32>,
-    materials: &mut Vec<EnumMaterialPod>,
-    eids: &mut Vec<EntityId>,
-    instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
-) -> Box<dyn GpuFuture> {
-    // Empty instance vector will make blas creation fail, we avoid this issue by adding an invisble instance.
-    // TODO: how to create an empty tlas?
-    let spheres = if spheres.is_empty() {
-        &vec![(
-            Affine3A::from_scale(Vec3::ZERO),
-            Vec4::ZERO,
-            Material::Lambertian,
-            EntityId::dead(),
-        )]
-    } else {
-        spheres
-    };
-
-    let mut transforms = Vec::new();
-    for (model, color, material, eid) in spheres {
-        transforms.push(*model);
-        texture_indices.push(u32::MAX);
-        materials.push(EnumMaterialPod::from_material(*material, *color));
-        eids.push(*eid);
-    }
-
-    let (sphere_blas, blas_future) =
-        util::vulkano::create_bottom_level_acceleration_structure_aabbs(
-            context.memory_allocator.clone(),
-            &context.command_buffer_allocator,
-            context.graphics_queue.clone(),
-            vec![AabbPositions {
-                min: [-0.5, -0.5, -0.5],
-                max: [0.5, 0.5, 0.5],
-            }],
-        );
-
-    instances.push((sphere_blas, 1, transforms));
+    instances.push((blas, sbt_index, transforms));
 
     blas_future
 }

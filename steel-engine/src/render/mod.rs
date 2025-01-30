@@ -1,12 +1,9 @@
 pub mod canvas;
 pub mod image;
+pub mod mesh;
 pub mod model;
 pub mod pipeline;
-pub mod renderer;
-pub mod renderer2d;
 pub mod texture;
-
-mod mesh;
 
 use self::canvas::CanvasRenderContext;
 use crate::edit::Edit;

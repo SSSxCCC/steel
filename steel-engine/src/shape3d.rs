@@ -3,9 +3,9 @@ use parry3d::shape::{Ball, Cuboid, ShapeType, SharedShape};
 use steel_common::data::{Data, Limit, Value};
 
 /// A wrapper of [parry3d::shape::SharedShape].
-pub struct Shape(pub SharedShape);
+pub struct Shape3D(pub SharedShape);
 
-impl std::ops::Deref for Shape {
+impl std::ops::Deref for Shape3D {
     type Target = SharedShape;
 
     fn deref(&self) -> &Self::Target {
@@ -13,19 +13,19 @@ impl std::ops::Deref for Shape {
     }
 }
 
-impl Default for Shape {
+impl Default for Shape3D {
     fn default() -> Self {
         Self(SharedShape::cuboid(0.5, 0.5, 0.5))
     }
 }
 
-impl std::fmt::Debug for Shape {
+impl std::fmt::Debug for Shape3D {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Shape").field(&self.shape_type()).finish() // TODO: print all members
     }
 }
 
-impl Shape {
+impl Shape3D {
     /// Convert i32 to ShapeType.
     fn i32_to_shape_type(i: &i32) -> ShapeType {
         match i {
@@ -40,7 +40,7 @@ impl Shape {
         data.add_value_with_limit(
             "shape_type",
             Value::Int32(self.shape_type() as i32),
-            Limit::Int32Enum(vec![(0, "Ball".into()), (1, "Cuboid".into())]),
+            Limit::Int32Enum(vec![(0, "Sphere".into()), (1, "Cuboid".into())]),
         );
         if let Some(shape) = self.as_ball() {
             data.values

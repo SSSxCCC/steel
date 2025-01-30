@@ -1,17 +1,18 @@
 use super::{
     image::ImageAssets,
+    mesh::{self, Mesh, MeshAssets, MeshData},
     model::ModelAssets,
     pipeline::{
         rasterization::RasterizationPipeline,
         raytracing::{material::Material, RayTracingPipeline},
     },
-    texture::TextureAssets,
+    texture::{Texture, TextureAssets, TextureData},
     FrameRenderInfo, RenderContext, RenderManager,
 };
-use crate::{asset::AssetManager, camera::CameraInfo};
+use crate::{asset::AssetManager, camera::CameraInfo, hierarchy::Parent, transform::Transform};
 use glam::{Affine3A, UVec2, Vec3, Vec4};
-use shipyard::{EntityId, Unique, UniqueView, UniqueViewMut};
-use std::sync::Arc;
+use shipyard::{EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View};
+use std::{collections::HashMap, sync::Arc};
 use steel_common::{asset::AssetId, platform::Platform};
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
@@ -34,20 +35,19 @@ pub struct Canvas {
     pub(crate) points: Vec<(Vec3, Vec4, EntityId)>,
     /// 2 vertex: (position, color, eid)
     pub(crate) lines: Vec<[(Vec3, Vec4, EntityId); 2]>,
-    /// 3 vertex: (position, color, eid)
-    pub(crate) triangles: Vec<[(Vec3, Vec4, EntityId); 3]>,
-    /// (model matrix, color, material, eid)
-    pub(crate) rectangles: Vec<(Affine3A, Vec4, Material, EntityId)>,
-    /// (model matrix, color, eid)
-    pub(crate) cicles: Vec<(Affine3A, Vec4, EntityId)>,
-    /// (texture asset, model matrix, color, material, eid)
-    pub(crate) textures: Vec<(AssetId, Affine3A, Vec4, Material, EntityId)>,
-    /// (model matrix, color, material, eid)
-    pub(crate) cuboids: Vec<(Affine3A, Vec4, Material, EntityId)>,
-    /// (model matrix, color, material, eid)
-    pub(crate) spheres: Vec<(Affine3A, Vec4, Material, EntityId)>,
-    /// (model asset, texture asset, model matrix, color, material, eid)
-    pub(crate) models: Vec<(AssetId, AssetId, Affine3A, Vec4, Material, EntityId)>,
+    /// (color, texture, material, model matrix, eid)
+    pub(crate) circles: Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
+    /// (color, texture, material, model matrix, eid)
+    pub(crate) spheres: Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
+    /// (mesh, color, texture, material, model matrix, eid)
+    pub(crate) meshs: Vec<(
+        Arc<MeshData>,
+        Vec4,
+        Option<TextureData>,
+        Material,
+        Affine3A,
+        EntityId,
+    )>,
 }
 
 impl Canvas {
@@ -61,76 +61,216 @@ impl Canvas {
         self.lines.push([(p1, color, eid), (p2, color, eid)]);
     }
 
-    /// Draw a triangle with vertices p1, p2, p3, color, and [EntityId].
-    pub fn triangle(&mut self, p1: Vec3, p2: Vec3, p3: Vec3, color: Vec4, eid: EntityId) {
-        self.triangles
-            .push([(p1, color, eid), (p2, color, eid), (p3, color, eid)]);
-    }
-
-    /// Draw a rectangle with model matrix, color, material, and [EntityId].
-    pub fn rectangle(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
-        self.rectangles.push((model, color, material, eid));
-    }
-
-    /// Draw a circle with model matrix, color, and [EntityId].
-    /// are the center and radius of the circle. The eid is used for screen object picking.
-    pub fn circle(&mut self, model: Affine3A, color: Vec4, eid: EntityId) {
-        self.cicles.push((model, color, eid));
-    }
-
-    /// Draw a texture with texture asset, model matrix, color, material, and [EntityId].
-    pub fn texture(
+    /// Draw a circle with color, texture, material, model matrix, and [EntityId].
+    /// Model matrix are the center and radius of the circle.
+    pub fn circle(
         &mut self,
-        asset: AssetId,
-        model: Affine3A,
         color: Vec4,
+        texture: Option<TextureData>,
         material: Material,
+        model: Affine3A,
         eid: EntityId,
     ) {
-        self.textures.push((asset, model, color, material, eid));
+        self.circles.push((color, texture, material, model, eid));
     }
 
-    /// Draw a cuboid with model matrix, color, material, and [EntityId].
-    pub fn cuboid(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
-        self.cuboids.push((model, color, material, eid));
-    }
-
-    /// Draw a sphere with model matrix, color, material, and [EntityId].
-    pub fn sphere(&mut self, model: Affine3A, color: Vec4, material: Material, eid: EntityId) {
-        self.spheres.push((model, color, material, eid));
-    }
-
-    /// Draw a model with model asset, texture asset, model matrix, color, material, and [EntityId].
-    pub fn model(
+    /// Draw a sphere with color, texture, material, model matrix, and [EntityId].
+    pub fn sphere(
         &mut self,
-        model_asset: AssetId,
-        texture_asset: AssetId,
-        model: Affine3A,
         color: Vec4,
+        texture: Option<TextureData>,
         material: Material,
+        model: Affine3A,
         eid: EntityId,
     ) {
-        self.models
-            .push((model_asset, texture_asset, model, color, material, eid));
+        self.spheres.push((color, texture, material, model, eid));
+    }
+
+    /// Draw a mesh with mesh data, color, texture, material, model matrix, and [EntityId].
+    pub fn mesh(
+        &mut self,
+        mesh: Arc<MeshData>,
+        color: Vec4,
+        texture: Option<TextureData>,
+        material: Material,
+        model: Affine3A,
+        eid: EntityId,
+    ) {
+        self.meshs
+            .push((mesh, color, texture, material, model, eid));
     }
 
     /// Clear all drawing data.
     pub fn clear(&mut self) {
         self.points.clear();
         self.lines.clear();
-        self.triangles.clear();
-        self.rectangles.clear();
-        self.cicles.clear();
-        self.textures.clear();
-        self.cuboids.clear();
+        self.circles.clear();
         self.spheres.clear();
-        self.models.clear();
+        self.meshs.clear();
     }
 }
 
 /// Clear the canvas.
 pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
+}
+
+/// Collect render data from [Mesh], [Texture], and [Material] components to [Canvas].
+pub fn canvas_update_system(
+    meshs: View<Mesh>,
+    textures: View<Texture>,
+    materials: View<Material>,
+    transforms: View<Transform>,
+    parents: View<Parent>,
+    mut canvas: UniqueViewMut<Canvas>,
+    render_manager: UniqueView<RenderManager>,
+    platform: UniqueView<Platform>,
+    (mut mesh_assets, mut model_assets, mut texture_assets, mut image_assets, mut asset_manager): (
+        UniqueViewMut<MeshAssets>,
+        UniqueViewMut<ModelAssets>,
+        UniqueViewMut<TextureAssets>,
+        UniqueViewMut<ImageAssets>,
+        UniqueViewMut<AssetManager>,
+    ),
+) {
+    let mut model_cache = Some(HashMap::new());
+    let mut scale_cache = Some(HashMap::new());
+    for (eid, mesh) in meshs.iter().with_id() {
+        let scale = Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache)
+            .unwrap_or(Vec3::ONE);
+        let model_without_scale = Transform::entity_final_model_without_scale(
+            eid,
+            &parents,
+            &transforms,
+            &mut model_cache,
+        )
+        .unwrap_or_default();
+        let model = model_without_scale * Affine3A::from_scale(scale);
+
+        let (texture_asset, color) = if let Ok(texture) = textures.get(eid) {
+            (texture.asset, texture.color)
+        } else {
+            (AssetId::INVALID, Vec4::ONE)
+        };
+        let texture_data = texture_assets.get_texture(
+            texture_asset,
+            &mut image_assets,
+            &mut asset_manager,
+            &platform,
+            &render_manager.context,
+        );
+
+        let material = materials.get(eid).cloned().unwrap_or_default();
+
+        match mesh {
+            Mesh::Asset(model_asset) => {
+                if let Some(mesh_data) = mesh_assets.get_mesh(
+                    *model_asset,
+                    &mut model_assets,
+                    &mut asset_manager,
+                    &platform,
+                ) {
+                    canvas.mesh(mesh_data, color, texture_data, material, model, eid);
+                }
+            }
+            Mesh::Shape2D(shape2d) => match shape2d.shape_type() {
+                parry2d::shape::ShapeType::Ball => {
+                    let scale = shape2d.as_ball().unwrap().radius / 0.5
+                        * std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
+                            x.partial_cmp(y).unwrap()
+                        });
+                    let model =
+                        model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, 1.0));
+                    canvas.circle(color, texture_data, material, model, eid);
+                }
+                parry2d::shape::ShapeType::Cuboid => {
+                    let shape = shape2d.as_cuboid().unwrap();
+                    let scale = Vec3::new(
+                        scale.x * shape.half_extents.x * 2.0,
+                        scale.y * shape.half_extents.y * 2.0,
+                        scale.z,
+                    );
+                    let model = model_without_scale * Affine3A::from_scale(scale);
+                    canvas.mesh(
+                        mesh::RECTANGLE.clone(),
+                        color,
+                        texture_data,
+                        material,
+                        model,
+                        eid,
+                    );
+                }
+                _ => (),
+            },
+            Mesh::Shape3D(shape3d) => match shape3d.shape_type() {
+                parry3d::shape::ShapeType::Ball => {
+                    let scale = shape3d.as_ball().unwrap().radius / 0.5
+                        * [scale.x.abs(), scale.y.abs(), scale.z.abs()]
+                            .into_iter()
+                            .fold(f32::NEG_INFINITY, |max, val| max.max(val));
+                    let model =
+                        model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, scale));
+                    canvas.sphere(color, texture_data, material, model, eid);
+                }
+                parry3d::shape::ShapeType::Cuboid => {
+                    let shape = shape3d.as_cuboid().unwrap();
+                    let scale = Vec3::new(
+                        scale.x * shape.half_extents.x * 2.0,
+                        scale.y * shape.half_extents.y * 2.0,
+                        scale.z * shape.half_extents.z * 2.0,
+                    );
+                    let model = model_without_scale * Affine3A::from_scale(scale);
+                    canvas.mesh(
+                        mesh::CUBOID.clone(),
+                        color,
+                        texture_data,
+                        material,
+                        model,
+                        eid,
+                    );
+                }
+                _ => (),
+            },
+        }
+    }
+
+    for (eid, (texture, _)) in (&textures, !&meshs).iter().with_id() {
+        if let Some(texture_data) = texture_assets.get_texture(
+            texture.asset,
+            &mut image_assets,
+            &mut asset_manager,
+            &platform,
+            &render_manager.context,
+        ) {
+            let scale = Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache)
+                .unwrap_or(Vec3::ONE);
+            let model_without_scale = Transform::entity_final_model_without_scale(
+                eid,
+                &parents,
+                &transforms,
+                &mut model_cache,
+            )
+            .unwrap_or_default();
+            let model = model_without_scale
+                * Affine3A::from_scale(scale)
+                * Affine3A::from_scale(Vec3::new(
+                    texture_data.image_view.image().extent()[0] as f32 / 100.0,
+                    texture_data.image_view.image().extent()[1] as f32 / 100.0,
+                    1.0,
+                ));
+
+            let material = materials.get(eid).cloned().unwrap_or_default();
+
+            canvas.mesh(
+                mesh::RECTANGLE.clone(),
+                texture.color,
+                Some(texture_data),
+                material,
+                model,
+                eid,
+            );
+        }
+    }
 }
 
 /// CanvasRenderContext stores many render objects that exist between frames.
@@ -197,11 +337,6 @@ pub fn canvas_render_system(
     camera: UniqueView<CameraInfo>,
     canvas: UniqueView<Canvas>,
     mut render_manager: UniqueViewMut<RenderManager>,
-    mut model_assets: UniqueViewMut<ModelAssets>,
-    mut texture_assets: UniqueViewMut<TextureAssets>,
-    mut image_assets: UniqueViewMut<ImageAssets>,
-    mut asset_manager: UniqueViewMut<AssetManager>,
-    platform: UniqueView<Platform>,
 ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
     let render_manager = render_manager.as_mut();
     render_manager.update(&info, render_manager.ray_tracing_supported());
@@ -215,11 +350,6 @@ pub fn canvas_render_system(
             &camera,
             &render_manager.ray_tracing_settings,
             &canvas,
-            &mut model_assets,
-            &mut texture_assets,
-            &mut image_assets,
-            &mut asset_manager,
-            &platform,
             eid_image,
         )
     } else {
@@ -231,11 +361,6 @@ pub fn canvas_render_system(
                 &camera,
                 &render_manager.rasterization_settings,
                 &canvas,
-                &mut model_assets,
-                &mut texture_assets,
-                &mut image_assets,
-                &mut asset_manager,
-                &platform,
                 eid_image,
             ),
         )

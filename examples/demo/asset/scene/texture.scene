@@ -44,14 +44,8 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Texture": {
                 "values": {
-                  "render_object": {
-                    "Int32": 1
-                  },
-                  "unnamed-0": {
-                    "Asset": 2921013567
-                  },
                   "color": {
                     "Vec4": [
                       1.0,
@@ -59,6 +53,9 @@
                       1.0,
                       1.0
                     ]
+                  },
+                  "asset": {
+                    "Asset": 2921013567
                   }
                 }
               }
@@ -110,14 +107,8 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Texture": {
                 "values": {
-                  "render_object": {
-                    "Int32": 1
-                  },
-                  "unnamed-0": {
-                    "Asset": 4111960136
-                  },
                   "color": {
                     "Vec4": [
                       1.0,
@@ -125,6 +116,9 @@
                       1.0,
                       1.0
                     ]
+                  },
+                  "asset": {
+                    "Asset": 4111960136
                   }
                 }
               }
@@ -141,11 +135,29 @@
     "RenderManager": {
       "values": {
         "ray_tracing": {
-          "Bool": false
+          "Bool": true
         },
-        "clear_color": {
-          "Vec4": [
-            0.0,
+        "camera_lens_radius": {
+          "Float32": 0.0
+        },
+        "camera_focus_dist": {
+          "Float32": 10.0
+        },
+        "samples": {
+          "UInt32": 30
+        },
+        "max_bounces": {
+          "UInt32": 30
+        },
+        "miss_color_top": {
+          "Vec3": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "miss_color_bottom": {
+          "Vec3": [
             0.0,
             0.0,
             0.0
@@ -180,44 +192,50 @@
         "min_ccd_dt": {
           "Float32": 0.00016666668
         },
-        "erp": {
-          "Float32": 0.8
+        "contact_damping_ratio": {
+          "Float32": 5.0
         },
-        "damping_ratio": {
-          "Float32": 0.25
+        "contact_natural_frequency": {
+          "Float32": 30.0
         },
-        "joint_erp": {
-          "Float32": 1.0
+        "joint_natural_frequency": {
+          "Float32": 1000000.0
         },
         "joint_damping_ratio": {
           "Float32": 1.0
         },
-        "allowed_linear_error": {
+        "warmstart_coefficient": {
+          "Float32": 1.0
+        },
+        "length_unit": {
+          "Float32": 1.0
+        },
+        "normalized_allowed_linear_error": {
           "Float32": 0.001
         },
-        "max_penetration_correction": {
-          "Float32": 3.4028235e38
+        "normalized_max_corrective_velocity": {
+          "Float32": 10.0
         },
-        "prediction_distance": {
+        "normalized_prediction_distance": {
           "Float32": 0.002
         },
-        "max_velocity_iterations": {
-          "Int32": 4
+        "num_solver_iterations": {
+          "UInt32": 4
         },
-        "max_velocity_friction_iterations": {
-          "Int32": 8
+        "num_additional_friction_iterations": {
+          "UInt32": 0
         },
-        "max_stabilization_iterations": {
-          "Int32": 1
+        "num_internal_pgs_iterations": {
+          "UInt32": 1
         },
-        "interleave_restitution_and_friction_resolution": {
-          "Bool": true
+        "num_internal_stabilization_iterations": {
+          "UInt32": 2
         },
         "min_island_size": {
-          "Int32": 128
+          "UInt32": 128
         },
         "max_ccd_substeps": {
-          "Int32": 1
+          "UInt32": 1
         }
       }
     },
