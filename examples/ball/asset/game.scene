@@ -15,108 +15,6 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Ball"
-                  }
-                }
-              },
-              "Transform": {
-                "values": {
-                  "position": {
-                    "Vec3": [
-                      0.0,
-                      10.0,
-                      0.0
-                    ]
-                  },
-                  "rotation": {
-                    "Vec3": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  "scale": {
-                    "Vec3": [
-                      1.0,
-                      1.0,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "Renderer2D": {
-                "values": {
-                  "render_object": {
-                    "Int32": 0
-                  },
-                  "shape_type": {
-                    "Int32": 0
-                  },
-                  "radius": {
-                    "Float32": 0.5
-                  },
-                  "color": {
-                    "Vec4": [
-                      1.0,
-                      1.0,
-                      1.0,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "RigidBody2D": {
-                "values": {
-                  "body_type": {
-                    "Int32": 0
-                  }
-                }
-              },
-              "Collider2D": {
-                "values": {
-                  "shape_type": {
-                    "Int32": 0
-                  },
-                  "radius": {
-                    "Float32": 0.5
-                  },
-                  "restitution": {
-                    "Float32": 1.0
-                  },
-                  "sensor": {
-                    "Bool": false
-                  }
-                }
-              },
-              "Ball": {
-                "values": {
-                  "start_velocity": {
-                    "Vec2": [
-                      8.0,
-                      16.0
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          {}
-        ]
-      ],
-      [
-        [
-          {
-            "index": 1,
-            "gen": 0
-          },
-          []
-        ],
-        [
-          {
-            "components": {
-              "Name": {
-                "values": {
-                  "unnamed-0": {
                     "String": "Board"
                   }
                 }
@@ -146,24 +44,16 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 0
+                  "type": {
+                    "Int32": 1
                   },
                   "shape_type": {
                     "Int32": 1
                   },
                   "size": {
                     "Vec2": [
-                      1.0,
-                      1.0
-                    ]
-                  },
-                  "color": {
-                    "Vec4": [
-                      1.0,
-                      1.0,
                       1.0,
                       1.0
                     ]
@@ -211,7 +101,7 @@
       [
         [
           {
-            "index": 2,
+            "index": 1,
             "gen": 0
           },
           []
@@ -251,10 +141,10 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 0
+                  "type": {
+                    "Int32": 1
                   },
                   "shape_type": {
                     "Int32": 1
@@ -264,11 +154,86 @@
                       1.0,
                       1.0
                     ]
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 1
                   },
-                  "color": {
-                    "Vec4": [
+                  "size": {
+                    "Vec2": [
                       1.0,
+                      1.0
+                    ]
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 2,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Right Wall"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      12.0,
+                      5.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
                       1.0,
+                      20.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Mesh": {
+                "values": {
+                  "type": {
+                    "Int32": 1
+                  },
+                  "shape_type": {
+                    "Int32": 1
+                  },
+                  "size": {
+                    "Vec2": [
                       1.0,
                       1.0
                     ]
@@ -313,7 +278,7 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Right Wall"
+                    "String": "Top Wall"
                   }
                 }
               },
@@ -321,8 +286,8 @@
                 "values": {
                   "position": {
                     "Vec3": [
-                      12.0,
-                      5.0,
+                      0.0,
+                      15.0,
                       0.0
                     ]
                   },
@@ -335,31 +300,23 @@
                   },
                   "scale": {
                     "Vec3": [
+                      25.0,
                       1.0,
-                      20.0,
                       1.0
                     ]
                   }
                 }
               },
-              "Renderer2D": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 0
+                  "type": {
+                    "Int32": 1
                   },
                   "shape_type": {
                     "Int32": 1
                   },
                   "size": {
                     "Vec2": [
-                      1.0,
-                      1.0
-                    ]
-                  },
-                  "color": {
-                    "Vec4": [
-                      1.0,
-                      1.0,
                       1.0,
                       1.0
                     ]
@@ -404,97 +361,6 @@
               "Name": {
                 "values": {
                   "unnamed-0": {
-                    "String": "Top Wall"
-                  }
-                }
-              },
-              "Transform": {
-                "values": {
-                  "position": {
-                    "Vec3": [
-                      0.0,
-                      15.0,
-                      0.0
-                    ]
-                  },
-                  "rotation": {
-                    "Vec3": [
-                      0.0,
-                      0.0,
-                      0.0
-                    ]
-                  },
-                  "scale": {
-                    "Vec3": [
-                      25.0,
-                      1.0,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "Renderer2D": {
-                "values": {
-                  "render_object": {
-                    "Int32": 0
-                  },
-                  "shape_type": {
-                    "Int32": 1
-                  },
-                  "size": {
-                    "Vec2": [
-                      1.0,
-                      1.0
-                    ]
-                  },
-                  "color": {
-                    "Vec4": [
-                      1.0,
-                      1.0,
-                      1.0,
-                      1.0
-                    ]
-                  }
-                }
-              },
-              "Collider2D": {
-                "values": {
-                  "shape_type": {
-                    "Int32": 1
-                  },
-                  "size": {
-                    "Vec2": [
-                      1.0,
-                      1.0
-                    ]
-                  },
-                  "restitution": {
-                    "Float32": 1.0
-                  },
-                  "sensor": {
-                    "Bool": false
-                  }
-                }
-              }
-            }
-          },
-          {}
-        ]
-      ],
-      [
-        [
-          {
-            "index": 5,
-            "gen": 0
-          },
-          []
-        ],
-        [
-          {
-            "components": {
-              "Name": {
-                "values": {
-                  "unnamed-0": {
                     "String": "Camera"
                   }
                 }
@@ -526,14 +392,20 @@
               },
               "Camera": {
                 "values": {
-                  "spec": {
-                    "Int32": 2
+                  "mode": {
+                    "Int32": 0
                   },
-                  "min_width": {
-                    "Float32": 25.0
+                  "size": {
+                    "Int32": 1
                   },
-                  "min_height": {
+                  "height": {
                     "Float32": 20.0
+                  },
+                  "near": {
+                    "Float32": -1000000.0
+                  },
+                  "far": {
+                    "Float32": 1000000.0
                   }
                 }
               }
@@ -545,7 +417,7 @@
       [
         [
           {
-            "index": 6,
+            "index": 5,
             "gen": 0
           },
           []
@@ -611,6 +483,100 @@
           },
           {}
         ]
+      ],
+      [
+        [
+          {
+            "index": 6,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Ball"
+                  }
+                }
+              },
+              "Transform": {
+                "values": {
+                  "position": {
+                    "Vec3": [
+                      0.0,
+                      10.0,
+                      0.0
+                    ]
+                  },
+                  "rotation": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "scale": {
+                    "Vec3": [
+                      1.0,
+                      1.0,
+                      1.0
+                    ]
+                  }
+                }
+              },
+              "Mesh": {
+                "values": {
+                  "type": {
+                    "Int32": 1
+                  },
+                  "shape_type": {
+                    "Int32": 0
+                  },
+                  "radius": {
+                    "Float32": 0.5
+                  }
+                }
+              },
+              "RigidBody2D": {
+                "values": {
+                  "body_type": {
+                    "Int32": 0
+                  }
+                }
+              },
+              "Collider2D": {
+                "values": {
+                  "shape_type": {
+                    "Int32": 0
+                  },
+                  "radius": {
+                    "Float32": 0.5
+                  },
+                  "restitution": {
+                    "Float32": 1.0
+                  },
+                  "sensor": {
+                    "Bool": false
+                  }
+                }
+              },
+              "Ball": {
+                "values": {
+                  "start_velocity": {
+                    "Vec2": [
+                      8.0,
+                      16.0
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
       ]
     ],
     "nested_prefabs": [],
@@ -619,6 +585,9 @@
   "uniques": {
     "RenderManager": {
       "values": {
+        "ray_tracing": {
+          "Bool": false
+        },
         "clear_color": {
           "Vec4": [
             0.0,
@@ -633,6 +602,10 @@
       "values": {
         "roots": {
           "VecEntity": [
+            {
+              "index": 6,
+              "gen": 0
+            },
             {
               "index": 0,
               "gen": 0
@@ -656,10 +629,6 @@
             {
               "index": 5,
               "gen": 0
-            },
-            {
-              "index": 6,
-              "gen": 0
             }
           ]
         }
@@ -676,44 +645,50 @@
         "min_ccd_dt": {
           "Float32": 0.00016666668
         },
-        "erp": {
-          "Float32": 0.8
+        "contact_damping_ratio": {
+          "Float32": 5.0
         },
-        "damping_ratio": {
-          "Float32": 0.25
+        "contact_natural_frequency": {
+          "Float32": 30.0
         },
-        "joint_erp": {
-          "Float32": 1.0
+        "joint_natural_frequency": {
+          "Float32": 1000000.0
         },
         "joint_damping_ratio": {
           "Float32": 1.0
         },
-        "allowed_linear_error": {
+        "warmstart_coefficient": {
+          "Float32": 1.0
+        },
+        "length_unit": {
+          "Float32": 1.0
+        },
+        "normalized_allowed_linear_error": {
           "Float32": 0.001
         },
-        "max_penetration_correction": {
-          "Float32": 3.4028235e38
+        "normalized_max_corrective_velocity": {
+          "Float32": 10.0
         },
-        "prediction_distance": {
+        "normalized_prediction_distance": {
           "Float32": 0.002
         },
-        "max_velocity_iterations": {
-          "Int32": 4
+        "num_solver_iterations": {
+          "UInt32": 4
         },
-        "max_velocity_friction_iterations": {
-          "Int32": 8
+        "num_additional_friction_iterations": {
+          "UInt32": 0
         },
-        "max_stabilization_iterations": {
-          "Int32": 1
+        "num_internal_pgs_iterations": {
+          "UInt32": 1
         },
-        "interleave_restitution_and_friction_resolution": {
-          "Bool": true
+        "num_internal_stabilization_iterations": {
+          "UInt32": 2
         },
         "min_island_size": {
-          "Int32": 128
+          "UInt32": 128
         },
         "max_ccd_substeps": {
-          "Int32": 1
+          "UInt32": 1
         }
       }
     }

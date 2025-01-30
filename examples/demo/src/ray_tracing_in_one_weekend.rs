@@ -9,11 +9,8 @@ use steel::{
     edit::Edit,
     hierarchy::{Children, Hierarchy, Parent},
     name::Name,
-    render::{
-        pipeline::raytracing::material::Material,
-        renderer::{RenderObject, Renderer},
-    },
-    shape::Shape,
+    render::{mesh::Mesh, pipeline::raytracing::material::Material},
+    shape3d::Shape3D,
     transform::Transform,
 };
 
@@ -32,8 +29,9 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             "Ground",
             vec3(0.0, -1000.0, 0.0),
             1000.0,
-            vec3(0.5, 0.5, 0.5),
-            Material::Lambertian,
+            Material::Lambertian {
+                albedo: vec3(0.5, 0.5, 0.5),
+            },
         );
 
         create_sphere(
@@ -42,7 +40,6 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             "Big Sphere 0",
             vec3(0.0, 1.0, 0.0),
             1.0,
-            vec3(0.5, 0.5, 0.5),
             Material::Dielectric { ri: 1.5 },
         );
 
@@ -52,8 +49,9 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             "Big Sphere 1",
             vec3(-4.0, 1.0, 0.0),
             1.0,
-            vec3(0.4, 0.2, 0.1),
-            Material::Lambertian,
+            Material::Lambertian {
+                albedo: vec3(0.4, 0.2, 0.1),
+            },
         );
 
         create_sphere(
@@ -62,8 +60,10 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             "Big Sphere 2",
             vec3(4.0, 1.0, 0.0),
             1.0,
-            vec3(0.7, 0.6, 0.5),
-            Material::Metal { fuzz: 0.0 },
+            Material::Metal {
+                albedo: vec3(0.7, 0.6, 0.5),
+                fuzz: 0.0,
+            },
         );
 
         let mut rng = StdRng::from_entropy();
@@ -88,8 +88,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                                 format!("Sphere {a},{b}"),
                                 center,
                                 0.2,
-                                albedo,
-                                Material::Lambertian,
+                                Material::Lambertian { albedo },
                             );
                         }
                         x if x < 0.95 => {
@@ -105,8 +104,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                                 format!("Sphere {a},{b}"),
                                 center,
                                 0.2,
-                                albedo,
-                                Material::Metal { fuzz },
+                                Material::Metal { albedo, fuzz },
                             );
                         }
                         _ => create_sphere(
@@ -115,7 +113,6 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                             format!("Sphere {a},{b}"),
                             center,
                             0.2,
-                            Vec3::ONE,
                             Material::Dielectric { ri: 1.5 },
                         ),
                     }
@@ -135,7 +132,6 @@ fn create_sphere(
     name: impl Into<String>,
     position: Vec3,
     size: f32,
-    color: Vec3,
     material: Material,
 ) {
     let e = all_storage.add_entity((
@@ -145,10 +141,7 @@ fn create_sphere(
             rotation: Quat::IDENTITY,
             scale: Vec3::splat(size),
         },
-        Renderer {
-            object: RenderObject::Shape(Shape(SharedShape::ball(1.0))),
-            color: color.extend(1.0),
-        },
+        Mesh::Shape3D(Shape3D(SharedShape::ball(1.0))),
         material,
     ));
 

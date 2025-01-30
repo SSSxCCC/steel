@@ -44,10 +44,10 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 0
+                  "type": {
+                    "Int32": 1
                   },
                   "shape_type": {
                     "Int32": 1
@@ -57,7 +57,11 @@
                       1.0,
                       1.0
                     ]
-                  },
+                  }
+                }
+              },
+              "Texture": {
+                "values": {
                   "color": {
                     "Vec4": [
                       0.0,
@@ -65,6 +69,9 @@
                       2.3841858e-7,
                       1.0
                     ]
+                  },
+                  "asset": {
+                    "Asset": 0
                   }
                 }
               },
@@ -135,10 +142,10 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 0
+                  "type": {
+                    "Int32": 1
                   },
                   "shape_type": {
                     "Int32": 1
@@ -148,14 +155,21 @@
                       1.0,
                       1.0
                     ]
-                  },
+                  }
+                }
+              },
+              "Texture": {
+                "values": {
                   "color": {
                     "Vec4": [
-                      1.0,
+                      0.9999995,
                       0.0,
                       0.0,
                       1.0
                     ]
+                  },
+                  "asset": {
+                    "Asset": 0
                   }
                 }
               },
@@ -233,24 +247,31 @@
                   }
                 }
               },
-              "Renderer2D": {
+              "Mesh": {
                 "values": {
-                  "render_object": {
-                    "Int32": 0
+                  "type": {
+                    "Int32": 1
                   },
                   "shape_type": {
                     "Int32": 0
                   },
                   "radius": {
                     "Float32": 0.5
-                  },
+                  }
+                }
+              },
+              "Texture": {
+                "values": {
                   "color": {
                     "Vec4": [
+                      4.7683716e-7,
                       0.0,
-                      0.014286041,
                       1.0,
                       1.0
                     ]
+                  },
+                  "asset": {
+                    "Asset": 0
                   }
                 }
               },

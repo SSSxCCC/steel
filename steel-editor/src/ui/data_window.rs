@@ -947,6 +947,9 @@ impl DataWindow {
                             }
                         }
                     }
+                    if *v != AssetId::INVALID && ui.button(texts.get("Reset")).clicked() {
+                        *v = AssetId::INVALID;
+                    }
                 });
             }
             Value::VecBool(v) => Self::vec_value_view(ui, v, color), // TODO: add/remove/change

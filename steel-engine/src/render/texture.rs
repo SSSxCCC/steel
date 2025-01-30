@@ -1,9 +1,14 @@
 use super::{image::ImageAssets, RenderContext};
-use crate::asset::AssetManager;
+use crate::{asset::AssetManager, edit::Edit};
+use glam::Vec4;
 use image::{DynamicImage, GenericImageView};
-use shipyard::Unique;
+use shipyard::{Component, Unique};
 use std::{collections::HashMap, error::Error, sync::Arc};
-use steel_common::{asset::AssetId, platform::Platform};
+use steel_common::{
+    asset::AssetId,
+    data::{Data, Limit, Value},
+    platform::Platform,
+};
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
     command_buffer::{
@@ -20,9 +25,37 @@ use vulkano::{
     sync::GpuFuture,
 };
 
+/// Texture component defines an image texture to render.
+/// When texture asset is invalid, this texture is a solid color.
+#[derive(Component, Edit)]
+pub struct Texture {
+    /// The factor to multiply by texture color. When texture asset
+    /// is invalid, this is the solid color of this texture.
+    #[edit(limit = "Limit::Vec4Color")]
+    pub color: Vec4,
+    /// The image file of this texture asset.
+    pub asset: AssetId,
+}
+
+impl Default for Texture {
+    fn default() -> Self {
+        Texture {
+            color: Vec4::ONE,
+            asset: AssetId::default(),
+        }
+    }
+}
+
+/// Texture data contains [ImageView] and [Sampler].
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct TextureData {
+    pub image_view: Arc<ImageView>,
+    pub sampler: Arc<Sampler>,
+}
+
 struct TextureAsset {
     image: Arc<DynamicImage>,
-    data: (Arc<ImageView>, Arc<Sampler>),
+    data: TextureData,
 }
 
 #[derive(Unique, Default)]
@@ -39,7 +72,7 @@ impl TextureAssets {
         asset_manager: &mut AssetManager,
         platform: &Platform,
         render_context: &RenderContext,
-    ) -> Option<(Arc<ImageView>, Arc<Sampler>)> {
+    ) -> Option<TextureData> {
         if let Some(image) = image_assets.get_image(asset_id, asset_manager, platform) {
             if let Some(texture2d_asset) = self.textures.get(&asset_id) {
                 if Arc::ptr_eq(&image, &texture2d_asset.image) {
@@ -69,7 +102,7 @@ impl TextureAssets {
     fn get_texture_from_image(
         dynamic_image: &DynamicImage,
         render_context: &RenderContext,
-    ) -> Result<(Arc<ImageView>, Arc<Sampler>), Box<dyn Error>> {
+    ) -> Result<TextureData, Box<dyn Error>> {
         let image_staging_buffer = Buffer::new_slice(
             render_context.memory_allocator.clone(),
             BufferCreateInfo {
@@ -122,6 +155,9 @@ impl TextureAssets {
             .execute(render_context.graphics_queue.clone())?
             .then_signal_fence_and_flush()?
             .wait(None)?;
-        Ok((image_view, sampler))
+        Ok(TextureData {
+            image_view,
+            sampler,
+        })
     }
 }

@@ -12,11 +12,10 @@ use crate::{
     render::{
         canvas::{Canvas, GetEntityAtScreenParam},
         image::ImageAssets,
+        mesh::{Mesh, MeshAssets},
         model::ModelAssets,
         pipeline::raytracing::material::Material,
-        renderer::Renderer,
-        renderer2d::Renderer2D,
-        texture::TextureAssets,
+        texture::{Texture, TextureAssets},
         FrameRenderInfo, RenderManager,
     },
     scene::SceneManager,
@@ -133,8 +132,8 @@ impl SteelApp {
         .register_component::<Children>()
         .register_component::<Transform>()
         .register_component::<Camera>()
-        .register_component::<Renderer>()
-        .register_component::<Renderer2D>()
+        .register_component::<Mesh>()
+        .register_component::<Texture>()
         .register_component::<Material>()
         .register_unique::<RenderManager>()
         .add_and_register_unique(Hierarchy::default())
@@ -143,6 +142,7 @@ impl SteelApp {
         .add_unique(ImageAssets::default())
         .add_unique(TextureAssets::default())
         .add_unique(ModelAssets::default())
+        .add_unique(MeshAssets::default())
         .add_unique(CameraInfo::new())
         .add_unique(Canvas::default())
         .add_unique(Input::new())
@@ -160,11 +160,7 @@ impl SteelApp {
         .add_system(Schedule::PostUpdate, crate::camera::camera_maintain_system)
         .add_system(
             Schedule::PostUpdate,
-            crate::render::renderer2d::renderer2d_to_canvas_system,
-        )
-        .add_system(
-            Schedule::PostUpdate,
-            crate::render::renderer::renderer_to_canvas_system,
+            crate::render::canvas::canvas_update_system,
         )
     }
 
@@ -376,11 +372,10 @@ impl App for SteelApp {
                 );
             }
             Command::CreateEntity => {
-                self.world.all_storages_mut().unwrap().add_entity((
-                    Name::new("New Entity"),
-                    Transform::default(),
-                    Renderer2D::default(),
-                ));
+                self.world
+                    .all_storages_mut()
+                    .unwrap()
+                    .add_entity((Name::new("New Entity"),));
             }
             Command::AddEntities(entities_data, old_id_to_new_id) => {
                 *old_id_to_new_id = entities_data.add_to_world(&self.world.all_storages().unwrap());

@@ -60,7 +60,7 @@ pub mod raygen {
 
             // =============== Math ===============
 
-            #define PI 3.1415926538
+            #define PI 3.14159265359
 
             vec3 random_in_unit_sphere(inout PCG32si rng) {
                 // generate random spherical coordinates (direction)
@@ -469,7 +469,7 @@ pub mod closesthit {
                     normal,
                     tex_color,
                     material,
-                    false, // is_miss initialized to false
+                    false,
                     front_face
                 );
             }
@@ -533,6 +533,109 @@ pub mod closesthit {
     }
 }
 
+pub mod circle_intersection {
+    vulkano_shaders::shader! {
+        ty: "intersection",
+        spirv_version: "1.4",
+        src: r"
+            #version 460
+            #extension GL_EXT_ray_tracing : require
+
+            hitAttributeEXT float t;
+
+            void main() {
+                vec3 ray_origin = gl_ObjectRayOriginEXT;
+                vec3 ray_dir = gl_ObjectRayDirectionEXT;
+                float t_min = gl_RayTminEXT;
+                float t_max = gl_RayTmaxEXT;
+
+                // circle in XY plane (Z=0)
+                if (abs(ray_dir.z) < 1e-6) return; // no intersection when parallel to the plane
+
+                // calculate the intersection with the XY plane
+                float t_hit = -ray_origin.z / ray_dir.z;
+                if (t_hit < t_min || t_hit > t_max) return;
+
+                // check if inside a circle (radius 0.5)
+                vec3 hit_pos = ray_origin + t_hit * ray_dir;
+                if (dot(hit_pos.xy, hit_pos.xy) > 0.25) return; // 0.5^2 = 0.25
+
+                t = t_hit;
+                reportIntersectionEXT(t_hit, 0);
+            }
+        ",
+    }
+}
+
+pub mod circle_closesthit {
+    vulkano_shaders::shader! {
+        ty: "closesthit",
+        spirv_version: "1.4",
+        src: r"
+            #version 460
+            #extension GL_EXT_ray_tracing : require
+            #extension GL_EXT_scalar_block_layout : require
+            #extension GL_EXT_nonuniform_qualifier : require
+
+            struct HitRecord {
+                vec3 position;
+                vec3 normal;
+                vec3 tex_color;
+                uint material;
+                bool is_miss;
+                bool front_face;
+            };
+
+            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec3 tex_color, uint material) {
+                bool front_face = dot(ray_direction, outward_normal) < 0.0;
+                vec3 normal = front_face ? outward_normal : -outward_normal;
+
+                return HitRecord(
+                    position,
+                    normal,
+                    tex_color,
+                    material,
+                    false,
+                    front_face
+                );
+            }
+
+            hitAttributeEXT float t;
+            layout(location = 0) rayPayloadInEXT HitRecord hit;
+
+            layout(set = 0, binding = 4, scalar) buffer TextureIndices { uint i[]; } tex_i;
+            layout(set = 0, binding = 5) uniform sampler2D[] tex;
+
+            void main() {
+                vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
+
+                // world space normals
+                vec3 obj_normal = vec3(0, 0, 1);
+                vec3 world_normal = normalize(transpose(inverse(mat3(gl_ObjectToWorldEXT))) * obj_normal);
+
+                // object space intersection position
+                vec3 obj_pos = gl_ObjectRayOriginEXT + t * gl_ObjectRayDirectionEXT;
+
+                // calculate texture coordinates
+                vec2 tex_coord = vec2(
+                    obj_pos.x + 0.5,
+                    0.5 - obj_pos.y
+                );
+
+                // texture sampling
+                vec3 tex_color = vec3(1.0);
+                const uint MAX_UINT = 4294967295u;
+                if (tex_i.i[gl_InstanceID] != MAX_UINT) {
+                    tex_color = texture(tex[tex_i.i[gl_InstanceID]], tex_coord).xyz;
+                }
+
+                // return hit record
+                hit = new_HitRecord(hit_pos, world_normal, gl_WorldRayDirectionEXT, tex_color, gl_InstanceID);
+            }
+        ",
+    }
+}
+
 pub mod sphere_intersection {
     vulkano_shaders::shader! {
         ty: "intersection",
@@ -584,6 +687,8 @@ pub mod sphere_closesthit {
         src: r"
             #version 460
             #extension GL_EXT_ray_tracing : require
+            #extension GL_EXT_scalar_block_layout : require
+            #extension GL_EXT_nonuniform_qualifier : require
 
             struct HitRecord {
                 vec3 position;
@@ -603,7 +708,7 @@ pub mod sphere_closesthit {
                     normal,
                     tex_color,
                     material,
-                    false, // is_miss initialized to false
+                    false,
                     front_face
                 );
             }
@@ -611,10 +716,35 @@ pub mod sphere_closesthit {
             hitAttributeEXT float t;
             layout(location = 0) rayPayloadInEXT HitRecord hit;
 
+            layout(set = 0, binding = 4, scalar) buffer TextureIndices { uint i[]; } tex_i;
+            layout(set = 0, binding = 5) uniform sampler2D[] tex;
+
             void main() {
                 vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
-                vec3 normal = normalize(hit_pos - gl_ObjectToWorldEXT[3]);
-                hit = new_HitRecord(hit_pos, normal, gl_WorldRayDirectionEXT, vec3(1.0), gl_InstanceID);
+
+                // convert world space coordinates to object space coordinates
+                vec3 obj_hit_pos = vec3(gl_WorldToObjectEXT * vec4(hit_pos, 1.0));
+                vec3 obj_normal = normalize(obj_hit_pos);
+
+                // world space normal
+                vec3 world_normal = normalize(transpose(inverse(mat3(gl_ObjectToWorldEXT))) * obj_normal);
+
+                // calculate object-space texture coordinates
+                const float PI = 3.14159265359;
+                vec2 tex_coord = vec2(
+                    0.5 + atan(obj_normal.x, obj_normal.z) / (2.0 * PI),
+                    0.5 - asin(obj_normal.y) / PI
+                );
+
+                // texture sampling
+                vec3 tex_color = vec3(1.0);
+                const uint MAX_UINT = 4294967295u;
+                if (tex_i.i[gl_InstanceID] != MAX_UINT) {
+                    tex_color = texture(tex[tex_i.i[gl_InstanceID]], tex_coord).xyz;
+                }
+
+                // return hit record
+                hit = new_HitRecord(hit_pos, world_normal, gl_WorldRayDirectionEXT, tex_color, gl_InstanceID);
             }
         ",
     }
