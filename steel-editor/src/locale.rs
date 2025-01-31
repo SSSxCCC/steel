@@ -91,6 +91,10 @@ impl Texts {
         .add("Settings", "Settings", "设置")
         .add("Reset", "Reset", "重置")
         .add("Scene Camera", "Scene Camera", "场景相机")
+        .add("Compile Introduction",
+            "To recompile the code, click the window close button in the upper right corner of the Steel Editor to exit and re-run it. The Steel Editor will save the current project state when you exit and automatically load the current scene when you run it again.",
+            "要重新编译代码，点击Steel编辑器右上角的窗口关闭按钮退出再重新运行即可。Steel编辑器在退出时会保存当前的项目状态，再次运行时自动加载当前场景。",
+        )
     }
 
     fn add(mut self, key: &'static str, eng: &'static str, chs: &'static str) -> Self {

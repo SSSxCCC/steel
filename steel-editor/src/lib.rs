@@ -24,6 +24,13 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
+/// Whether to exit the editor when compiling the code.
+/// Steel Editor supports hot reload by using libloading. However libloading and rayon have critical issues when working together.
+/// The rayon global thread pool can not be destroyed when unloading a dynamic library, which will cause memory leak and crash.
+/// We avoid this issue by re-running the editor when compiling the code.
+/// TODO: fix this issue and remove this.
+pub const EXIT_EDITOR_WHEN_COMPILE: bool = true;
+
 // Currently we can not use cargo in android, so that running steel-editor in android is useless
 // TODO: remove android code in steel-editor, or find a way to make steel-editor work in android
 
