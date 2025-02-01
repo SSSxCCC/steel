@@ -30,7 +30,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             vec3(0.0, -1000.0, 0.0),
             1000.0,
             Material::Lambertian {
-                albedo: vec3(0.5, 0.5, 0.5),
+                color: vec3(0.5, 0.5, 0.5),
             },
         );
 
@@ -40,7 +40,10 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             "Big Sphere 0",
             vec3(0.0, 1.0, 0.0),
             1.0,
-            Material::Dielectric { ri: 1.5 },
+            Material::Dielectric {
+                color: Vec3::ONE,
+                ri: 1.5,
+            },
         );
 
         create_sphere(
@@ -50,7 +53,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             vec3(-4.0, 1.0, 0.0),
             1.0,
             Material::Lambertian {
-                albedo: vec3(0.4, 0.2, 0.1),
+                color: vec3(0.4, 0.2, 0.1),
             },
         );
 
@@ -61,7 +64,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
             vec3(4.0, 1.0, 0.0),
             1.0,
             Material::Metal {
-                albedo: vec3(0.7, 0.6, 0.5),
+                color: vec3(0.7, 0.6, 0.5),
                 fuzz: 0.0,
             },
         );
@@ -80,7 +83,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                 if (center - vec3(4.0, 0.2, 0.0)).length() > 0.9 {
                     match choose_mat {
                         x if x < 0.8 => {
-                            let albedo = vec3(rng.gen(), rng.gen(), rng.gen())
+                            let color = vec3(rng.gen(), rng.gen(), rng.gen())
                                 * vec3(rng.gen(), rng.gen(), rng.gen());
                             create_sphere(
                                 &mut all_storage,
@@ -88,11 +91,11 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                                 format!("Sphere {a},{b}"),
                                 center,
                                 0.2,
-                                Material::Lambertian { albedo },
+                                Material::Lambertian { color },
                             );
                         }
                         x if x < 0.95 => {
-                            let albedo = vec3(
+                            let color = vec3(
                                 rng.gen_range(0.5..1.0),
                                 rng.gen_range(0.5..1.0),
                                 rng.gen_range(0.5..1.0),
@@ -104,7 +107,7 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                                 format!("Sphere {a},{b}"),
                                 center,
                                 0.2,
-                                Material::Metal { albedo, fuzz },
+                                Material::Metal { color, fuzz },
                             );
                         }
                         _ => create_sphere(
@@ -113,7 +116,10 @@ pub fn generate_scene_system(mut all_storage: AllStoragesViewMut) {
                             format!("Sphere {a},{b}"),
                             center,
                             0.2,
-                            Material::Dielectric { ri: 1.5 },
+                            Material::Dielectric {
+                                color: Vec3::ONE,
+                                ri: 1.5,
+                            },
                         ),
                     }
                 }
