@@ -154,16 +154,22 @@ pub mod raygen {
 
             // Materials.
             struct Lambertian {
-                vec3 albedo;
+                vec3 color;
             };
 
             struct Metal {
-                vec3 albedo;
+                vec3 color;
                 float fuzz;
             };
 
             struct Dielectric {
+                vec3 color;
                 float ir;
+            };
+
+            struct Emission {
+                vec3 color;
+                float intensity;
             };
 
             // Texture sampling.
@@ -186,7 +192,7 @@ pub mod raygen {
 
                 scatter.ray.origin = hit.position;
                 scatter.ray.direction = scatter_direction;
-                scatter.color = material.albedo * sample_tex_color(hit.instance, hit.tex_coord);
+                scatter.color = material.color * sample_tex_color(hit.instance, hit.tex_coord);
 
                 return true;
             }
@@ -198,7 +204,7 @@ pub mod raygen {
                 if (dot(scatter_direction, hit.normal) > 0.0) {
                     scatter.ray.origin = hit.position;
                     scatter.ray.direction = scatter_direction;
-                    scatter.color = material.albedo * sample_tex_color(hit.instance, hit.tex_coord);
+                    scatter.color = material.color * sample_tex_color(hit.instance, hit.tex_coord);
                     return true;
                 }
                 return false;
@@ -217,9 +223,14 @@ pub mod raygen {
 
                 scatter.ray.origin = hit.position;
                 scatter.ray.direction = direction;
-                scatter.color = vec3(1.0, 1.0, 1.0); // white for dielectric
+                scatter.color = material.color * sample_tex_color(hit.instance, hit.tex_coord);
 
                 return true;
+            }
+
+            bool scatter_Emission(Emission material, Ray ray, HitRecord hit, inout PCG32si rng, inout Scatter scatter) {
+                scatter.color = material.color * material.intensity * sample_tex_color(hit.instance, hit.tex_coord);
+                return false;
             }
 
             struct EnumMaterial {
@@ -236,8 +247,11 @@ pub mod raygen {
                     Metal material = Metal(material.data.xyz, material.data.w);
                     return scatter_Metal(material, ray, hit, rng, scatter);
                 } else if (material.t == 2u) {
-                    Dielectric material = Dielectric(material.data.x);
+                    Dielectric material = Dielectric(material.data.xyz, material.data.w);
                     return scatter_Dielectric(material, ray, hit, rng, scatter);
+                } else if (material.t == 3u) {
+                    Emission material = Emission(material.data.xyz, material.data.w);
+                    return scatter_Emission(material, ray, hit, rng, scatter);
                 } else {
                     return false;
                 }
@@ -388,8 +402,9 @@ pub mod raygen {
                             }
 
                             Scatter scatter = default_Scatter();
-                            if (scatter_EnumMaterial(materials[hit.instance], ray, hit, rng, scatter)) {
-                                color *= scatter.color;
+                            bool scattered = scatter_EnumMaterial(materials[hit.instance], ray, hit, rng, scatter);
+                            color *= scatter.color;
+                            if (scattered) {
                                 ray = scatter.ray;
                             } else {
                                 break;

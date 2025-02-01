@@ -6,8 +6,6 @@ use steel_common::data::{Data, Limit, Value};
 pub(crate) use crate::render::pipeline::raytracing::shader::raygen::EnumMaterial;
 
 /// Ray tracing material, including lambertian, metal, and dielectric.
-/// The albedo of lambertian/metal and the transmittance of dielectric are color.xyz * color.w,
-/// the color comes from [crate::render::renderer::Renderer::color] or [crate::render::renderer2d::Renderer2D::color].
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum Material {
     /// When a ray hits a Lambertian surface, the material reflects light uniformly in all directions.
@@ -15,27 +13,37 @@ pub enum Material {
     /// Example: Chalk, unpolished wood, painted walls, or any matte surface.
     Lambertian {
         /// Albedo color.
-        albedo: Vec3,
+        color: Vec3,
     },
     /// When a ray hits a metallic surface, the material reflects most of the light at a sharp angle (specular reflection).
     /// Example: Gold, silver, copper, aluminum, iron.
     Metal {
         /// Albedo color.
-        albedo: Vec3,
+        color: Vec3,
         /// Fuzziness.
         fuzz: f32,
     },
     /// When a dielectric material is hit by a ray, the material either reflects or refracts the incoming light.
     /// Example: Glass, water, air, diamonds, or plastics.
     Dielectric {
+        /// Color tint.
+        color: Vec3,
         /// Refraction index.
         ri: f32,
+    },
+    /// Emissive materials emit light instead of reflecting it.
+    /// Example: Light bulbs, fire, etc.
+    Emission {
+        /// Emission color.
+        color: Vec3,
+        /// Emission intensity.
+        intensity: f32,
     },
 }
 
 impl Default for Material {
     fn default() -> Self {
-        Material::Lambertian { albedo: Vec3::ONE }
+        Material::Lambertian { color: Vec3::ONE }
     }
 }
 
@@ -44,9 +52,10 @@ impl Material {
     /// make the color of the rendered object consistent with the ray tracing rendering pipeline.
     pub fn color(&self) -> Vec4 {
         match self {
-            Material::Lambertian { albedo } => albedo.extend(1.0),
-            Material::Metal { albedo, .. } => albedo.extend(1.0),
-            Material::Dielectric { .. } => Vec4::ONE,
+            Material::Lambertian { color } => color.extend(1.0),
+            Material::Metal { color, .. } => color.extend(1.0),
+            Material::Dielectric { color, .. } => color.extend(1.0),
+            Material::Emission { color, .. } => color.extend(1.0),
         }
     }
 
@@ -56,18 +65,26 @@ impl Material {
             Material::Lambertian { .. } => 0,
             Material::Metal { .. } => 1,
             Material::Dielectric { .. } => 2,
+            Material::Emission { .. } => 3,
         }
     }
 
     /// Helper function for [Limit::Int32Enum].
     fn from_i32(i: i32) -> Self {
         match i {
-            0 => Material::Lambertian { albedo: Vec3::ONE },
+            0 => Material::Lambertian { color: Vec3::ONE },
             1 => Material::Metal {
-                albedo: Vec3::ONE,
+                color: Vec3::ONE,
                 fuzz: 0.0,
             },
-            2 => Material::Dielectric { ri: 1.0 },
+            2 => Material::Dielectric {
+                color: Vec3::ONE,
+                ri: 1.0,
+            },
+            3 => Material::Emission {
+                color: Vec3::ONE,
+                intensity: 1.0,
+            },
             _ => Self::default(),
         }
     }
@@ -78,6 +95,7 @@ impl Material {
             (0, "Lambertian".into()),
             (1, "Metal".into()),
             (2, "Dielectric".into()),
+            (3, "Emission".into()),
         ]
     }
 }
@@ -95,22 +113,33 @@ impl Edit for Material {
             Limit::Int32Enum(Self::enum_vector()),
         );
         match self {
-            Material::Lambertian { albedo } => {
-                data.add_value_with_limit("albedo", Value::Vec3(*albedo), Limit::Vec3Color)
+            Material::Lambertian { color } => {
+                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color)
             }
-            Material::Metal { albedo, fuzz } => {
-                data.add_value_with_limit("albedo", Value::Vec3(*albedo), Limit::Vec3Color);
+            Material::Metal { color, fuzz } => {
+                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
                 data.add_value_with_limit(
                     "fuzz",
                     Value::Float32(*fuzz),
                     Limit::Float32Range(0.0..=f32::MAX),
                 );
             }
-            Material::Dielectric { ri } => data.add_value_with_limit(
-                "ri",
-                Value::Float32(*ri),
-                Limit::Float32Range(1.0..=f32::MAX),
-            ),
+            Material::Dielectric { color, ri } => {
+                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
+                data.add_value_with_limit(
+                    "ri",
+                    Value::Float32(*ri),
+                    Limit::Float32Range(1.0..=f32::MAX),
+                );
+            }
+            Material::Emission { color, intensity } => {
+                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
+                data.add_value_with_limit(
+                    "intensity",
+                    Value::Float32(*intensity),
+                    Limit::Float32Range(0.0..=f32::MAX),
+                );
+            }
         }
         data
     }
@@ -122,22 +151,33 @@ impl Edit for Material {
             }
         }
         match self {
-            Material::Lambertian { albedo } => {
-                if let Some(Value::Vec3(v)) = data.get("albedo") {
-                    *albedo = *v;
+            Material::Lambertian { color } => {
+                if let Some(Value::Vec3(v)) = data.get("color") {
+                    *color = *v;
                 }
             }
-            Material::Metal { albedo, fuzz } => {
-                if let Some(Value::Vec3(v)) = data.get("albedo") {
-                    *albedo = *v;
+            Material::Metal { color, fuzz } => {
+                if let Some(Value::Vec3(v)) = data.get("color") {
+                    *color = *v;
                 }
                 if let Some(Value::Float32(v)) = data.get("fuzz") {
                     *fuzz = *v;
                 }
             }
-            Material::Dielectric { ri } => {
+            Material::Dielectric { color, ri } => {
+                if let Some(Value::Vec3(v)) = data.get("color") {
+                    *color = *v;
+                }
                 if let Some(Value::Float32(v)) = data.get("ri") {
                     *ri = *v;
+                }
+            }
+            Material::Emission { color, intensity } => {
+                if let Some(Value::Vec3(v)) = data.get("color") {
+                    *color = *v;
+                }
+                if let Some(Value::Float32(v)) = data.get("intensity") {
+                    *intensity = *v;
                 }
             }
         }
@@ -145,33 +185,43 @@ impl Edit for Material {
 }
 
 impl EnumMaterial {
-    pub fn new_lambertian(albedo: Vec3) -> Self {
+    pub fn new_lambertian(color: Vec3) -> Self {
         Self {
-            data: [albedo.x, albedo.y, albedo.z, 0.0],
+            data: [color.x, color.y, color.z, 0.0],
             t: 0,
         }
     }
 
-    pub fn new_metal(albedo: Vec3, fuzz: f32) -> Self {
+    pub fn new_metal(color: Vec3, fuzz: f32) -> Self {
         Self {
-            data: [albedo.x, albedo.y, albedo.z, fuzz],
+            data: [color.x, color.y, color.z, fuzz],
             t: 1,
         }
     }
 
-    pub fn new_dielectric(ri: f32) -> Self {
+    pub fn new_dielectric(color: Vec3, ri: f32) -> Self {
         Self {
-            data: [ri, 0.0, 0.0, 0.0],
+            data: [color.x, color.y, color.z, ri],
             t: 2,
         }
     }
 
+    pub fn new_emission(color: Vec3, intensity: f32) -> Self {
+        Self {
+            data: [color.x, color.y, color.z, intensity],
+            t: 3,
+        }
+    }
+
     pub fn from_material(material: Material, color: Vec4) -> Self {
-        let color = color.xyz() * color.w;
+        let color_factor = color.xyz() * color.w;
         match material {
-            Material::Lambertian { albedo } => Self::new_lambertian(color * albedo),
-            Material::Metal { albedo, fuzz } => Self::new_metal(color * albedo, fuzz),
-            Material::Dielectric { ri } => Self::new_dielectric(ri),
+            Material::Lambertian { color } => Self::new_lambertian(color_factor * color),
+            Material::Metal { color, fuzz } => Self::new_metal(color_factor * color, fuzz),
+            Material::Dielectric { color, ri } => Self::new_dielectric(color_factor * color, ri),
+            Material::Emission { color, intensity } => {
+                Self::new_emission(color_factor * color, intensity)
+            }
         }
     }
 }
