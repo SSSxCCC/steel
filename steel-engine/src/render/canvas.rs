@@ -10,7 +10,7 @@ use super::{
     FrameRenderInfo, RenderContext, RenderManager,
 };
 use crate::{asset::AssetManager, camera::CameraInfo, hierarchy::Parent, transform::Transform};
-use glam::{Affine3A, UVec2, Vec3, Vec4};
+use glam::{Affine3A, IVec2, Vec3, Vec4};
 use shipyard::{EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View};
 use std::{collections::HashMap, sync::Arc};
 use steel_common::{asset::AssetId, platform::Platform};
@@ -27,7 +27,7 @@ use vulkano::{
 };
 
 /// Canvas contains current frame's drawing data, which will be converted to vertex data, and send to gpu to draw.
-/// You can use this unique to draw points, lines, triangles, rectangles, cicles, etc. on the screen.
+/// You can use this unique to draw points, lines, meshs, circles, spheres, etc. on the screen.
 /// All the drawing data requires an [EntityId] for screen object picking.
 #[derive(Unique, Default)]
 pub struct Canvas {
@@ -35,10 +35,6 @@ pub struct Canvas {
     pub(crate) points: Vec<(Vec3, Vec4, EntityId)>,
     /// 2 vertex: (position, color, eid)
     pub(crate) lines: Vec<[(Vec3, Vec4, EntityId); 2]>,
-    /// (color, texture, material, model matrix, eid)
-    pub(crate) circles: Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
-    /// (color, texture, material, model matrix, eid)
-    pub(crate) spheres: Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
     /// (mesh, color, texture, material, model matrix, eid)
     pub(crate) meshs: Vec<(
         Arc<MeshData>,
@@ -48,6 +44,10 @@ pub struct Canvas {
         Affine3A,
         EntityId,
     )>,
+    /// (color, texture, material, model matrix, eid)
+    pub(crate) circles: Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
+    /// (color, texture, material, model matrix, eid)
+    pub(crate) spheres: Vec<(Vec4, Option<TextureData>, Material, Affine3A, EntityId)>,
 }
 
 impl Canvas {
@@ -59,31 +59,6 @@ impl Canvas {
     /// Draw a line from p1 to p2 with color and [EntityId].
     pub fn line(&mut self, p1: Vec3, p2: Vec3, color: Vec4, eid: EntityId) {
         self.lines.push([(p1, color, eid), (p2, color, eid)]);
-    }
-
-    /// Draw a circle with color, texture, material, model matrix, and [EntityId].
-    /// Model matrix are the center and radius of the circle.
-    pub fn circle(
-        &mut self,
-        color: Vec4,
-        texture: Option<TextureData>,
-        material: Material,
-        model: Affine3A,
-        eid: EntityId,
-    ) {
-        self.circles.push((color, texture, material, model, eid));
-    }
-
-    /// Draw a sphere with color, texture, material, model matrix, and [EntityId].
-    pub fn sphere(
-        &mut self,
-        color: Vec4,
-        texture: Option<TextureData>,
-        material: Material,
-        model: Affine3A,
-        eid: EntityId,
-    ) {
-        self.spheres.push((color, texture, material, model, eid));
     }
 
     /// Draw a mesh with mesh data, color, texture, material, model matrix, and [EntityId].
@@ -100,13 +75,42 @@ impl Canvas {
             .push((mesh, color, texture, material, model, eid));
     }
 
+    /// Draw a circle with color, texture, material, model matrix, and [EntityId].
+    /// Model matrix are the center and radius of the circle. The circle is drawn on the xy plane.
+    /// Rasterization rendering pipeline uses [mesh::RECTANGLE] and custom vertex & fragment shaders to render a perfect circle.
+    /// Raytracing rendering pipeline uses an intersection shader to render a perfect circle.
+    pub fn circle(
+        &mut self,
+        color: Vec4,
+        texture: Option<TextureData>,
+        material: Material,
+        model: Affine3A,
+        eid: EntityId,
+    ) {
+        self.circles.push((color, texture, material, model, eid));
+    }
+
+    /// Draw a sphere with color, texture, material, model matrix, and [EntityId].
+    /// Rasterization rendering pipeline uses [mesh::SPHERE] to render a sphere.
+    /// Raytracing rendering pipeline uses an intersection shader to render a perfect sphere.
+    pub fn sphere(
+        &mut self,
+        color: Vec4,
+        texture: Option<TextureData>,
+        material: Material,
+        model: Affine3A,
+        eid: EntityId,
+    ) {
+        self.spheres.push((color, texture, material, model, eid));
+    }
+
     /// Clear all drawing data.
     pub fn clear(&mut self) {
         self.points.clear();
         self.lines.clear();
+        self.meshs.clear();
         self.circles.clear();
         self.spheres.clear();
-        self.meshs.clear();
     }
 }
 
@@ -319,7 +323,9 @@ impl CanvasRenderContext {
                     ImageCreateInfo {
                         format: Format::R32G32_UINT,
                         extent: [info.window_size.x, info.window_size.y, 1],
-                        usage: ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_SRC,
+                        usage: ImageUsage::COLOR_ATTACHMENT
+                            | ImageUsage::STORAGE
+                            | ImageUsage::TRANSFER_SRC,
                         ..Default::default()
                     },
                     AllocationCreateInfo::default(),
@@ -371,7 +377,7 @@ pub fn canvas_render_system(
 #[derive(Unique)]
 pub(crate) struct GetEntityAtScreenParam {
     pub window_index: usize,
-    pub screen_position: UVec2,
+    pub screen_position: IVec2,
 }
 
 /// Screen object picking system.
@@ -384,7 +390,14 @@ pub(crate) fn get_entity_at_screen_system(
         let image_index = render_manager.image_index[param.window_index];
         if canvas_contex.eid_images[param.window_index].len() > image_index {
             let eid_image = &canvas_contex.eid_images[param.window_index][image_index];
-            let [width, height, _] = eid_image.image().extent();
+            let [width, height, _] = eid_image.image().extent().map(|i| i as i32);
+            if param.screen_position.x < 0
+                || param.screen_position.x >= width
+                || param.screen_position.y < 0
+                || param.screen_position.y >= height
+            {
+                return EntityId::dead();
+            }
             let buffer = Buffer::from_iter(
                 render_manager.context.memory_allocator.clone(),
                 BufferCreateInfo {

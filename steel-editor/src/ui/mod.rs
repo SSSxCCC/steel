@@ -6,7 +6,7 @@ use crate::{locale::Texts, project::Project, utils::LocalData};
 use data_window::DataWindow;
 use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use egui_winit_vulkano::Gui;
-use glam::{Quat, UVec2, Vec3};
+use glam::{IVec2, Quat, Vec3};
 use image_window::ImageWindow;
 use menu_bar::MenuBar;
 use shipyard::EntityId;
@@ -327,7 +327,7 @@ impl Editor {
             if let Some((x, y)) = input.mouse() {
                 let x = x - self.scene_window.position().x * ctx.pixels_per_point();
                 let y = y - self.scene_window.position().y * ctx.pixels_per_point();
-                let screen_position = UVec2::new(x as u32, y as u32);
+                let screen_position = IVec2::new(x as i32, y as i32);
                 let mut eid = EntityId::dead();
                 app.command(Command::GetEntityAtScreen(
                     WindowIndex::SCENE,

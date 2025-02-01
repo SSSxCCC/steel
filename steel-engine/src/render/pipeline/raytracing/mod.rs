@@ -11,10 +11,9 @@ use crate::{
     },
 };
 use ash::vk;
-use bytemuck::{Pod, Zeroable};
-use glam::{Affine3A, Vec3, Vec4, Vec4Swizzles};
+use glam::{Affine3A, Vec3, Vec4};
 use indexmap::IndexSet;
-use material::Material;
+use material::{EnumMaterial, Material};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use shipyard::EntityId;
 use std::{collections::HashMap, sync::Arc};
@@ -38,51 +37,6 @@ use vulkano::{
     sync::GpuFuture,
     VulkanObject,
 };
-
-// TODO: replace this with shader::raygen::EnumMaterial with padding.
-#[derive(Clone, Copy, Default, Zeroable, Pod)]
-#[repr(C)]
-pub(crate) struct EnumMaterialPod {
-    data: [f32; 4],
-    t: u32,
-    _pad: [f32; 3],
-}
-
-impl EnumMaterialPod {
-    pub fn new_lambertian(albedo: Vec3) -> Self {
-        Self {
-            data: [albedo.x, albedo.y, albedo.z, 0.0],
-            t: 0,
-            _pad: [0.0, 0.0, 0.0],
-        }
-    }
-
-    pub fn new_metal(albedo: Vec3, fuzz: f32) -> Self {
-        Self {
-            data: [albedo.x, albedo.y, albedo.z, fuzz],
-            t: 1,
-            _pad: [0.0, 0.0, 0.0],
-        }
-    }
-
-    pub fn new_dielectric(ri: f32) -> Self {
-        Self {
-            data: [ri, 0.0, 0.0, 0.0],
-            t: 2,
-            _pad: [0.0, 0.0, 0.0],
-        }
-    }
-
-    // TODO: move color to texture
-    pub fn from_material(material: Material, color: Vec4) -> Self {
-        let color = color.xyz() * color.w;
-        match material {
-            Material::Lambertian { albedo } => Self::new_lambertian(color * albedo),
-            Material::Metal { albedo, fuzz } => Self::new_metal(color * albedo, fuzz),
-            Material::Dielectric { ri } => Self::new_dielectric(ri),
-        }
-    }
-}
 
 /// Ray tracing render pipeline settings.
 pub struct RayTracingSettings {
@@ -227,12 +181,11 @@ impl RayTracingPipeline {
             .min(properties.max_per_stage_descriptor_sampled_images);
         let mut pipeline_descriptor_set_layout_create_info =
             PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages);
-        let binding = pipeline_descriptor_set_layout_create_info.set_layouts[0]
-            .bindings
-            .get_mut(&5)
-            .unwrap();
+        let bindings = &mut pipeline_descriptor_set_layout_create_info.set_layouts[0].bindings;
+        let binding = bindings.get_mut(&(bindings.len() as u32 - 1)).unwrap();
         binding.binding_flags |= DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT;
         binding.descriptor_count = max_descriptor_count;
+
         let pipeline_layout = PipelineLayout::new(
             context.device.clone(),
             pipeline_descriptor_set_layout_create_info
@@ -352,6 +305,13 @@ impl RayTracingPipeline {
             instances,
         );
 
+        let eid_buffer = create_buffer(
+            eids.into_iter()
+                .flatten()
+                .map(|e| crate::render::canvas::eid_to_u32_array(e))
+                .collect::<Vec<_>>(),
+            &context.memory_allocator,
+        );
         let material_buffer = create_buffer(
             materials.into_iter().flatten().collect::<Vec<_>>(),
             &context.memory_allocator,
@@ -363,17 +323,19 @@ impl RayTracingPipeline {
         let mut descriptor_writes = vec![
             WriteDescriptorSet::acceleration_structure(0, tlas),
             WriteDescriptorSet::image_view(1, info.image.clone()),
-            WriteDescriptorSet::buffer(2, material_buffer),
-            WriteDescriptorSet::buffer(4, texture_indices_buffer),
+            WriteDescriptorSet::image_view(2, eid_image),
+            WriteDescriptorSet::buffer(3, eid_buffer),
+            WriteDescriptorSet::buffer(4, material_buffer),
+            WriteDescriptorSet::buffer(6, texture_indices_buffer),
         ];
         if !obj_descs.is_empty() {
             let obj_desc_buffer = create_buffer(obj_descs, &context.memory_allocator);
-            descriptor_writes.push(WriteDescriptorSet::buffer(3, obj_desc_buffer));
+            descriptor_writes.push(WriteDescriptorSet::buffer(5, obj_desc_buffer));
         }
         let texture_resource_count = texture_resources.len();
         if !texture_resources.is_empty() {
             descriptor_writes.push(WriteDescriptorSet::image_view_sampler_array(
-                5,
+                7,
                 0,
                 texture_resources
                     .into_iter()
@@ -493,7 +455,7 @@ fn draw_meshs(
     obj_descs: &mut Vec<shader::closesthit::ObjDesc>,
     texture_resources: &mut IndexSet<TextureData>,
     texture_indices: &mut Vec<Vec<u32>>,
-    materials: &mut Vec<Vec<EnumMaterialPod>>,
+    materials: &mut Vec<Vec<EnumMaterial>>,
     eids: &mut Vec<Vec<EntityId>>,
 ) -> Box<dyn GpuFuture> {
     let mut gpu_future = vulkano::sync::now(context.device.clone()).boxed();
@@ -538,7 +500,7 @@ fn draw_meshs(
         let transforms = &mut instances[i].2;
         transforms.push(*model_matrix);
 
-        materials[i].push(EnumMaterialPod::from_material(*material, *color));
+        materials[i].push(EnumMaterial::from_material(*material, *color));
         eids[i].push(*eid);
 
         let texture_index = if let Some(texture_data) = texture_data {
@@ -561,7 +523,7 @@ fn draw_shapes(
     instances: &mut Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
     texture_resources: &mut IndexSet<TextureData>,
     texture_indices: &mut Vec<Vec<u32>>,
-    materials: &mut Vec<Vec<EnumMaterialPod>>,
+    materials: &mut Vec<Vec<EnumMaterial>>,
     eids: &mut Vec<Vec<EntityId>>,
 ) -> Box<dyn GpuFuture> {
     if shapes.is_empty() {
@@ -582,7 +544,7 @@ fn draw_shapes(
             u32::MAX
         };
         texture_indices[i].push(texture_index);
-        materials[i].push(EnumMaterialPod::from_material(*material, *color));
+        materials[i].push(EnumMaterial::from_material(*material, *color));
         eids[i].push(*eid);
     }
 

@@ -1,7 +1,9 @@
 use crate::edit::Edit;
-use glam::{Vec3, Vec4};
+use glam::{Vec3, Vec4, Vec4Swizzles};
 use shipyard::Component;
 use steel_common::data::{Data, Limit, Value};
+
+pub(crate) use crate::render::pipeline::raytracing::shader::raygen::EnumMaterial;
 
 /// Ray tracing material, including lambertian, metal, and dielectric.
 /// The albedo of lambertian/metal and the transmittance of dielectric are color.xyz * color.w,
@@ -138,6 +140,38 @@ impl Edit for Material {
                     *ri = *v;
                 }
             }
+        }
+    }
+}
+
+impl EnumMaterial {
+    pub fn new_lambertian(albedo: Vec3) -> Self {
+        Self {
+            data: [albedo.x, albedo.y, albedo.z, 0.0],
+            t: 0,
+        }
+    }
+
+    pub fn new_metal(albedo: Vec3, fuzz: f32) -> Self {
+        Self {
+            data: [albedo.x, albedo.y, albedo.z, fuzz],
+            t: 1,
+        }
+    }
+
+    pub fn new_dielectric(ri: f32) -> Self {
+        Self {
+            data: [ri, 0.0, 0.0, 0.0],
+            t: 2,
+        }
+    }
+
+    pub fn from_material(material: Material, color: Vec4) -> Self {
+        let color = color.xyz() * color.w;
+        match material {
+            Material::Lambertian { albedo } => Self::new_lambertian(color * albedo),
+            Material::Metal { albedo, fuzz } => Self::new_metal(color * albedo, fuzz),
+            Material::Dielectric { ri } => Self::new_dielectric(ri),
         }
     }
 }

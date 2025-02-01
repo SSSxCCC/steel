@@ -5,6 +5,8 @@ pub mod raygen {
         src: r"
             #version 460
             #extension GL_EXT_ray_tracing : require
+            #extension GL_EXT_scalar_block_layout : require
+            #extension GL_EXT_nonuniform_qualifier : require
 
             // =============== Random ===============
 
@@ -116,8 +118,8 @@ pub mod raygen {
             struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                vec3 tex_color;
-                uint material;
+                vec2 tex_coord;
+                uint instance;
                 bool is_miss;
                 bool front_face;
             };
@@ -126,8 +128,8 @@ pub mod raygen {
                 HitRecord hit;
                 hit.position = vec3(0.0);
                 hit.normal = vec3(0.0);
-                hit.tex_color = vec3(1.0);
-                hit.material = 0u;
+                hit.tex_coord = vec2(0.0);
+                hit.instance = 0u;
                 hit.is_miss = false;
                 hit.front_face = false;
                 return hit;
@@ -164,6 +166,19 @@ pub mod raygen {
                 float ir;
             };
 
+            // Texture sampling.
+            layout(set = 0, binding = 6, scalar) buffer TextureIndices { uint tex_i[]; };
+            layout(set = 0, binding = 7) uniform sampler2D[] tex;
+
+            vec3 sample_tex_color(uint instance, vec2 tex_coord) {
+                vec3 tex_color = vec3(1.0);
+                const uint MAX_UINT = 4294967295u;
+                if (tex_i[instance] != MAX_UINT) {
+                    tex_color = texture(tex[tex_i[instance]], tex_coord).xyz;
+                }
+                return tex_color;
+            }
+
             // Scatter functions for different materials.
             bool scatter_Lambertian(Lambertian material, Ray ray, HitRecord hit, inout PCG32si rng, inout Scatter scatter) {
                 vec3 scatter_direction = hit.normal + normalize(random_in_unit_sphere(rng));
@@ -171,7 +186,7 @@ pub mod raygen {
 
                 scatter.ray.origin = hit.position;
                 scatter.ray.direction = scatter_direction;
-                scatter.color = material.albedo * hit.tex_color;
+                scatter.color = material.albedo * sample_tex_color(hit.instance, hit.tex_coord);
 
                 return true;
             }
@@ -183,7 +198,7 @@ pub mod raygen {
                 if (dot(scatter_direction, hit.normal) > 0.0) {
                     scatter.ray.origin = hit.position;
                     scatter.ray.direction = scatter_direction;
-                    scatter.color = material.albedo * hit.tex_color;
+                    scatter.color = material.albedo * sample_tex_color(hit.instance, hit.tex_coord);
                     return true;
                 }
                 return false;
@@ -299,9 +314,9 @@ pub mod raygen {
 
             layout(set = 0, binding = 0) uniform accelerationStructureEXT top_level_as;
             layout(set = 0, binding = 1, rgba8) uniform image2D out_image;
-            layout(set = 0, binding = 2) buffer Materials {
-                EnumMaterial materials[];
-            };
+            layout(set = 0, binding = 2, rg32ui) uniform uimage2D eid_image;
+            layout(set = 0, binding = 3, scalar) buffer EntityIds { uvec2 eids[]; };
+            layout(set = 0, binding = 4, scalar) buffer Materials { EnumMaterial materials[]; };
 
             layout(location = 0) rayPayloadEXT HitRecord hit;
 
@@ -344,6 +359,7 @@ pub mod raygen {
                 float tmax = 100000.0;
 
                 vec3 final_color = vec3(0.0);
+                uvec2 eid = uvec2(0);
 
                 for (uint i = 0; i < pcs.samples; i++) {
                     float u = (float(launch_id.x) + next_f32(rng)) / float(launch_size.x);
@@ -367,8 +383,12 @@ pub mod raygen {
                             color *= hit.position;
                             break;
                         } else {
+                            if (j == 0) {
+                                eid = eids[hit.instance];
+                            }
+
                             Scatter scatter = default_Scatter();
-                            if (scatter_EnumMaterial(materials[hit.material], ray, hit, rng, scatter)) {
+                            if (scatter_EnumMaterial(materials[hit.instance], ray, hit, rng, scatter)) {
                                 color *= scatter.color;
                                 ray = scatter.ray;
                             } else {
@@ -387,6 +407,7 @@ pub mod raygen {
                 pos.y = int(launch_size.y) - 1 - pos.y;
 
                 imageStore(out_image, pos, vec4(final_color, 1.0));
+                imageStore(eid_image, pos, uvec4(eid, 0, 0));
             }
         ",
     }
@@ -414,14 +435,16 @@ pub mod miss {
                 vec3 miss_color_bottom;
             } pcs;
 
-            layout(location = 0) rayPayloadInEXT HitRecord {
+            struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                vec3 tex_color;
-                uint material;
+                vec2 tex_coord;
+                uint instance;
                 bool is_miss;
                 bool front_face;
-            } hit;
+            };
+
+            layout(location = 0) rayPayloadInEXT HitRecord hit;
 
             void main() {
                 vec3 world_ray_direction = normalize(gl_WorldRayDirectionEXT);
@@ -431,8 +454,8 @@ pub mod miss {
                 hit.is_miss = true;
                 hit.position = color;
                 hit.normal = vec3(0.0);
-                hit.tex_color = vec3(1.0);
-                hit.material = 0;
+                hit.tex_coord = vec2(0.0);
+                hit.instance = 0;
                 hit.front_face = false;
             }
         ",
@@ -449,26 +472,25 @@ pub mod closesthit {
             #extension GL_EXT_scalar_block_layout : require
             #extension GL_EXT_buffer_reference2 : require
             #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
-            #extension GL_EXT_nonuniform_qualifier : require
 
             struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                vec3 tex_color;
-                uint material;
+                vec2 tex_coord;
+                uint instance;
                 bool is_miss;
                 bool front_face;
             };
 
-            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec3 tex_color, uint material) {
+            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec2 tex_coord, uint instance) {
                 bool front_face = dot(ray_direction, outward_normal) < 0.0;
                 vec3 normal = front_face ? outward_normal : -outward_normal;
 
                 return HitRecord(
                     position,
                     normal,
-                    tex_color,
-                    material,
+                    tex_coord,
+                    instance,
                     false,
                     front_face
                 );
@@ -481,7 +503,7 @@ pub mod closesthit {
                 uint64_t vertex_address; // address of the vertex buffer
                 uint64_t index_address; // address of the index buffer
             };
-            layout(set = 0, binding = 3, scalar) buffer ObjDesc_ { ObjDesc i[]; } obj_descs;
+            layout(set = 0, binding = 5, scalar) buffer ObjDesc_ { ObjDesc i[]; } obj_descs;
 
             struct Vertex {
                 vec3 position;
@@ -490,9 +512,6 @@ pub mod closesthit {
             };
             layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // positions of an object
             layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // triangle indices
-
-            layout(set = 0, binding = 4, scalar) buffer TextureIndices { uint i[]; } tex_i;
-            layout(set = 0, binding = 5) uniform sampler2D[] tex;
 
             void main() {
                 // object data
@@ -518,16 +537,11 @@ pub mod closesthit {
                 const vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
                 const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));  // transform the normal to world space
 
-                // computing the texture coordinate and texture color at hit position
+                // computing the texture coordinate at hit position
                 vec2 tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
-                vec3 tex_color = vec3(1.0);
-                const uint MAX_UINT = 4294967295u;
-                if (tex_i.i[gl_InstanceID] != MAX_UINT) {
-                    tex_color = texture(tex[tex_i.i[gl_InstanceID]], tex_coord).xyz;
-                }
 
                 // return hit record
-                hit = new_HitRecord(world_position, world_normal, gl_WorldRayDirectionEXT, tex_color, gl_InstanceID);
+                hit = new_HitRecord(world_position, world_normal, gl_WorldRayDirectionEXT, tex_coord, gl_InstanceID);
             }
         ",
     }
@@ -574,27 +588,25 @@ pub mod circle_closesthit {
         src: r"
             #version 460
             #extension GL_EXT_ray_tracing : require
-            #extension GL_EXT_scalar_block_layout : require
-            #extension GL_EXT_nonuniform_qualifier : require
 
             struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                vec3 tex_color;
-                uint material;
+                vec2 tex_coord;
+                uint instance;
                 bool is_miss;
                 bool front_face;
             };
 
-            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec3 tex_color, uint material) {
+            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec2 tex_coord, uint instance) {
                 bool front_face = dot(ray_direction, outward_normal) < 0.0;
                 vec3 normal = front_face ? outward_normal : -outward_normal;
 
                 return HitRecord(
                     position,
                     normal,
-                    tex_color,
-                    material,
+                    tex_coord,
+                    instance,
                     false,
                     front_face
                 );
@@ -602,9 +614,6 @@ pub mod circle_closesthit {
 
             hitAttributeEXT float t;
             layout(location = 0) rayPayloadInEXT HitRecord hit;
-
-            layout(set = 0, binding = 4, scalar) buffer TextureIndices { uint i[]; } tex_i;
-            layout(set = 0, binding = 5) uniform sampler2D[] tex;
 
             void main() {
                 vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
@@ -622,15 +631,8 @@ pub mod circle_closesthit {
                     0.5 - obj_pos.y
                 );
 
-                // texture sampling
-                vec3 tex_color = vec3(1.0);
-                const uint MAX_UINT = 4294967295u;
-                if (tex_i.i[gl_InstanceID] != MAX_UINT) {
-                    tex_color = texture(tex[tex_i.i[gl_InstanceID]], tex_coord).xyz;
-                }
-
                 // return hit record
-                hit = new_HitRecord(hit_pos, world_normal, gl_WorldRayDirectionEXT, tex_color, gl_InstanceID);
+                hit = new_HitRecord(hit_pos, world_normal, gl_WorldRayDirectionEXT, tex_coord, gl_InstanceID);
             }
         ",
     }
@@ -687,27 +689,25 @@ pub mod sphere_closesthit {
         src: r"
             #version 460
             #extension GL_EXT_ray_tracing : require
-            #extension GL_EXT_scalar_block_layout : require
-            #extension GL_EXT_nonuniform_qualifier : require
 
             struct HitRecord {
                 vec3 position;
                 vec3 normal;
-                vec3 tex_color;
-                uint material;
+                vec2 tex_coord;
+                uint instance;
                 bool is_miss;
                 bool front_face;
             };
 
-            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec3 tex_color, uint material) {
+            HitRecord new_HitRecord(vec3 position, vec3 outward_normal, vec3 ray_direction, vec2 tex_coord, uint instance) {
                 bool front_face = dot(ray_direction, outward_normal) < 0.0;
                 vec3 normal = front_face ? outward_normal : -outward_normal;
 
                 return HitRecord(
                     position,
                     normal,
-                    tex_color,
-                    material,
+                    tex_coord,
+                    instance,
                     false,
                     front_face
                 );
@@ -715,9 +715,6 @@ pub mod sphere_closesthit {
 
             hitAttributeEXT float t;
             layout(location = 0) rayPayloadInEXT HitRecord hit;
-
-            layout(set = 0, binding = 4, scalar) buffer TextureIndices { uint i[]; } tex_i;
-            layout(set = 0, binding = 5) uniform sampler2D[] tex;
 
             void main() {
                 vec3 hit_pos = gl_WorldRayOriginEXT + t * gl_WorldRayDirectionEXT;
@@ -736,15 +733,8 @@ pub mod sphere_closesthit {
                     0.5 - asin(obj_normal.y) / PI
                 );
 
-                // texture sampling
-                vec3 tex_color = vec3(1.0);
-                const uint MAX_UINT = 4294967295u;
-                if (tex_i.i[gl_InstanceID] != MAX_UINT) {
-                    tex_color = texture(tex[tex_i.i[gl_InstanceID]], tex_coord).xyz;
-                }
-
                 // return hit record
-                hit = new_HitRecord(hit_pos, world_normal, gl_WorldRayDirectionEXT, tex_color, gl_InstanceID);
+                hit = new_HitRecord(hit_pos, world_normal, gl_WorldRayDirectionEXT, tex_coord, gl_InstanceID);
             }
         ",
     }
