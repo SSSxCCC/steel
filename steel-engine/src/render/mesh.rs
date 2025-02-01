@@ -201,7 +201,8 @@ impl MeshAssets {
     }
 }
 
-pub(crate) const RECTANGLE: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
+/// Rectangle mesh data.
+pub const RECTANGLE: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
     Arc::new(MeshData {
         vertices: vec![
             Vertex {
@@ -229,7 +230,8 @@ pub(crate) const RECTANGLE: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
     })
 });
 
-pub(crate) const CUBOID: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
+/// Cuboid mesh data.
+pub const CUBOID: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
     Arc::new(MeshData {
         vertices: vec![
             // Back face (-Z)
@@ -426,7 +428,8 @@ fn generate_sphere_indices() -> Vec<u32> {
     indices
 }
 
-pub(crate) const SPHERE: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
+/// Sphere mesh data.
+pub const SPHERE: LazyLock<Arc<MeshData>> = LazyLock::new(|| {
     let vertices = generate_sphere_vertices(0.5);
     let indices = generate_sphere_indices();
 

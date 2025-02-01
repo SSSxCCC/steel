@@ -5,7 +5,7 @@ use crate::{
     platform::Platform,
     prefab::{EntityIdWithPath, PrefabData},
 };
-use glam::UVec2;
+use glam::{IVec2, UVec2};
 use shipyard::EntityId;
 use std::{
     collections::HashMap,
@@ -77,7 +77,7 @@ pub enum Command<'a> {
     ClearEntity,
     GetEntityCount(&'a mut usize),
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid.
-    GetEntityAtScreen(usize, UVec2, &'a mut EntityId),
+    GetEntityAtScreen(usize, IVec2, &'a mut EntityId),
 
     CreateComponent(EntityId, &'static str),
     DestroyComponent(EntityId, &'a String),
