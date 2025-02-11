@@ -32,7 +32,7 @@
     "delete": []
   },
   "uniques": {
-    "RenderManager": {
+    "RenderSettings": {
       "values": {
         "clear_color": {
           "Vec4": [

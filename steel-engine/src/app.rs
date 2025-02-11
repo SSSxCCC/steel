@@ -10,13 +10,13 @@ use crate::{
     name::Name,
     prefab::{CreatePrefabParam, LoadPrefabParam, Prefab, PrefabAssets},
     render::{
-        canvas::{Canvas, GetEntityAtScreenParam},
+        canvas::{Canvas, CanvasRenderContext, GetEntityAtScreenParam},
         image::ImageAssets,
         mesh::{Mesh, MeshAssets},
         model::ModelAssets,
         pipeline::raytracing::material::Material,
         texture::{Texture, TextureAssets},
-        FrameRenderInfo, RenderManager,
+        FrameRenderInfo, RenderContext, RenderSettings,
     },
     scene::SceneManager,
     time::Time,
@@ -135,7 +135,7 @@ impl SteelApp {
         .register_component::<Mesh>()
         .register_component::<Texture>()
         .register_component::<Material>()
-        .register_unique::<RenderManager>()
+        .add_and_register_unique(RenderSettings::default())
         .add_and_register_unique(Hierarchy::default())
         .add_unique(AssetManager::default())
         .add_unique(PrefabAssets::default())
@@ -180,7 +180,7 @@ impl SteelApp {
     }
 
     /// Register a unique type so that this unique can be edited in steel-editor.
-    pub fn register_unique<U: Unique + Edit + Send + Sync>(self) -> Self {
+    pub fn register_unique<U: Unique + Edit + Default + Send + Sync>(self) -> Self {
         self.world
             .get_unique::<&mut UniqueRegistry>()
             .unwrap()
@@ -195,7 +195,10 @@ impl SteelApp {
     }
 
     /// Add a unique into ecs world, also register this unique type so that this unique can be edited in steel-editor.
-    pub fn add_and_register_unique<U: Unique + Edit + Send + Sync>(self, unique: U) -> Self {
+    pub fn add_and_register_unique<U: Unique + Edit + Default + Send + Sync>(
+        self,
+        unique: U,
+    ) -> Self {
         self.world.add_unique(unique);
         self.world
             .get_unique::<&mut UniqueRegistry>()
@@ -272,8 +275,12 @@ impl App for SteelApp {
     fn init(&mut self, info: InitInfo) {
         self.world.add_unique(info.platform);
         self.world
-            .add_unique(RenderManager::new(info.context, info.ray_tracing_supported));
+            .add_unique(RenderContext::new(info.context, info.ray_tracing_supported));
+        self.world.add_unique(CanvasRenderContext::new(
+            &self.world.get_unique::<&RenderContext>().unwrap(),
+        ));
         self.world.add_unique(SceneManager::new(info.scene));
+
         Workload::new("init")
             .append(&mut self.pre_init_workload.take().unwrap())
             .append(&mut self.init_workload.take().unwrap())

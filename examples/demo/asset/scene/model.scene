@@ -143,7 +143,7 @@
     "delete": []
   },
   "uniques": {
-    "RenderManager": {
+    "RenderSettings": {
       "values": {
         "ray_tracing": {
           "Bool": true

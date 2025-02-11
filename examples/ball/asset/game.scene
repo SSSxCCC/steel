@@ -583,7 +583,7 @@
     "delete": []
   },
   "uniques": {
-    "RenderManager": {
+    "RenderSettings": {
       "values": {
         "ray_tracing": {
           "Bool": false

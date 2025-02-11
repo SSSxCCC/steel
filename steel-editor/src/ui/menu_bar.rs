@@ -50,6 +50,7 @@ impl MenuBar {
         scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
         texts: &mut Texts,
+        load_world_data_this_frame: &mut bool,
     ) {
         self.open_project_dialog(
             editor_state,
@@ -64,6 +65,7 @@ impl MenuBar {
             scene_camera,
             window_title,
             texts,
+            load_world_data_this_frame,
         );
 
         self.compile_dialog(ctx, texts);
@@ -103,6 +105,7 @@ impl MenuBar {
                                 scene_window.close(Some(gui));
                                 game_window.close(Some(gui));
                                 project.compile(local_data, scene_camera, gui_game, context);
+                                *load_world_data_this_frame = false;
                             }
                             ui.close_menu();
                         }
@@ -164,6 +167,7 @@ impl MenuBar {
                                                 &world_data.entities,
                                                 project,
                                                 asset_dir,
+                                                load_world_data_this_frame,
                                             );
                                             ui.close_menu();
                                         }
@@ -257,10 +261,7 @@ impl MenuBar {
                                     );
                                     if let Some(file) = file {
                                         project.load_scene(file);
-                                        // We set world_data to None to prevent app from loading outdated world_data later this frame.
-                                        // But this will cause a splash screen problem due to the disappearance of the windows showing world_data for one frame.
-                                        // TODO: find a way to avoid this splash screen problem.
-                                        *world_data = None;
+                                        *load_world_data_this_frame = false;
                                     }
                                 }
                                 ui.close_menu();
@@ -268,6 +269,7 @@ impl MenuBar {
                             if ui.button(texts.get("New")).clicked() {
                                 log::info!("Menu->Scene->New");
                                 project.new_scene();
+                                *load_world_data_this_frame = false;
                                 ui.close_menu();
                             }
                         });
@@ -298,6 +300,7 @@ impl MenuBar {
                             if ui.button(texts.get("Stop")).clicked() {
                                 log::info!("Menu->Run->Stop");
                                 project.load_from_memory();
+                                *load_world_data_this_frame = false;
                                 project.set_running(false);
                                 ui.close_menu();
                             }
@@ -402,6 +405,7 @@ impl MenuBar {
         scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
         texts: &Texts,
+        load_world_data_this_frame: &mut bool,
     ) {
         let mut show = self.show_open_project_dialog;
         egui::Window::new(texts.get("Open Project"))
@@ -437,6 +441,7 @@ impl MenuBar {
                             gui_game,
                         );
                         project.compile(local_data, scene_camera, gui_game, context);
+                        *load_world_data_this_frame = false;
                         self.show_open_project_dialog = false;
                     }
                 }
