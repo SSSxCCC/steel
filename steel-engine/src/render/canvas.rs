@@ -10,7 +10,7 @@ use super::{
     FrameRenderInfo, RenderContext, RenderSettings,
 };
 use crate::{asset::AssetManager, camera::CameraInfo, hierarchy::Parent, transform::Transform};
-use glam::{Affine3A, IVec2, Vec3, Vec4};
+use glam::{vec3, Affine3A, IVec2, Vec3, Vec4};
 use shipyard::{EntityId, Get, IntoIter, IntoWithId, Unique, UniqueView, UniqueViewMut, View};
 use std::{collections::HashMap, sync::Arc};
 use steel_common::{asset::AssetId, platform::Platform};
@@ -137,19 +137,11 @@ pub fn canvas_update_system(
         UniqueViewMut<AssetManager>,
     ),
 ) {
-    let mut model_cache = Some(HashMap::new());
-    let mut scale_cache = Some(HashMap::new());
+    let mut cache = Some(HashMap::new());
+
     for (eid, mesh) in meshs.iter().with_id() {
-        let scale = Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache)
-            .unwrap_or(Vec3::ONE);
-        let model_without_scale = Transform::entity_final_model_without_scale(
-            eid,
-            &parents,
-            &transforms,
-            &mut model_cache,
-        )
-        .unwrap_or_default();
-        let model = model_without_scale * Affine3A::from_scale(scale);
+        let model = Transform::entity_final_model(eid, &parents, &transforms, &mut cache)
+            .unwrap_or_default();
 
         let (texture_asset, color) = if let Ok(texture) = textures.get(eid) {
             (texture.asset, texture.color)
@@ -179,28 +171,19 @@ pub fn canvas_update_system(
             }
             Mesh::Shape2D(shape2d) => match shape2d.shape_type() {
                 parry2d::shape::ShapeType::Ball => {
-                    let scale = shape2d.as_ball().unwrap().radius / 0.5
-                        * std::cmp::max_by(scale.x.abs(), scale.y.abs(), |x, y| {
-                            x.partial_cmp(y).unwrap()
-                        });
-                    let model =
-                        model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, 1.0));
+                    let scale = shape2d.as_ball().unwrap().radius / 0.5;
+                    let model = model * Affine3A::from_scale(vec3(scale, scale, 1.0));
                     canvas.circle(color, texture_data, material, model, eid);
                 }
                 parry2d::shape::ShapeType::Cuboid => {
                     let shape = shape2d.as_cuboid().unwrap();
-                    let scale = Vec3::new(
-                        scale.x * shape.half_extents.x * 2.0,
-                        scale.y * shape.half_extents.y * 2.0,
-                        scale.z,
-                    );
-                    let model = model_without_scale * Affine3A::from_scale(scale);
+                    let scale = vec3(shape.half_extents.x * 2.0, shape.half_extents.y * 2.0, 1.0);
                     canvas.mesh(
                         mesh::RECTANGLE.clone(),
                         color,
                         texture_data,
                         material,
-                        model,
+                        model * Affine3A::from_scale(scale),
                         eid,
                     );
                 }
@@ -208,28 +191,23 @@ pub fn canvas_update_system(
             },
             Mesh::Shape3D(shape3d) => match shape3d.shape_type() {
                 parry3d::shape::ShapeType::Ball => {
-                    let scale = shape3d.as_ball().unwrap().radius / 0.5
-                        * [scale.x.abs(), scale.y.abs(), scale.z.abs()]
-                            .into_iter()
-                            .fold(f32::NEG_INFINITY, |max, val| max.max(val));
-                    let model =
-                        model_without_scale * Affine3A::from_scale(Vec3::new(scale, scale, scale));
+                    let scale = shape3d.as_ball().unwrap().radius / 0.5;
+                    let model = model * Affine3A::from_scale(Vec3::splat(scale));
                     canvas.sphere(color, texture_data, material, model, eid);
                 }
                 parry3d::shape::ShapeType::Cuboid => {
                     let shape = shape3d.as_cuboid().unwrap();
-                    let scale = Vec3::new(
-                        scale.x * shape.half_extents.x * 2.0,
-                        scale.y * shape.half_extents.y * 2.0,
-                        scale.z * shape.half_extents.z * 2.0,
+                    let scale = vec3(
+                        shape.half_extents.x * 2.0,
+                        shape.half_extents.y * 2.0,
+                        shape.half_extents.z * 2.0,
                     );
-                    let model = model_without_scale * Affine3A::from_scale(scale);
                     canvas.mesh(
                         mesh::CUBOID.clone(),
                         color,
                         texture_data,
                         material,
-                        model,
+                        model * Affine3A::from_scale(scale),
                         eid,
                     );
                 }
@@ -246,22 +224,13 @@ pub fn canvas_update_system(
             &platform,
             &context,
         ) {
-            let scale = Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache)
-                .unwrap_or(Vec3::ONE);
-            let model_without_scale = Transform::entity_final_model_without_scale(
-                eid,
-                &parents,
-                &transforms,
-                &mut model_cache,
-            )
-            .unwrap_or_default();
-            let model = model_without_scale
-                * Affine3A::from_scale(scale)
-                * Affine3A::from_scale(Vec3::new(
-                    texture_data.image_view.image().extent()[0] as f32 / 100.0,
-                    texture_data.image_view.image().extent()[1] as f32 / 100.0,
-                    1.0,
-                ));
+            let model = Transform::entity_final_model(eid, &parents, &transforms, &mut cache)
+                .unwrap_or_default();
+            let scale = vec3(
+                texture_data.image_view.image().extent()[0] as f32 / 100.0,
+                texture_data.image_view.image().extent()[1] as f32 / 100.0,
+                1.0,
+            );
 
             let material = materials.get(eid).cloned().unwrap_or_default();
 
@@ -270,7 +239,7 @@ pub fn canvas_update_system(
                 texture.color,
                 Some(texture_data),
                 material,
-                model,
+                model * Affine3A::from_scale(scale),
                 eid,
             );
         }

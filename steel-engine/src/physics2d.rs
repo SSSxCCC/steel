@@ -418,7 +418,7 @@ pub fn physics2d_maintain_system(
     mut physics2d_manager: UniqueViewMut<Physics2DManager>,
     mut rb2d: ViewMut<RigidBody2D>,
     mut col2d: ViewMut<Collider2D>,
-    mut transforms: ViewMut<Transform>,
+    transforms: View<Transform>,
     parents: View<Parent>,
 ) {
     let physics2d_manager = physics2d_manager.as_mut();
@@ -463,22 +463,14 @@ pub fn physics2d_maintain_system(
         }
     }
 
-    let mut model_cache = Some(HashMap::new());
+    let mut cache = Some(HashMap::new());
     for (e, rb2d) in rb2d.inserted_or_modified_mut().iter().with_id() {
         if let Some(rigid_body) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
             rigid_body.set_body_type(rb2d.body_type, true);
         } else {
-            if !transforms.contains(e) {
-                transforms.add_component_unchecked(e, Transform::default());
-            }
-            let model_without_scale = Transform::entity_final_model_without_scale_2d(
-                e,
-                &parents,
-                &transforms,
-                &mut model_cache,
-            )
-            .unwrap();
-            let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
+            let model = Transform::entity_final_model_2d(e, &parents, &transforms, &mut cache)
+                .unwrap_or_default();
+            let (_, rotation, position) = model.to_scale_angle_translation();
             let rigid_body = RigidBodyBuilder::new(rb2d.body_type)
                 .translation(position.into())
                 .rotation(rotation)
@@ -497,13 +489,10 @@ pub fn physics2d_maintain_system(
         }
     }
 
-    let mut scale_cache = Some(HashMap::new());
     for (e, col2d) in col2d.inserted_or_modified_mut().iter().with_id() {
-        if !transforms.contains(e) {
-            transforms.add_component_unchecked(e, Transform::default());
-        }
-        let scale =
-            Transform::entity_final_scale_2d(e, &parents, &transforms, &mut scale_cache).unwrap();
+        let model = Transform::entity_final_model_2d(e, &parents, &transforms, &mut cache)
+            .unwrap_or_default();
+        let (scale, rotation, position) = model.to_scale_angle_translation();
         let shape = col2d.scaled_shape(scale);
 
         if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
@@ -523,14 +512,6 @@ pub fn physics2d_maintain_system(
                     &mut physics2d_manager.rigid_body_set,
                 );
             } else {
-                let model_without_scale = Transform::entity_final_model_without_scale_2d(
-                    e,
-                    &parents,
-                    &transforms,
-                    &mut model_cache,
-                )
-                .unwrap();
-                let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
                 collider.set_translation(position.into());
                 collider.set_rotation(Rotation::from_angle(rotation));
                 col2d.handle = physics2d_manager.collider_set.insert(collider);
@@ -555,24 +536,18 @@ pub fn physics2d_maintain_system(
 }
 
 /// Update rigid bodies and colliders according to Transform component.
-fn physics2d_update_from_transform(
+fn physics2d_update_from_transform<'a>(
     physics2d_manager: &mut Physics2DManager,
-    transforms: &ViewMut<Transform>,
-    parents: &View<Parent>,
+    transforms: impl Get<Out = &'a Transform> + Copy, // &View<Transform> or &ViewMut<Transform>
+    parents: impl Get<Out = &'a Parent> + Copy,       // &View<Parent> or &ViewMut<Parent>
     rb2d: &mut ViewMut<RigidBody2D>,
     col2d: &mut ViewMut<Collider2D>,
 ) {
-    let mut model_cache = Some(HashMap::new());
-    for (e, (mut rb2d, _)) in (rb2d, transforms).iter().with_id() {
-        // we can safely unwrap here because we know that this entity has a Transform component
-        let model_without_scale = Transform::entity_final_model_without_scale_2d(
-            e,
-            parents,
-            transforms,
-            &mut model_cache,
-        )
-        .unwrap();
-        let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
+    let mut cache = Some(HashMap::new());
+    for (e, mut rb2d) in rb2d.iter().with_id() {
+        let model = Transform::entity_final_model_2d(e, parents, transforms, &mut cache)
+            .unwrap_or_default();
+        let (_, rotation, position) = model.to_scale_angle_translation();
         if rb2d.update_last_transform(position, rotation) {
             if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle) {
                 rb2d.set_translation(position.into(), true);
@@ -581,19 +556,10 @@ fn physics2d_update_from_transform(
         }
     }
 
-    let mut scale_cache = Some(HashMap::new());
-    for (e, (mut col2d, _)) in (col2d, transforms).iter().with_id() {
-        // we can safely unwrap here because we know that this entity has a Transform component
-        let model_without_scale = Transform::entity_final_model_without_scale_2d(
-            e,
-            parents,
-            transforms,
-            &mut model_cache,
-        )
-        .unwrap();
-        let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
-        let scale =
-            Transform::entity_final_scale_2d(e, parents, transforms, &mut scale_cache).unwrap();
+    for (e, mut col2d) in col2d.iter().with_id() {
+        let model = Transform::entity_final_model_2d(e, parents, transforms, &mut cache)
+            .unwrap_or_default();
+        let (scale, rotation, position) = model.to_scale_angle_translation();
         if col2d.update_last_transform(position, rotation, scale) {
             if let Some(collider) = physics2d_manager.collider_set.get_mut(col2d.handle) {
                 collider.set_shape(col2d.scaled_shape(scale));
@@ -616,11 +582,7 @@ pub fn physics2d_update_system(
     let physics2d_manager = physics2d_manager.as_mut();
 
     // dynamically change integration_parameters.dt according to time.delta()
-    physics2d_manager.integration_parameters.dt = if time.delta() < 0.1 {
-        time.delta()
-    } else {
-        0.1
-    };
+    physics2d_manager.integration_parameters.dt = time.delta().min(0.1);
 
     physics2d_update_from_transform(
         physics2d_manager,
@@ -632,7 +594,8 @@ pub fn physics2d_update_system(
 
     physics2d_manager.update();
 
-    let mut model_cache = Some(HashMap::new());
+    let mut old_cache = Some(HashMap::new());
+    let mut new_cache = Some(HashMap::new());
     let mut final_position_and_rotation = HashMap::new();
     for (e, rb2d) in rb2d.iter().with_id() {
         // get new final_position and final_rotation from rigid_body and cache them
@@ -641,37 +604,33 @@ pub fn physics2d_update_system(
         let final_rotation = rigid_body.rotation().angle();
         final_position_and_rotation.insert(e, (final_position, final_rotation));
 
-        // caculate new final_model_without_scale from final_position and final_rotation, then cache result
-        let final_model_without_scale =
-            Affine2::from_angle_translation(final_rotation, final_position);
-        model_cache
-            .as_mut()
-            .unwrap()
-            .insert(e, Some(final_model_without_scale));
+        // get final_scale by using old cache
+        let old_final_model =
+            Transform::entity_final_model_2d(e, &parents, &transforms, &mut old_cache)
+                .unwrap_or_default();
+        let (final_scale, ..) = old_final_model.to_scale_angle_translation();
+
+        // caculate new final_model from final_position, final_rotation, and final_scale, then insert into new cache
+        let final_model =
+            Affine2::from_scale_angle_translation(final_scale, final_rotation, final_position);
+        new_cache.as_mut().unwrap().insert(e, Some(final_model));
     }
 
     for (e, _) in rb2d.iter().with_id() {
-        // get parent_final_model_without_scale by using cache
+        // get parent_final_model by using new cache
         let parent = parents.get(e).map(|p| **p).unwrap_or_default();
-        let parent_final_model_without_scale = Transform::entity_final_model_without_scale_2d(
-            parent,
-            &parents,
-            &transforms,
-            &mut model_cache,
-        );
+        let parent_final_model =
+            Transform::entity_final_model_2d(parent, &parents, &transforms, &mut new_cache);
 
-        // caculate new position and rotation according to final_model_without_scale and parent_final_model_without_scale
-        let (position, rotation) = if let Some(parent_final_model_without_scale) =
-            parent_final_model_without_scale
-        {
-            // get final_model_without_scale from cache
-            let final_model_without_scale = model_cache.as_ref().unwrap().get(&e).unwrap().unwrap();
+        // caculate new position and rotation according to final_model and parent_final_model
+        let (position, rotation) = if let Some(parent_final_model) = parent_final_model {
+            // get final_model from cache
+            let final_model = new_cache.as_ref().unwrap().get(&e).unwrap().unwrap();
 
-            // parent_final_model_without_scale * model_without_scale = final_model_without_scale =>
-            // model_without_scale = parent_final_model_without_scale.inverse() * final_model_without_scale
-            let model_without_scale =
-                parent_final_model_without_scale.inverse() * final_model_without_scale;
-            let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
+            // parent_final_model * model = final_model =>
+            // model = parent_final_model.inverse() * final_model
+            let model = parent_final_model.inverse() * final_model;
+            let (_, rotation, position) = model.to_scale_angle_translation();
             (position, rotation)
         } else {
             // get final_position and final_rotation from cache
@@ -696,29 +655,16 @@ pub fn physics2d_update_system(
     // modify rigid bodies and colliders due to the imprecision of floating point numbers
     let mut model_cache = Some(HashMap::new());
     for (e, (mut rb2d, _)) in (&mut rb2d, &transforms).iter().with_id() {
-        let model_without_scale = Transform::entity_final_model_without_scale_2d(
-            e,
-            &parents,
-            &transforms,
-            &mut model_cache,
-        )
-        .unwrap();
-        let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
+        let model = Transform::entity_final_model_2d(e, &parents, &transforms, &mut model_cache)
+            .unwrap_or_default();
+        let (_, rotation, position) = model.to_scale_angle_translation();
         rb2d.update_last_transform(position, rotation);
     }
 
-    let mut scale_cache = Some(HashMap::new());
     for (e, (mut col2d, _)) in (&mut col2d, &transforms).iter().with_id() {
-        let model_without_scale = Transform::entity_final_model_without_scale_2d(
-            e,
-            &parents,
-            &transforms,
-            &mut model_cache,
-        )
-        .unwrap();
-        let (_, rotation, position) = model_without_scale.to_scale_angle_translation();
-        let scale =
-            Transform::entity_final_scale_2d(e, &parents, &transforms, &mut scale_cache).unwrap();
+        let model = Transform::entity_final_model_2d(e, &parents, &transforms, &mut model_cache)
+            .unwrap_or_default();
+        let (scale, rotation, position) = model.to_scale_angle_translation();
         col2d.update_last_transform(position, rotation, scale);
     }
 }
