@@ -929,12 +929,16 @@ impl Project {
         self.compiled_ref().is_some_and(|compiled| compiled.running)
     }
 
+    /// Save scene data to memory, which can be loaded later by [Self::load_from_memory].
     pub fn save_to_memory(&mut self, prefab_data_override: Option<(EntityId, Arc<PrefabData>)>) {
         if let Some(compiled) = self.compiled_mut() {
             compiled.scene_data = compiled.save_scene(prefab_data_override);
         }
     }
 
+    /// Load scene data from memory, which comes from [Self::save_to_memory].
+    /// This will reload the scene and set it as current scene.
+    /// Be remember to set load_world_data_this_frame to false after calling this function.
     pub fn load_from_memory(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
             compiled.app.command(Command::Reload(&compiled.scene_data));
@@ -1002,7 +1006,7 @@ impl Project {
 
     pub fn new_scene(&mut self) {
         if let Some(compiled) = self.compiled_mut() {
-            compiled.app.command(Command::ClearEntity);
+            compiled.app.command(Command::Reload(&SceneData::default()));
             compiled.app.command(Command::SetCurrentScene(None));
             compiled.scene = None;
         }

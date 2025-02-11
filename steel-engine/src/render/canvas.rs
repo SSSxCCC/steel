@@ -7,7 +7,7 @@ use super::{
         raytracing::{material::Material, RayTracingPipeline},
     },
     texture::{Texture, TextureAssets, TextureData},
-    FrameRenderInfo, RenderContext, RenderManager,
+    FrameRenderInfo, RenderContext, RenderSettings,
 };
 use crate::{asset::AssetManager, camera::CameraInfo, hierarchy::Parent, transform::Transform};
 use glam::{Affine3A, IVec2, Vec3, Vec4};
@@ -127,7 +127,7 @@ pub fn canvas_update_system(
     transforms: View<Transform>,
     parents: View<Parent>,
     mut canvas: UniqueViewMut<Canvas>,
-    render_manager: UniqueView<RenderManager>,
+    context: UniqueView<RenderContext>,
     platform: UniqueView<Platform>,
     (mut mesh_assets, mut model_assets, mut texture_assets, mut image_assets, mut asset_manager): (
         UniqueViewMut<MeshAssets>,
@@ -161,7 +161,7 @@ pub fn canvas_update_system(
             &mut image_assets,
             &mut asset_manager,
             &platform,
-            &render_manager.context,
+            &context,
         );
 
         let material = materials.get(eid).cloned().unwrap_or_default();
@@ -244,7 +244,7 @@ pub fn canvas_update_system(
             &mut image_assets,
             &mut asset_manager,
             &platform,
-            &render_manager.context,
+            &context,
         ) {
             let scale = Transform::entity_final_scale(eid, &parents, &transforms, &mut scale_cache)
                 .unwrap_or(Vec3::ONE);
@@ -278,22 +278,21 @@ pub fn canvas_update_system(
 }
 
 /// CanvasRenderContext stores many render objects that exist between frames.
+#[derive(Unique)]
 pub(crate) struct CanvasRenderContext {
     pub eid_images: [Vec<Arc<ImageView>>; 2],
-    pub rasterization: RasterizationPipeline,
+    /// Rasterization pipeline will be created in the first [crate::app::App::draw].
+    pub rasterization: Option<RasterizationPipeline>,
+    /// Ray tracing pipeline is None if [RenderContext::ray_tracing_supported()] is false.
     pub ray_tracing: Option<RayTracingPipeline>,
 }
 
 impl CanvasRenderContext {
-    pub fn new(
-        context: &RenderContext,
-        info: &FrameRenderInfo,
-        ray_tracing_supported: bool,
-    ) -> Self {
+    pub fn new(context: &RenderContext) -> Self {
         CanvasRenderContext {
             eid_images: [Vec::new(), Vec::new()],
-            rasterization: RasterizationPipeline::new(context, info),
-            ray_tracing: if ray_tracing_supported {
+            rasterization: None,
+            ray_tracing: if context.ray_tracing_supported() {
                 Some(RayTracingPipeline::new(context))
             } else {
                 None
@@ -303,7 +302,9 @@ impl CanvasRenderContext {
 
     pub fn update(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
         self.update_eid_images(context, info);
-        self.rasterization.update(context, info); // TODO: not update unused pipeline
+        self.rasterization
+            .get_or_insert_with(|| RasterizationPipeline::new(context, info))
+            .update(context, info); // TODO: not update unused pipeline
     }
 
     fn update_eid_images(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
@@ -338,34 +339,35 @@ impl CanvasRenderContext {
 }
 
 /// Send all canvas drawing data to the gpu to draw.
-pub fn canvas_render_system(
+pub(crate) fn canvas_render_system(
     info: UniqueView<FrameRenderInfo>,
     camera: UniqueView<CameraInfo>,
     canvas: UniqueView<Canvas>,
-    mut render_manager: UniqueViewMut<RenderManager>,
+    mut render_settings: UniqueViewMut<RenderSettings>,
+    mut context: UniqueViewMut<RenderContext>,
+    mut canvas_context: UniqueViewMut<CanvasRenderContext>,
 ) -> (Box<dyn GpuFuture>, Arc<PrimaryAutoCommandBuffer>) {
-    let render_manager = render_manager.as_mut();
-    render_manager.update(&info, render_manager.ray_tracing_supported());
-    let context = &render_manager.context;
-    let canvas_context = render_manager.canvas_context.as_mut().unwrap();
+    let render_settings = render_settings.as_mut();
+    context.image_index[info.window_index] = info.image_index;
+    canvas_context.update(&context, &info);
     let eid_image = canvas_context.eid_images[info.window_index][info.image_index].clone();
-    if render_manager.ray_tracing {
+    if context.ray_tracing_supported() && render_settings.ray_tracing {
         canvas_context.ray_tracing.as_mut().unwrap().draw(
-            context,
+            &context,
             &info,
             &camera,
-            &render_manager.ray_tracing_settings,
+            &render_settings.ray_tracing_settings,
             &canvas,
             eid_image,
         )
     } else {
         (
             vulkano::sync::now(context.device.clone()).boxed(),
-            canvas_context.rasterization.draw(
-                context,
+            canvas_context.rasterization.as_mut().unwrap().draw(
+                &context,
                 &info,
                 &camera,
-                &render_manager.rasterization_settings,
+                &render_settings.rasterization_settings,
                 &canvas,
                 eid_image,
             ),
@@ -382,64 +384,62 @@ pub(crate) struct GetEntityAtScreenParam {
 
 /// Screen object picking system.
 pub(crate) fn get_entity_at_screen_system(
-    mut render_manager: UniqueViewMut<RenderManager>,
+    context: UniqueView<RenderContext>,
+    canvas_context: UniqueView<CanvasRenderContext>,
     param: UniqueView<GetEntityAtScreenParam>,
 ) -> EntityId {
-    let render_manager = render_manager.as_mut();
-    if let Some(canvas_contex) = render_manager.canvas_context.as_mut() {
-        let image_index = render_manager.image_index[param.window_index];
-        if canvas_contex.eid_images[param.window_index].len() > image_index {
-            let eid_image = &canvas_contex.eid_images[param.window_index][image_index];
-            let [width, height, _] = eid_image.image().extent().map(|i| i as i32);
-            if param.screen_position.x < 0
-                || param.screen_position.x >= width
-                || param.screen_position.y < 0
-                || param.screen_position.y >= height
-            {
-                return EntityId::dead();
-            }
-            let buffer = Buffer::from_iter(
-                render_manager.context.memory_allocator.clone(),
-                BufferCreateInfo {
-                    usage: BufferUsage::TRANSFER_DST,
-                    ..Default::default()
-                },
-                AllocationCreateInfo {
-                    memory_type_filter: MemoryTypeFilter::PREFER_HOST
-                        | MemoryTypeFilter::HOST_RANDOM_ACCESS,
-                    ..Default::default()
-                },
-                (0..width * height * 2).map(|_| 0u32),
-            )
+    let image_index = context.image_index[param.window_index];
+    if canvas_context.eid_images[param.window_index].len() > image_index {
+        let eid_image = &canvas_context.eid_images[param.window_index][image_index];
+        let [width, height, _] = eid_image.image().extent().map(|i| i as i32);
+        if param.screen_position.x < 0
+            || param.screen_position.x >= width
+            || param.screen_position.y < 0
+            || param.screen_position.y >= height
+        {
+            return EntityId::dead();
+        }
+        let buffer = Buffer::from_iter(
+            context.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::TRANSFER_DST,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                    | MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            (0..width * height * 2).map(|_| 0u32),
+        )
+        .unwrap();
+        let mut builder = AutoCommandBufferBuilder::primary(
+            &context.command_buffer_allocator,
+            context.graphics_queue.queue_family_index(),
+            CommandBufferUsage::OneTimeSubmit,
+        )
+        .unwrap();
+        builder
+            .copy_image_to_buffer(CopyImageToBufferInfo::image_buffer(
+                eid_image.image().clone(),
+                buffer.clone(),
+            ))
             .unwrap();
-            let mut builder = AutoCommandBufferBuilder::primary(
-                &render_manager.context.command_buffer_allocator,
-                render_manager.context.graphics_queue.queue_family_index(),
-                CommandBufferUsage::OneTimeSubmit,
-            )
+        builder
+            .build()
+            .unwrap()
+            // no need to execute after previous drawing future because they are excuting on the same vk queue
+            .execute(context.graphics_queue.clone())
+            .unwrap()
+            .then_signal_fence_and_flush()
+            .unwrap()
+            .wait(None)
             .unwrap();
-            builder
-                .copy_image_to_buffer(CopyImageToBufferInfo::image_buffer(
-                    eid_image.image().clone(),
-                    buffer.clone(),
-                ))
-                .unwrap();
-            builder
-                .build()
-                .unwrap()
-                // no need to execute after previous drawing future because they are excuting on the same vk queue
-                .execute(render_manager.context.graphics_queue.clone())
-                .unwrap()
-                .then_signal_fence_and_flush()
-                .unwrap()
-                .wait(None)
-                .unwrap();
-            let index = ((param.screen_position.x + param.screen_position.y * width) * 2) as usize;
-            let buffer_read = buffer.read().unwrap();
-            if index + 1 < buffer_read.len() {
-                let eid_array = [buffer_read[index], buffer_read[index + 1]];
-                return u32_array_to_eid(eid_array);
-            }
+        let index = ((param.screen_position.x + param.screen_position.y * width) * 2) as usize;
+        let buffer_read = buffer.read().unwrap();
+        if index + 1 < buffer_read.len() {
+            let eid_array = [buffer_read[index], buffer_read[index + 1]];
+            return u32_array_to_eid(eid_array);
         }
     }
     EntityId::dead()

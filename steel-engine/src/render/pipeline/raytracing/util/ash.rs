@@ -4,7 +4,9 @@ use vulkano::VulkanObject;
 use vulkano_util::context::VulkanoContext;
 
 pub struct AshContext {
+    #[allow(unused)]
     entry: Arc<Entry>,
+    #[allow(unused)]
     instance: Arc<Instance>,
     device: Arc<Device>,
     rt_pipeline: RayTracingPipeline,
@@ -51,10 +53,12 @@ impl AshContext {
         }
     }
 
+    #[allow(unused)]
     pub fn entry(&self) -> &Arc<Entry> {
         &self.entry
     }
 
+    #[allow(unused)]
     pub fn instance(&self) -> &Arc<Instance> {
         &self.instance
     }

@@ -352,6 +352,7 @@ pub struct UniqueFn {
     pub save_to_data: fn(&mut WorldData, &AllStorages),
     pub load_from_data: fn(&AllStorages, &WorldData),
     pub load_from_scene_data: fn(&AllStorages, &WorldData),
+    pub reset: fn(&AllStorages),
 }
 
 /// A map of UniqueFn, key is unique name.
@@ -379,13 +380,14 @@ impl UniqueRegistry {
     }
 
     /// Insert a type of Unique to UniqueRegistry.
-    pub fn register<U: Unique + Edit + Send + Sync>(&mut self) {
+    pub fn register<U: Unique + Edit + Default + Send + Sync>(&mut self) {
         self.insert(
             U::name(),
             UniqueFn {
                 save_to_data: Self::save_to_data_fn::<U>,
                 load_from_data: Self::load_from_data_fn::<U>,
                 load_from_scene_data: Self::load_from_scene_data_fn::<U>,
+                reset: Self::reset::<U>,
             },
         );
     }
@@ -420,6 +422,10 @@ impl UniqueRegistry {
                 .unwrap()
                 .load_data(unique_data);
         }
+    }
+
+    fn reset<U: Unique + Edit + Default + Send + Sync>(all_storages: &AllStorages) {
+        *all_storages.get_unique::<&mut U>().unwrap() = U::default();
     }
 }
 
@@ -456,6 +462,7 @@ impl WorldDataExt for WorldData {
             .unwrap()
             .values()
         {
+            (unique_fn.reset)(all_storages);
             (unique_fn.load_from_scene_data)(all_storages, &new_world_data);
         }
 

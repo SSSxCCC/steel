@@ -42,6 +42,7 @@ impl DataWindow {
         project: &mut Project,
         asset_dir: impl AsRef<Path>,
         texts: &Texts,
+        load_world_data_this_frame: &mut bool,
     ) {
         let hierarchy = world_data
             .uniques
@@ -66,6 +67,7 @@ impl DataWindow {
                 &mut drop_parent,
                 &mut drop_before,
                 texts,
+                load_world_data_this_frame,
             );
             if let Some(drop_parent) = drop_parent {
                 if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released())
@@ -105,6 +107,7 @@ impl DataWindow {
         drop_parent: &mut Option<EntityId>,
         drop_before: &mut EntityId,
         texts: &Texts,
+        load_world_data_this_frame: &mut bool,
     ) {
         for (i, &entity) in es.iter().enumerate() {
             let entity_data = if let Some(entity_data) = entities.get(&entity) {
@@ -162,7 +165,11 @@ impl DataWindow {
                                         if ui.button(texts.get("Save Prefab")).clicked() {
                                             log::info!("entity_context_menu->Save Prefab");
                                             Self::save_prefab(
-                                                entity, entities, project, &asset_dir,
+                                                entity,
+                                                entities,
+                                                project,
+                                                &asset_dir,
+                                                load_world_data_this_frame,
                                             );
                                             ui.close_menu();
                                         }
@@ -221,6 +228,7 @@ impl DataWindow {
                         drop_parent,
                         drop_before,
                         texts,
+                        load_world_data_this_frame,
                     )
                 });
             } else {
@@ -334,8 +342,15 @@ impl DataWindow {
         entities: &EntitiesData,
         project: &mut Project,
         asset_dir: impl AsRef<Path>,
+        load_world_data_this_frame: &mut bool,
     ) {
-        if let Err(e) = Self::save_prefab_inner(entity, entities, project, asset_dir) {
+        if let Err(e) = Self::save_prefab_inner(
+            entity,
+            entities,
+            project,
+            asset_dir,
+            load_world_data_this_frame,
+        ) {
             log::error!("DataWindow::save_prefab error: {e:?}");
         }
     }
@@ -345,6 +360,7 @@ impl DataWindow {
         entities: &EntitiesData,
         project: &mut Project,
         asset_dir: impl AsRef<Path>,
+        load_world_data_this_frame: &mut bool,
     ) -> Result<(), Box<dyn Error>> {
         // find prefab root entity
         let entity_data = entities.get(&entity).ok_or(EditorError::new(
@@ -396,6 +412,7 @@ impl DataWindow {
 
         // reload scene for other prefab instances to update
         project.load_from_memory();
+        *load_world_data_this_frame = false;
 
         Ok(())
     }

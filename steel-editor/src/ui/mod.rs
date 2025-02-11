@@ -75,6 +75,7 @@ impl Editor {
         input: &WinitInputHelper,
     ) {
         gui.immediate_ui(|gui| {
+            let mut load_world_data_this_frame = true;
             let ctx = gui.context();
 
             // display egui demo windows
@@ -96,6 +97,7 @@ impl Editor {
                 scene_camera,
                 window_title,
                 &mut self.texts,
+                &mut load_world_data_this_frame,
             );
 
             if project.is_compiled() {
@@ -131,6 +133,7 @@ impl Editor {
                                             project,
                                             asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),
                                             &self.texts,
+                                            &mut load_world_data_this_frame,
                                         );
                                     }
                                 }
@@ -186,6 +189,12 @@ impl Editor {
                 .dock_state
                 .find_active_focused()
                 .map(|(_, tab)| tab.clone());
+
+            if !load_world_data_this_frame {
+                // We set world_data to None to prevent app from loading outdated world_data later this frame.
+                // Be remember to set load_world_data_this_frame to false after loading scene data by calling Command::Reload.
+                *world_data = None;
+            }
         });
     }
 

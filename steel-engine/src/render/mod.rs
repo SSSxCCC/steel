@@ -5,7 +5,6 @@ pub mod model;
 pub mod pipeline;
 pub mod texture;
 
-use self::canvas::CanvasRenderContext;
 use crate::edit::Edit;
 use glam::UVec2;
 use pipeline::{
@@ -16,7 +15,7 @@ use shipyard::Unique;
 use std::sync::Arc;
 use steel_common::{
     app::{DrawInfo, WindowIndex},
-    data::{Data, Limit, Value},
+    data::{Data, Value},
     ext::VulkanoWindowRendererExt,
 };
 use vulkano::{
@@ -70,129 +69,91 @@ impl FrameRenderInfo {
 }
 
 /// RenderContext stores many render objects that exist in the whole lifetime of application.
-pub struct RenderContext {
-    // The fields in this struct are public for convenience, users can only get a immutable reference
-    // of this struct from RenderManager::context so that they can not mutate the fields of this struct.
-    pub device: Arc<Device>,
-    pub graphics_queue: Arc<Queue>,
-    pub memory_allocator: Arc<StandardMemoryAllocator>,
-    pub command_buffer_allocator: StandardCommandBufferAllocator,
-    pub descriptor_set_allocator: StandardDescriptorSetAllocator,
-    pub ash: AshContext,
-}
-
-/// RenderManager contains many render context objects and render parameters.
 #[derive(Unique)]
-pub struct RenderManager {
-    context: RenderContext,
-    pub(crate) canvas_context: Option<CanvasRenderContext>,
-
-    /// The image index at [WindowIndex::GAME] and [WindowIndex::SCENE] are for game window and scene window.
-    pub(crate) image_index: [usize; 2],
+pub struct RenderContext {
+    pub(crate) device: Arc<Device>,
+    pub(crate) graphics_queue: Arc<Queue>,
+    pub(crate) memory_allocator: Arc<StandardMemoryAllocator>,
+    pub(crate) command_buffer_allocator: StandardCommandBufferAllocator,
+    pub(crate) descriptor_set_allocator: StandardDescriptorSetAllocator,
+    pub(crate) ash: AshContext,
 
     /// If current device supports ray tracing.
     ray_tracing_supported: bool,
-    /// True means rendering with ray tracing pipeline, false means rendering with rasterization pipeline.
-    ray_tracing: bool,
 
-    // TODO: move pipeline settings to Camera component
-    pub rasterization_settings: RasterizationSettings,
-    pub ray_tracing_settings: RayTracingSettings,
+    /// The image index at [WindowIndex::GAME] and [WindowIndex::SCENE] are for game window and scene window.
+    pub(crate) image_index: [usize; 2],
 }
 
-impl RenderManager {
-    /// Create a new RenderManager based on VulkanoContext.
+impl RenderContext {
+    /// Create a [RenderContext] from [VulkanoContext].
     pub(crate) fn new(context: &VulkanoContext, ray_tracing_supported: bool) -> Self {
-        Self {
-            context: RenderContext {
-                device: context.device().clone(),
-                graphics_queue: context.graphics_queue().clone(),
-                memory_allocator: context.memory_allocator().clone(),
-                command_buffer_allocator: StandardCommandBufferAllocator::new(
-                    context.device().clone(),
-                    Default::default(),
-                ),
-                descriptor_set_allocator: StandardDescriptorSetAllocator::new(
-                    context.device().clone(),
-                    Default::default(),
-                ),
-                ash: AshContext::new(context),
-            },
-            canvas_context: None,
-            image_index: [0, 0],
+        RenderContext {
+            device: context.device().clone(),
+            graphics_queue: context.graphics_queue().clone(),
+            memory_allocator: context.memory_allocator().clone(),
+            command_buffer_allocator: StandardCommandBufferAllocator::new(
+                context.device().clone(),
+                Default::default(),
+            ),
+            descriptor_set_allocator: StandardDescriptorSetAllocator::new(
+                context.device().clone(),
+                Default::default(),
+            ),
+            ash: AshContext::new(context),
             ray_tracing_supported,
-            ray_tracing: false,
-            rasterization_settings: RasterizationSettings::default(),
-            ray_tracing_settings: RayTracingSettings::default(),
+            image_index: [0, 0],
         }
-    }
-
-    /// Update RenderManager from FrameRenderInfo.
-    pub(crate) fn update(&mut self, info: &FrameRenderInfo, ray_tracing_supported: bool) {
-        self.image_index[info.window_index] = info.image_index;
-        self.canvas_context
-            .get_or_insert_with(|| {
-                CanvasRenderContext::new(&self.context, info, ray_tracing_supported)
-            })
-            .update(&self.context, info);
-    }
-
-    /// The render context.
-    pub fn context(&self) -> &RenderContext {
-        &self.context
     }
 
     /// If current device supports ray tracing.
     pub fn ray_tracing_supported(&self) -> bool {
         self.ray_tracing_supported
     }
+}
 
+/// Settings for rendering pipelines.
+#[derive(Unique)]
+pub struct RenderSettings {
     /// True means rendering with ray tracing pipeline, false means rendering with rasterization pipeline.
-    pub fn ray_tracing(&self) -> bool {
-        self.ray_tracing
-    }
+    /// If [RenderContext::ray_tracing_supported()] is false, always rendering with rasterization pipeline.
+    pub ray_tracing: bool,
 
-    /// Turn ray tracing on or off. If [Self::ray_tracing_supported] is false, this dose nothing.
-    pub fn set_ray_tracing(&mut self, on: bool) {
-        if self.ray_tracing_supported {
-            self.ray_tracing = on;
+    // TODO: move pipeline settings to Camera component
+    pub rasterization_settings: RasterizationSettings,
+    pub ray_tracing_settings: RayTracingSettings,
+}
+
+impl Default for RenderSettings {
+    fn default() -> Self {
+        Self {
+            ray_tracing: false,
+            rasterization_settings: RasterizationSettings::default(),
+            ray_tracing_settings: RayTracingSettings::default(),
         }
     }
 }
 
-impl Edit for RenderManager {
+impl Edit for RenderSettings {
     fn name() -> &'static str {
-        "RenderManager"
+        "RenderSettings"
     }
 
     fn get_data(&self) -> Data {
         let mut data = Data::new();
-        if self.ray_tracing_supported {
-            data.add_value("ray_tracing", Value::Bool(self.ray_tracing));
-        } else {
-            data.add_value_with_limit(
-                "ray_tracing",
-                Value::Bool(self.ray_tracing),
-                Limit::ReadOnly,
-            );
-        }
-
+        data.add_value("ray_tracing", Value::Bool(self.ray_tracing));
         if self.ray_tracing {
             self.ray_tracing_settings.get_data(&mut data);
         } else {
             self.rasterization_settings.get_data(&mut data);
         }
-
         data
     }
 
     fn set_data(&mut self, data: &Data) {
-        if self.ray_tracing_supported {
-            if let Some(Value::Bool(v)) = data.get("ray_tracing") {
-                self.ray_tracing = *v;
-            }
+        if let Some(Value::Bool(v)) = data.get("ray_tracing") {
+            self.ray_tracing = *v;
         }
-
         self.ray_tracing_settings.set_data(data);
         self.rasterization_settings.set_data(data);
     }
