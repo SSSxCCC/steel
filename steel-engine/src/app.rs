@@ -390,9 +390,6 @@ impl App for SteelApp {
             Command::DestroyEntity(id) => {
                 self.world.all_storages_mut().unwrap().delete_entity(id);
             }
-            Command::ClearEntity => {
-                self.world.all_storages_mut().unwrap().clear();
-            }
             Command::GetEntityCount(entity_count) => {
                 *entity_count = self
                     .world
