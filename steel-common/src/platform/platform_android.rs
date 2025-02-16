@@ -1,4 +1,3 @@
-use crate::platform::PlatformError;
 use jni::{objects::JObject, JavaVM};
 use ndk::asset::Asset;
 use shipyard::Unique;
@@ -45,7 +44,7 @@ impl Platform {
         self.android_app
             .asset_manager()
             .open(path.as_c_str())
-            .ok_or_else(|| PlatformError::new("AssetManager::open returns None").boxed())
+            .ok_or_else(|| "AssetManager::open returns None".into())
     }
 
     /// List all files in asset directory.
@@ -63,7 +62,7 @@ impl Platform {
             &Vec::new(),
         )? {
             jni::objects::JValueGen::Object(o) => o,
-            _ => return Err(PlatformError::new("listAssetFiles did not return JObject!").boxed()),
+            _ => return Err("listAssetFiles did not return JObject!".into()),
         };
         let list = env.get_list(&ret)?;
         let mut files = Vec::new();

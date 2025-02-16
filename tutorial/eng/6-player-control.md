@@ -133,7 +133,13 @@ fn player_control_system(
 
 We use the constant steel::platform::BUILD_TARGET to determine whether the current compilation is for the Android system. If it is for the Android system, we add the operation logic of the Android system. We use another unique EguiContext this time to implement touch screen judgment for the left and right half of the screen, because Input currently does not support the processing of touch screen events.
 
-Before compiling the game into an Android apk, you need to install the Android SDK. You can install the Android SDK by installing [Android Studio](https://developer.android.com/studio). Then you also need to execute the following command to install cargo-ndk:
+Before compiling the game into an Android apk, you need to install the Android SDK, Java, and cargo-ndk.
+
+1. Android SDK: You can install the Android SDK by installing [Android Studio](https://developer.android.com/studio). At the same time, install NDK in the SDK Manager of Android Studio. And set the system environment variables ANDROID_HOME and ANDROID_NDK_HOME to the installation directories of SDK and NDK respectively.
+
+2. Java: Install [Java](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html), and be sure to select 64-bit Java-17 to download and install. And set the system environment variable JAVA_HOME to the installation directory of Java.
+
+3. cargo-ndk: Execute the following command to install cargo-ndk:
 
 ```
 rustup target add aarch64-linux-android

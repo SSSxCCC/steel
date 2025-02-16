@@ -74,7 +74,6 @@ pub enum Command<'a> {
     /// entities_data, old_id_to_new_id map
     AddEntities(&'a EntitiesData, &'a mut HashMap<EntityId, EntityId>),
     DestroyEntity(EntityId),
-    ClearEntity,
     GetEntityCount(&'a mut usize),
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid.
     GetEntityAtScreen(usize, IVec2, &'a mut EntityId),

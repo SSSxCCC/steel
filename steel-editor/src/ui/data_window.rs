@@ -1,8 +1,4 @@
-use crate::{
-    locale::Texts,
-    project::Project,
-    utils::{err, EditorError},
-};
+use crate::{locale::Texts, project::Project};
 use glam::{Vec3, Vec4};
 use regex::Regex;
 use shipyard::EntityId;
@@ -314,11 +310,11 @@ impl DataWindow {
         let file = rfd::FileDialog::new().set_directory(&asset_dir).save_file();
         if let Some(mut file) = file {
             if !file.starts_with(&asset_dir) {
-                return err("you must save in asset directory!");
+                return Err("you must save in asset directory!".into());
             }
             file.set_extension("prefab");
             if file.exists() {
-                return err("can not override existing file, you can use 'save prefab' to update existing prefab.");
+                return Err("can not override existing file, you can use 'save prefab' to update existing prefab.".into());
             }
             crate::utils::save_to_file(&prefab_data, &file)?;
 
@@ -363,12 +359,12 @@ impl DataWindow {
         load_world_data_this_frame: &mut bool,
     ) -> Result<(), Box<dyn Error>> {
         // find prefab root entity
-        let entity_data = entities.get(&entity).ok_or(EditorError::new(
-            "DataWindow::save_prefab_inner: entity not found",
-        ))?;
-        let (prefab_asset, _, _, prefab_root_entity) = entity_data.prefab_info().ok_or(
-            EditorError::new("DataWindow::save_prefab_inner: entity is not in prefab"),
-        )?;
+        let entity_data = entities
+            .get(&entity)
+            .ok_or("DataWindow::save_prefab_inner: entity not found")?;
+        let (prefab_asset, _, _, prefab_root_entity) = entity_data
+            .prefab_info()
+            .ok_or("DataWindow::save_prefab_inner: entity is not in prefab")?;
         let entity = prefab_root_entity;
 
         // get all entities in the prefab that we will save
@@ -399,9 +395,8 @@ impl DataWindow {
         let app = project.app().unwrap();
         let mut prefab_asset_path = None;
         app.command(Command::GetAssetPath(prefab_asset, &mut prefab_asset_path));
-        let prefab_asset_path = prefab_asset_path.ok_or(EditorError::new(
-            "DataWindow::save_prefab: prefab not found",
-        ))?;
+        let prefab_asset_path =
+            prefab_asset_path.ok_or("DataWindow::save_prefab: prefab not found")?;
         crate::utils::save_to_file(
             prefab_data.as_ref(),
             asset_dir.as_ref().join(&prefab_asset_path),
@@ -434,7 +429,7 @@ impl DataWindow {
         let file = rfd::FileDialog::new().set_directory(&asset_dir).pick_file();
         if let Some(file) = file {
             if !file.starts_with(&asset_dir) {
-                return err("you must load from file in asset directory!");
+                return Err("you must load from file in asset directory!".into());
             }
             let asset_path = file
                 .strip_prefix(&asset_dir)
