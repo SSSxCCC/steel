@@ -538,25 +538,19 @@ fn update_eid_in_data(
     old_id_to_new_id: &HashMap<EntityId, EntityId>,
     all_storages: &AllStorages,
 ) -> Data {
-    let get_id_fn = |e: &EntityId| {
-        if let Some(new_id) = old_id_to_new_id.get(e) {
-            *new_id
-        } else if *e == EntityId::dead() {
-            EntityId::dead()
-        } else if all_storages.borrow::<EntitiesView>().unwrap().is_alive(*e) {
-            *e
-        } else {
-            panic!("non-exist EntityId: {e:?}");
-        }
-    };
-
     let mut new_data = Data::new();
     for (name, value) in &data.values {
-        let new_value = match value {
-            Value::Entity(e) => Value::Entity(get_id_fn(e)),
-            Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| get_id_fn(e)).collect()),
-            _ => value.clone(),
-        };
+        let new_value = value.map_entity(|e: EntityId| {
+            if let Some(new_id) = old_id_to_new_id.get(&e) {
+                *new_id
+            } else if e == EntityId::dead() {
+                EntityId::dead()
+            } else if all_storages.borrow::<EntitiesView>().unwrap().is_alive(e) {
+                e
+            } else {
+                panic!("non-exist EntityId: {e:?}");
+            }
+        });
         new_data.insert(name, new_value);
     }
     new_data

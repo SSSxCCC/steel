@@ -6,7 +6,7 @@ use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use shipyard::EntityId;
-use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, ops::RangeInclusive, sync::Arc};
 
 /// Limit [Value] in a range or in several enum, mainly used in Edit::get_data.
 #[derive(Debug, Clone)]
@@ -86,6 +86,138 @@ pub enum Value {
     VecAsset(Vec<AssetId>),
 }
 
+impl Value {
+    /// Map each entity in this value to another entity. If this value does not contain entity, just clone this value.
+    pub fn map_entity(&self, f: impl Fn(EntityId) -> EntityId) -> Self {
+        match self {
+            Value::Entity(e) => Value::Entity(f(*e)),
+            Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| f(*e)).collect()),
+            _ => self.clone(),
+        }
+    }
+
+    /// Map each entity in this value to another entity if path is provided. Otherwise, the entity will be mapped to [EntityId::dead].
+    /// If this value does not contain entity, just clone this value.
+    pub(crate) fn map_entity_with_path(
+        &self,
+        id_path: Option<&EntityIdPathInValue>,
+        f: impl Fn(EntityIdWithPath) -> EntityId,
+    ) -> Self {
+        match self {
+            Value::Entity(e) => {
+                if let Some(EntityIdPathInValue::EntityId(p)) = id_path {
+                    Value::Entity(f(EntityIdWithPath(*e, p.clone())))
+                } else {
+                    Value::Entity(EntityId::dead())
+                }
+            }
+            Value::VecEntity(es) => {
+                if let Some(EntityIdPathInValue::EntityVec(ps)) = id_path {
+                    Value::VecEntity(
+                        es.iter()
+                            .enumerate()
+                            .map(|(i, e)| {
+                                ps.get(&(i as u64))
+                                    .map(|p| f(EntityIdWithPath(*e, p.clone())))
+                                    .unwrap_or_default()
+                            })
+                            .collect(),
+                    )
+                } else {
+                    Value::VecEntity(vec![EntityId::dead(); es.len()])
+                }
+            }
+            _ => self.clone(),
+        }
+    }
+
+    /// Map each entity in this value to another entity and path, and insert path to [DataEntityIdPaths].
+    /// If this value does not contain entity, just clone this value.
+    pub(crate) fn map_entity_and_insert_id_paths(
+        &self,
+        data_name: &String,
+        component_or_unique_name: &String,
+        id_paths: &mut DataEntityIdPaths,
+        f: impl Fn(EntityId) -> (EntityId, Option<EntityIdPath>),
+    ) -> Self {
+        match self {
+            Value::Entity(e) => {
+                let (entity_id, id_path) = f(*e);
+                if let Some(id_path) = id_path {
+                    id_paths
+                        .entry(component_or_unique_name.clone())
+                        .or_default()
+                        .insert(data_name.clone(), EntityIdPathInValue::EntityId(id_path));
+                }
+                Value::Entity(entity_id)
+            }
+            Value::VecEntity(es) => Value::VecEntity(
+                es.iter()
+                    .enumerate()
+                    .map(|(i, e)| {
+                        let (entity_id, id_path) = f(*e);
+                        if let Some(id_path) = id_path {
+                            let id_paths = id_paths
+                                .entry(component_or_unique_name.clone())
+                                .or_default();
+                            if let Some(EntityIdPathInValue::EntityVec(ev)) =
+                                id_paths.get_mut(data_name)
+                            {
+                                ev.insert(i as u64, id_path);
+                            } else {
+                                let mut ev = IndexMap::new();
+                                ev.insert(i as u64, id_path);
+                                id_paths
+                                    .insert(data_name.clone(), EntityIdPathInValue::EntityVec(ev));
+                            }
+                        }
+                        entity_id
+                    })
+                    .collect(),
+            ),
+            _ => self.clone(),
+        }
+    }
+
+    /// Iterate each entity in this value. If this value does not contain entity, do nothing.
+    pub(crate) fn iter_entity_mut(&mut self, f: impl Fn(&mut EntityId)) {
+        match self {
+            Value::Entity(e) => f(e),
+            Value::VecEntity(v) => v.iter_mut().for_each(f),
+            _ => (),
+        }
+    }
+
+    /// Iterate each entity in this value. If this value does not contain entity, do nothing.
+    pub(crate) fn iter_entity_mut_with_path(
+        &mut self,
+        id_path: Option<&EntityIdPathInValue>,
+        f: impl Fn(&mut EntityId, Option<&EntityIdPath>),
+    ) {
+        match self {
+            Value::Entity(e) => {
+                let id_path = if let Some(EntityIdPathInValue::EntityId(id_path)) = id_path {
+                    Some(id_path)
+                } else {
+                    None
+                };
+                f(e, id_path);
+            }
+            Value::VecEntity(es) => {
+                let id_paths = if let Some(EntityIdPathInValue::EntityVec(id_paths)) = id_path {
+                    Cow::Borrowed(id_paths)
+                } else {
+                    Cow::Owned(Default::default())
+                };
+                for (i, e) in es.iter_mut().enumerate() {
+                    f(e, id_paths.get(&(i as u64)));
+                }
+            }
+            _ => (),
+        }
+    }
+}
+
 /// Data contains all [Value] with [Limit] in a component or unique.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Data {
@@ -137,13 +269,7 @@ impl Data {
         let mut data_cut = Data::new();
         for (name, value) in &self.values {
             if !(cut_read_only && matches!(self.limits.get(name), Some(Limit::ReadOnly))) {
-                let value = match value {
-                    Value::Entity(e) => Value::Entity(Self::erase_generation(*e)),
-                    Value::VecEntity(v) => {
-                        Value::VecEntity(v.iter().map(|e| Self::erase_generation(*e)).collect())
-                    }
-                    _ => value.clone(),
-                };
+                let value = value.map_entity(Self::erase_generation);
                 data_cut.values.insert(name.clone(), value);
             }
         }
@@ -637,39 +763,13 @@ impl SceneData {
         let uniques = self
             .uniques
             .map_value(|unique_name, data_name, data_value| {
-                if let Some(id_path) = self
+                let id_path = self
                     .unique_id_paths
                     .get(unique_name)
-                    .and_then(|id_paths| id_paths.get(data_name))
-                {
-                    if let (Value::Entity(e), EntityIdPathInValue::EntityId(p)) =
-                        (data_value, id_path)
-                    {
-                        return Value::Entity(
-                            entity_map
-                                .get(&EntityIdWithPath(*e, p.clone()))
-                                .cloned()
-                                .unwrap_or_default(),
-                        );
-                    } else if let (Value::VecEntity(es), EntityIdPathInValue::EntityVec(ps)) =
-                        (data_value, id_path)
-                    {
-                        return Value::VecEntity(
-                            es.iter()
-                                .enumerate()
-                                .map(|(i, e)| {
-                                    ps.get(&(i as u64))
-                                        .and_then(|p| {
-                                            entity_map.get(&EntityIdWithPath(*e, p.clone()))
-                                        })
-                                        .cloned()
-                                        .unwrap_or_default()
-                                })
-                                .collect(),
-                        );
-                    }
-                }
-                data_value.clone()
+                    .and_then(|id_paths| id_paths.get(data_name));
+                data_value.map_entity_with_path(id_path, |ep| {
+                    entity_map.get(&ep).cloned().unwrap_or_default()
+                })
             });
         (WorldData { entities, uniques }, entity_map)
     }
