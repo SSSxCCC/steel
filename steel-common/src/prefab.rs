@@ -6,7 +6,6 @@ use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use shipyard::EntityId;
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     sync::Arc,
 };
@@ -332,57 +331,21 @@ impl PrefabData {
         prefab_root_entity_to_nested_prefabs_index: &HashMap<EntityId, u64>,
         id_paths: &mut DataEntityIdPaths,
     ) -> Value {
-        match data_value {
-            Value::Entity(e) => {
-                let (entity_id, id_path) =
-                    Self::convert_entity(e, entities, prefab_root_entity_to_nested_prefabs_index);
-                if let Some(id_path) = id_path {
-                    id_paths
-                        .entry(component_or_unique_name.clone())
-                        .or_default()
-                        .insert(data_name.clone(), EntityIdPathInValue::EntityId(id_path));
-                }
-                Value::Entity(entity_id)
-            }
-            Value::VecEntity(es) => Value::VecEntity(
-                es.iter()
-                    .enumerate()
-                    .map(|(i, e)| {
-                        let (entity_id, id_path) = Self::convert_entity(
-                            e,
-                            entities,
-                            prefab_root_entity_to_nested_prefabs_index,
-                        );
-                        if let Some(id_path) = id_path {
-                            let id_paths = id_paths
-                                .entry(component_or_unique_name.clone())
-                                .or_default();
-                            if let Some(EntityIdPathInValue::EntityVec(ev)) =
-                                id_paths.get_mut(data_name)
-                            {
-                                ev.insert(i as u64, id_path);
-                            } else {
-                                let mut ev = IndexMap::new();
-                                ev.insert(i as u64, id_path);
-                                id_paths
-                                    .insert(data_name.clone(), EntityIdPathInValue::EntityVec(ev));
-                            }
-                        }
-                        entity_id
-                    })
-                    .collect(),
-            ),
-            _ => data_value.clone(),
-        }
+        data_value.map_entity_and_insert_id_paths(
+            data_name,
+            component_or_unique_name,
+            id_paths,
+            |e| Self::convert_entity(e, entities, prefab_root_entity_to_nested_prefabs_index),
+        )
     }
 
     /// Convert entity id in entities to entity id with path in prefab.
     fn convert_entity(
-        e: &EntityId,
+        e: EntityId,
         entities: &EntitiesData,
         prefab_root_entity_to_nested_prefabs_index: &HashMap<EntityId, u64>,
     ) -> (EntityId, Option<EntityIdPath>) {
-        if let Some(entity_data) = entities.get(e) {
+        if let Some(entity_data) = entities.get(&e) {
             if let Some((prefab_entity_index, id_path)) = entity_data.prefab_info().and_then(
                 |(_, prefab_entity_index, prefab_entity_path, prefab_root_entity)| {
                     prefab_root_entity_to_nested_prefabs_index
@@ -401,7 +364,7 @@ impl PrefabData {
                 )
             } else {
                 // this entity is not in the nested prefab, we store it's id_path as empty
-                (*e, Some(EntityIdPath::new()))
+                (e, Some(EntityIdPath::new()))
             }
         } else {
             // this entity is not in the prefab_entities, set it to EntityId::dead()
@@ -710,12 +673,8 @@ impl PrefabData {
         for (e, mut entity_data) in entities {
             let e = entity_map[&e];
             entity_data.components.iter_mut().for_each(|(_, data)| {
-                data.values.iter_mut().for_each(|(_, v)| match v {
-                    Value::Entity(e) => *e = entity_map.get(e).cloned().unwrap_or_default(),
-                    Value::VecEntity(es) => es
-                        .iter_mut()
-                        .for_each(|e| *e = entity_map.get(e).cloned().unwrap_or_default()),
-                    _ => (),
+                data.values.iter_mut().for_each(|(_, v)| {
+                    v.iter_entity_mut(|e| *e = entity_map.get(e).cloned().unwrap_or_default());
                 })
             });
             mapped_entities.insert(e, entity_data);
@@ -851,20 +810,12 @@ impl EntityDataWithIdPaths {
         exclude_components: &HashSet<String>,
         front_id_path: &[u64],
     ) {
-        let vec_insert_front_fn = |p: &[u64]| {
-            let mut r = front_id_path.iter().cloned().collect::<Vec<_>>();
-            r.extend_from_slice(p);
-            r
-        };
-        let insert_front_fn = |path: &EntityIdPathInValue| match path {
-            EntityIdPathInValue::EntityId(p) => {
-                EntityIdPathInValue::EntityId(vec_insert_front_fn(p))
-            }
-            EntityIdPathInValue::EntityVec(ps) => EntityIdPathInValue::EntityVec(
-                ps.iter()
-                    .map(|(&i, p)| (i, vec_insert_front_fn(p)))
-                    .collect(),
-            ),
+        let insert_front_fn = |path: &EntityIdPathInValue| {
+            path.map(|p: &EntityIdPath| {
+                let mut r = front_id_path.iter().cloned().collect::<Vec<_>>();
+                r.extend_from_slice(p);
+                r
+            })
         };
         for (component_name, component_data) in &other.0.components {
             if exclude_components.contains(component_name) {
@@ -918,43 +869,17 @@ impl EntityDataWithIdPaths {
     pub fn map(mut self, entity_map: &HashMap<EntityIdWithPath, EntityId>) -> EntityData {
         self.0.components.iter_mut().for_each(|(component_name, component_data)| {
             component_data.values.iter_mut().for_each(|(data_name, data_value)| {
-                match data_value {
-                    Value::Entity(e) => {
-                        let id_path = if let Some(EntityIdPathInValue::EntityId(id_path)) = self.1.get(component_name).and_then(|id_paths| id_paths.get(data_name)) {
-                            id_path.clone()
-                        } else {
-                            Vec::new()
-                        };
-                        let entity_id_with_path = EntityIdWithPath(*e, id_path);
-                        *e = if let Some(e) = entity_map.get(&entity_id_with_path) {
-                            *e
-                        } else {
-                            if *e != EntityId::dead() {
-                                log::warn!("EntityDataWithIdPaths::map: {entity_id_with_path:?} not found.");
-                            }
-                            EntityId::dead()
-                        };
-                    }
-                    Value::VecEntity(es) => {
-                        let id_paths = if let Some(EntityIdPathInValue::EntityVec(id_paths)) = self.1.get(component_name).and_then(|id_paths| id_paths.get(data_name)) {
-                            Cow::Borrowed(id_paths)
-                        } else {
-                            Cow::Owned(Default::default())
-                        };
-                        for (i, e) in es.iter_mut().enumerate() {
-                            let entity_id_with_path = EntityIdWithPath(*e, id_paths.get(&(i as u64)).cloned().unwrap_or_default());
-                            *e = if let Some(e) = entity_map.get(&entity_id_with_path) {
-                                *e
-                            } else {
-                                if *e != EntityId::dead() {
-                                    log::warn!("EntityDataWithIdPaths::map: {entity_id_with_path:?} not found.");
-                                }
-                                EntityId::dead()
-                            };
+                data_value.iter_entity_mut_with_path(self.1.get(component_name).and_then(|id_paths| id_paths.get(data_name)), |e, id_path| {
+                    let entity_id_with_path = EntityIdWithPath(*e, id_path.cloned().unwrap_or_default());
+                    *e = if let Some(e) = entity_map.get(&entity_id_with_path) {
+                        *e
+                    } else {
+                        if *e != EntityId::dead() {
+                            log::warn!("EntityDataWithIdPaths::map: {entity_id_with_path:?} not found.");
                         }
-                    }
-                    _ => (),
-                }
+                        EntityId::dead()
+                    };
+                });
             });
         });
         self.0
@@ -977,4 +902,16 @@ pub enum EntityIdPathInValue {
     EntityId(EntityIdPath),
     /// All [EntityIdPath] for [Value::VecEntity]. Key is the index of entity vector, there is no entry for EntityId::dead().
     EntityVec(IndexMap<u64, EntityIdPath>),
+}
+
+impl EntityIdPathInValue {
+    /// Map each [EntityIdPath] in self to another [EntityIdPath].
+    fn map(&self, f: impl Fn(&EntityIdPath) -> EntityIdPath) -> Self {
+        match self {
+            EntityIdPathInValue::EntityId(p) => EntityIdPathInValue::EntityId(f(p)),
+            EntityIdPathInValue::EntityVec(ps) => {
+                EntityIdPathInValue::EntityVec(ps.iter().map(|(&i, p)| (i, f(p))).collect())
+            }
+        }
+    }
 }
