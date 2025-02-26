@@ -9,7 +9,11 @@ use egui_dock::DockState;
 use egui_winit_vulkano::Gui;
 use shipyard::EntityId;
 use std::time::Instant;
-use steel_common::{app::Command, camera::SceneCamera, data::WorldData};
+use steel_common::{
+    app::Command,
+    camera::SceneCamera,
+    data::{Data, WorldData},
+};
 use vulkano_util::context::VulkanoContext;
 
 pub struct MenuBar {
@@ -480,7 +484,8 @@ impl MenuBar {
             .open(&mut self.show_scene_camera_edit_window)
             .show(ctx, |ui| {
                 let asset_dit = project.asset_dir().unwrap();
-                let mut data = scene_camera.get_data();
+                let mut data = Data::new();
+                scene_camera.get_data(&mut data);
                 data_window.data_view(
                     ui,
                     "SceneCamera",

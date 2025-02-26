@@ -182,9 +182,7 @@ impl ComponentRegistry {
                     .entities
                     .entry(e)
                     .or_insert_with(|| EntityData::default());
-                entity_data
-                    .components
-                    .insert(C::name().into(), c.get_data());
+                entity_data.components.insert(C::name().into(), c.to_data());
             }
         });
     }
@@ -397,7 +395,7 @@ impl UniqueRegistry {
         all_storages: &AllStorages,
     ) {
         let u = all_storages.get_unique::<&U>().unwrap();
-        world_data.uniques.insert(U::name().into(), u.get_data());
+        world_data.uniques.insert(U::name().into(), u.to_data());
     }
 
     fn load_from_data_fn<U: Unique + Edit + Send + Sync>(
@@ -559,7 +557,7 @@ fn update_eid_in_data(
             Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| get_id_fn(e)).collect()),
             _ => value.clone(),
         };
-        new_data.add_value(name, new_value);
+        new_data.insert(name, new_value);
     }
     new_data
 }

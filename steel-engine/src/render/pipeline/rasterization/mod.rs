@@ -60,11 +60,11 @@ impl Default for RasterizationSettings {
 
 impl RasterizationSettings {
     pub fn get_data(&self, data: &mut Data) {
-        data.add_value_with_limit(
+        data.insert_with_limit(
             "clear_color",
             Value::Vec4(self.clear_color),
             Limit::Vec4Color,
-        )
+        );
     }
 
     pub fn set_data(&mut self, data: &Data) {

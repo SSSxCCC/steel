@@ -66,25 +66,23 @@ impl Edit for Mesh {
         "Mesh"
     }
 
-    fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.add_value_with_limit(
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit(
             "type",
             Value::Int32(self.to_i32()),
             Limit::Int32Enum(Mesh::enum_vector()),
         );
         match self {
             Mesh::Asset(asset) => {
-                data.add_value("asset", Value::Asset(*asset));
+                data.insert("asset", Value::Asset(*asset));
             }
             Mesh::Shape2D(shape) => {
-                shape.get_data(&mut data);
+                shape.get_data(data);
             }
             Mesh::Shape3D(shape) => {
-                shape.get_data(&mut data);
+                shape.get_data(data);
             }
         }
-        data
     }
 
     fn set_data(&mut self, data: &Data) {

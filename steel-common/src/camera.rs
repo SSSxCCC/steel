@@ -31,17 +31,15 @@ impl SceneCamera {
         };
     }
 
-    /// Create a [Data] that contains all values in self.
-    pub fn get_data(&self) -> Data {
-        let mut data = Data::new()
-            .insert("position", Value::Vec3(self.position))
+    /// Insert all values in self to [Data].
+    pub fn get_data(&self, data: &mut Data) {
+        data.insert("position", Value::Vec3(self.position))
             .insert_with_limit(
                 "rotation",
                 Value::Vec3(self.rotation.to_scaled_axis()),
                 Limit::Float32Rotation,
             );
-        self.settings.get_data(&mut data);
-        data
+        self.settings.get_data(data);
     }
 
     /// Set values in self according to a [Data].
@@ -121,7 +119,7 @@ impl CameraSettings {
 
     /// Fill all values in self into a [Data].
     pub fn get_data(&self, data: &mut Data) {
-        data.add_value_with_limit(
+        data.insert_with_limit(
             "mode",
             Value::Int32(self.to_i32()),
             Limit::Int32Enum(CameraSettings::enum_vector()),
@@ -134,38 +132,38 @@ impl CameraSettings {
                 near,
                 far,
             } => {
-                data.add_value_with_limit(
+                data.insert_with_limit(
                     "size",
                     Value::Int32(size as i32),
                     Limit::Int32Enum(OrthographicCameraSize::enum_vector()),
                 );
                 match size {
                     OrthographicCameraSize::FixedWidth => {
-                        data.add_value("width", Value::Float32(width))
+                        data.insert("width", Value::Float32(width));
                     }
                     OrthographicCameraSize::FixedHeight => {
-                        data.add_value("height", Value::Float32(height))
+                        data.insert("height", Value::Float32(height));
                     }
                     OrthographicCameraSize::MinWidthHeight => {
-                        data.add_value("min_width", Value::Float32(width));
-                        data.add_value("min_height", Value::Float32(height));
+                        data.insert("min_width", Value::Float32(width))
+                            .insert("min_height", Value::Float32(height));
                     }
                 }
-                data.add_value("near", Value::Float32(near));
-                data.add_value("far", Value::Float32(far));
+                data.insert("near", Value::Float32(near))
+                    .insert("far", Value::Float32(far));
             }
             CameraSettings::Perspective { fov, near, far } => {
-                data.add_value_with_limit("fov", Value::Float32(fov), Limit::Float32Rotation);
-                data.add_value_with_limit(
-                    "near",
-                    Value::Float32(near),
-                    Limit::Float32Range(0.00001..=f32::MAX),
-                );
-                data.add_value_with_limit(
-                    "far",
-                    Value::Float32(far),
-                    Limit::Float32Range(0.00001..=f32::MAX),
-                );
+                data.insert_with_limit("fov", Value::Float32(fov), Limit::Float32Rotation)
+                    .insert_with_limit(
+                        "near",
+                        Value::Float32(near),
+                        Limit::Float32Range(0.00001..=f32::MAX),
+                    )
+                    .insert_with_limit(
+                        "far",
+                        Value::Float32(far),
+                        Limit::Float32Range(0.00001..=f32::MAX),
+                    );
             }
         }
     }

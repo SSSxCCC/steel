@@ -147,15 +147,14 @@ impl Edit for Transform {
         "Transform"
     }
 
-    fn get_data(&self) -> Data {
-        Data::new()
-            .insert("position", Value::Vec3(self.position))
+    fn get_data(&self, data: &mut Data) {
+        data.insert("position", Value::Vec3(self.position))
             .insert_with_limit(
                 "rotation",
                 Value::Vec3(self.rotation.to_scaled_axis()),
                 Limit::Float32Rotation,
             )
-            .insert("scale", Value::Vec3(self.scale))
+            .insert("scale", Value::Vec3(self.scale));
     }
 
     fn set_data(&mut self, data: &Data) {

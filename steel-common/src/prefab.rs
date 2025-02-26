@@ -317,9 +317,9 @@ impl PrefabData {
         if let Some(data_limit) = data_limit {
             // also record the limit if exists, because PrefabData will be cut
             // before saving to file, and the cutting process depends on the limit
-            component_data_override.add_value_with_limit(data_name, data_value, data_limit.clone());
+            component_data_override.insert_with_limit(data_name, data_value, data_limit.clone());
         } else {
-            component_data_override.add_value(data_name, data_value);
+            component_data_override.insert(data_name, data_value);
         }
     }
 
