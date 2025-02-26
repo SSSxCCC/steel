@@ -69,28 +69,28 @@ impl Default for RayTracingSettings {
 
 impl RayTracingSettings {
     pub fn get_data(&self, data: &mut Data) {
-        data.add_value_with_limit(
+        data.insert_with_limit(
             "camera_lens_radius",
             Value::Float32(self.camera_lens_radius),
             Limit::Float32Range(0.0..=f32::MAX),
-        );
-        data.add_value_with_limit(
+        )
+        .insert_with_limit(
             "camera_focus_dist",
             Value::Float32(self.camera_focus_dist),
             Limit::Float32Range(0.0..=f32::MAX),
-        );
-        data.add_value_with_limit(
+        )
+        .insert_with_limit(
             "samples",
             Value::UInt32(self.samples),
             Limit::UInt32Range(1..=u32::MAX),
-        );
-        data.add_value("max_bounces", Value::UInt32(self.max_bounces));
-        data.add_value_with_limit(
+        )
+        .insert("max_bounces", Value::UInt32(self.max_bounces))
+        .insert_with_limit(
             "miss_color_top",
             Value::Vec3(self.miss_color_top),
             Limit::Vec3Color,
-        );
-        data.add_value_with_limit(
+        )
+        .insert_with_limit(
             "miss_color_bottom",
             Value::Vec3(self.miss_color_bottom),
             Limit::Vec3Color,

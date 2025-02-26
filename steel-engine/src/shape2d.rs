@@ -37,7 +37,7 @@ impl Shape2D {
 
     /// Hepler funtion to edit the shape, used in Edit::get_data.
     pub fn get_data(&self, data: &mut Data) {
-        data.add_value_with_limit(
+        data.insert_with_limit(
             "shape_type",
             Value::Int32(self.shape_type() as i32),
             Limit::Int32Enum(vec![(0, "Circle".into()), (1, "Rectangle".into())]),

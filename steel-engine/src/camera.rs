@@ -131,10 +131,8 @@ impl Edit for Camera {
         "Camera"
     }
 
-    fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        self.0.get_data(&mut data);
-        data
+    fn get_data(&self, data: &mut Data) {
+        self.0.get_data(data);
     }
 
     fn set_data(&mut self, data: &Data) {

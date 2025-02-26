@@ -107,32 +107,22 @@ impl Data {
     }
 
     /// Insert a value to this data, you can chain many insert calls by using this funtion.
-    pub fn insert(mut self, name: impl Into<String>, value: Value) -> Self {
-        self.add_value(name, value);
+    pub fn insert(&mut self, name: impl Into<String>, value: Value) -> &mut Self {
+        self.values.insert(name.into(), value);
         self
     }
 
     /// Insert a value and its limit to this data, you can chain many insert calls by using this funtion.
     pub fn insert_with_limit(
-        mut self,
+        &mut self,
         name: impl Into<String>,
         value: Value,
         limit: Limit,
-    ) -> Self {
-        self.add_value_with_limit(name, value, limit);
-        self
-    }
-
-    /// Add a value to this data.
-    pub fn add_value(&mut self, name: impl Into<String>, value: Value) {
-        self.values.insert(name.into(), value);
-    }
-
-    /// Add a value and its limit to this data.
-    pub fn add_value_with_limit(&mut self, name: impl Into<String>, value: Value, limit: Limit) {
+    ) -> &mut Self {
         let name = name.into();
         self.values.insert(name.clone(), value);
         self.limits.insert(name, limit);
+        self
     }
 
     /// Get a value from this data.

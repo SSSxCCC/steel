@@ -22,6 +22,9 @@ use steel_common::data::Data;
 ///     pub vec3: glam::Vec3,
 ///     pub other: Other, // not supported field is ignored
 /// }
+///
+/// #[derive(Default)]
+/// struct Other;
 /// ```
 /// ## Manually impl Edit
 /// ```rust
@@ -35,18 +38,17 @@ use steel_common::data::Data;
 ///     pub float: f32,
 ///     pub string: String,
 ///     pub vec3: glam::Vec3,
-///     pub other: Other, // not supported field is ignored
 /// }
 ///
 /// impl Edit for TestComponent {
 ///     fn name() -> &'static str { "TestComponent" }
 ///
-///     fn get_data(&self) -> Data {
-///         Data::new().insert("boo", Value::Bool(self.boo))
+///     fn get_data(&self, data: &mut Data) {
+///         data.insert("boo", Value::Bool(self.boo))
 ///             .insert_with_limit("int_renamed", Value::Int32(self.int), Limit::Int32Range(0..=3))
 ///             .insert_with_limit("f32_renamed", Value::Float32(self.float), Limit::ReadOnly)
 ///             .insert("string", Value::String(self.string.clone()))
-///             .insert("vec3", Value::Vec3(self.vec3))
+///             .insert("vec3", Value::Vec3(self.vec3));
 ///     }
 ///
 ///     fn set_data(&mut self, data: &Data) {
@@ -64,14 +66,15 @@ pub trait Edit {
     /// The name of this component or unique.
     fn name() -> &'static str;
 
-    /// Create a [Data] from self.
-    fn get_data(&self) -> Data {
-        Data::new()
+    /// Fill a [Data] from self. This function is called every frame in editor
+    /// to make user able to inspect data of component or unique in editor.
+    fn get_data(&self, data: &mut Data) {
+        let _ = data; // disable unused variable warning
     }
 
     /// Modify self according to a [Data]. This function is called every frame in editor
-    /// to make user able to modify component or unique in editor. You should omit read-only
-    /// values so that they are never modified.
+    /// to make user able to modify data of component or unique in editor.
+    /// You should omit read-only values so that they are never modified.
     fn set_data(&mut self, data: &Data) {
         let _ = data; // disable unused variable warning
     }
@@ -91,5 +94,12 @@ pub trait Edit {
         let mut e = Self::default();
         e.load_data(data);
         e
+    }
+
+    /// Convert self to a [Data] by creating a [Data] and calling [Edit::get_data] to fill it.
+    fn to_data(&self) -> Data {
+        let mut data = Data::new();
+        self.get_data(&mut data);
+        data
     }
 }

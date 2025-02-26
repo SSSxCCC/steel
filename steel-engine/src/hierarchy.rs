@@ -27,8 +27,8 @@ impl Edit for Parent {
         "Parent"
     }
 
-    fn get_data(&self) -> Data {
-        Data::new().insert_with_limit("unnamed-0", Value::Entity(self.0), Limit::ReadOnly)
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit("unnamed-0", Value::Entity(self.0), Limit::ReadOnly);
     }
 
     fn load_data(&mut self, data: &Data) {
@@ -75,12 +75,12 @@ impl Edit for Children {
         "Children"
     }
 
-    fn get_data(&self) -> Data {
-        Data::new().insert_with_limit(
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit(
             "unnamed-0",
             Value::VecEntity(self.0.clone()),
             Limit::ReadOnly,
-        )
+        );
     }
 
     fn load_data(&mut self, data: &Data) {
@@ -108,12 +108,12 @@ impl Edit for Hierarchy {
         "Hierarchy"
     }
 
-    fn get_data(&self) -> Data {
-        Data::new().insert_with_limit(
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit(
             "roots",
             Value::VecEntity(self.roots.clone()),
             Limit::ReadOnly,
-        )
+        );
     }
 
     fn load_data(&mut self, data: &Data) {

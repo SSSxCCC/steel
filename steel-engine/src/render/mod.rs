@@ -139,15 +139,13 @@ impl Edit for RenderSettings {
         "RenderSettings"
     }
 
-    fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.add_value("ray_tracing", Value::Bool(self.ray_tracing));
+    fn get_data(&self, data: &mut Data) {
+        data.insert("ray_tracing", Value::Bool(self.ray_tracing));
         if self.ray_tracing {
-            self.ray_tracing_settings.get_data(&mut data);
+            self.ray_tracing_settings.get_data(data);
         } else {
-            self.rasterization_settings.get_data(&mut data);
+            self.rasterization_settings.get_data(data);
         }
-        data
     }
 
     fn set_data(&mut self, data: &Data) {

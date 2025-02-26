@@ -128,8 +128,8 @@ pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
         })
         .collect::<Vec<_>>();
     let get_data_fn = quote! {
-        fn get_data(&self) -> Data {
-            Data::new() #( #insert_tokens )*
+        fn get_data(&self, data: &mut Data) {
+            data #( #insert_tokens )*;
         }
     };
 

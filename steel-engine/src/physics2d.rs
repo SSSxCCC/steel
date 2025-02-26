@@ -83,23 +83,22 @@ impl Edit for RigidBody2D {
         "RigidBody2D"
     }
 
-    fn get_data(&self) -> Data {
-        Data::new()
-            .insert_with_limit(
-                "handle",
-                Value::String(format!("{:?}", self.handle)),
-                Limit::ReadOnly,
-            )
-            .insert_with_limit(
-                "body_type",
-                Value::Int32(self.body_type as i32),
-                Limit::Int32Enum(vec![
-                    (0, "Dynamic".into()),
-                    (1, "Fixed".into()),
-                    (2, "KinematicPositionBased".into()),
-                    (3, "KinematicVelocityBased".into()),
-                ]),
-            )
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit(
+            "handle",
+            Value::String(format!("{:?}", self.handle)),
+            Limit::ReadOnly,
+        )
+        .insert_with_limit(
+            "body_type",
+            Value::Int32(self.body_type as i32),
+            Limit::Int32Enum(vec![
+                (0, "Dynamic".into()),
+                (1, "Fixed".into()),
+                (2, "KinematicPositionBased".into()),
+                (3, "KinematicVelocityBased".into()),
+            ]),
+        );
     }
 
     fn set_data(&mut self, data: &Data) {
@@ -186,15 +185,15 @@ impl Edit for Collider2D {
         "Collider2D"
     }
 
-    fn get_data(&self) -> Data {
-        let mut data = Data::new().insert_with_limit(
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit(
             "handle",
             Value::String(format!("{:?}", self.handle)),
             Limit::ReadOnly,
         );
-        self.shape.get_data(&mut data);
+        self.shape.get_data(data);
         data.insert("restitution", Value::Float32(self.restitution))
-            .insert("sensor", Value::Bool(self.sensor))
+            .insert("sensor", Value::Bool(self.sensor));
     }
 
     fn set_data(&mut self, data: &Data) {
@@ -274,9 +273,8 @@ impl Edit for Physics2DManager {
         "Physics2DManager"
     }
 
-    fn get_data(&self) -> Data {
-        Data::new()
-            .insert("gravity", Value::Vec2(self.gravity.into()))
+    fn get_data(&self, data: &mut Data) {
+        data.insert("gravity", Value::Vec2(self.gravity.into()))
             // Currently integration_parameters.dt is dynamically changed so that it should not be edited
             .insert(
                 "min_ccd_dt",
@@ -351,7 +349,7 @@ impl Edit for Physics2DManager {
             .insert(
                 "max_ccd_substeps",
                 Value::UInt32(self.integration_parameters.max_ccd_substeps as u32),
-            )
+            );
     }
 
     fn set_data(&mut self, data: &Data) {

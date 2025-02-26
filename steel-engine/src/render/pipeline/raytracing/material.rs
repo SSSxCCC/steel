@@ -105,43 +105,41 @@ impl Edit for Material {
         "Material"
     }
 
-    fn get_data(&self) -> Data {
-        let mut data = Data::new();
-        data.add_value_with_limit(
+    fn get_data(&self, data: &mut Data) {
+        data.insert_with_limit(
             "type",
             Value::Int32(self.to_i32()),
             Limit::Int32Enum(Self::enum_vector()),
         );
         match self {
             Material::Lambertian { color } => {
-                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color)
+                data.insert_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
             }
             Material::Metal { color, fuzz } => {
-                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
-                data.add_value_with_limit(
-                    "fuzz",
-                    Value::Float32(*fuzz),
-                    Limit::Float32Range(0.0..=f32::MAX),
-                );
+                data.insert_with_limit("color", Value::Vec3(*color), Limit::Vec3Color)
+                    .insert_with_limit(
+                        "fuzz",
+                        Value::Float32(*fuzz),
+                        Limit::Float32Range(0.0..=f32::MAX),
+                    );
             }
             Material::Dielectric { color, ri } => {
-                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
-                data.add_value_with_limit(
-                    "ri",
-                    Value::Float32(*ri),
-                    Limit::Float32Range(1.0..=f32::MAX),
-                );
+                data.insert_with_limit("color", Value::Vec3(*color), Limit::Vec3Color)
+                    .insert_with_limit(
+                        "ri",
+                        Value::Float32(*ri),
+                        Limit::Float32Range(1.0..=f32::MAX),
+                    );
             }
             Material::Emission { color, intensity } => {
-                data.add_value_with_limit("color", Value::Vec3(*color), Limit::Vec3Color);
-                data.add_value_with_limit(
-                    "intensity",
-                    Value::Float32(*intensity),
-                    Limit::Float32Range(0.0..=f32::MAX),
-                );
+                data.insert_with_limit("color", Value::Vec3(*color), Limit::Vec3Color)
+                    .insert_with_limit(
+                        "intensity",
+                        Value::Float32(*intensity),
+                        Limit::Float32Range(0.0..=f32::MAX),
+                    );
             }
         }
-        data
     }
 
     fn set_data(&mut self, data: &Data) {
