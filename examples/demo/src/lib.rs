@@ -37,12 +37,22 @@ struct TestComponent {
     float32: f32,
     string: String,
     entity: EntityId,
+    inner: InnerStruct,
     vec2: Vec2,
     vec3: Vec3,
     vec4: Vec4,
+}
+
+#[derive(Edit, Default, Clone)]
+struct InnerStruct {
     ivec2: IVec2,
     ivec3: IVec3,
+    inner2: InnerStruct2,
     ivec4: IVec4,
+}
+
+#[derive(Edit, Default, Clone)]
+struct InnerStruct2 {
     uvec2: UVec2,
     uvec3: UVec3,
     uvec4: UVec4,

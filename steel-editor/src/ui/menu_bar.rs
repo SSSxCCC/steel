@@ -493,6 +493,7 @@ impl MenuBar {
                     project.app().unwrap(),
                     asset_dit,
                     texts,
+                    false,
                 );
                 scene_camera.set_data(&data);
             });

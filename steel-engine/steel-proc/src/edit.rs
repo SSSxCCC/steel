@@ -1,157 +1,316 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
-use std::{iter::zip, str::FromStr};
-use syn::{self, Index};
+use syn::{self, Index, Type};
+
+const BASIC_TYPES: &[&str] = &[
+    "bool", "i32", "i64", "u32", "u64", "f32", "f64", "String", "Vec2", "Vec3", "Vec4", "IVec2",
+    "IVec3", "IVec4", "UVec2", "UVec3", "UVec4", "EntityId", "AssetId", "Data",
+];
 
 pub fn impl_edit_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
+
+    // generate name() implementation
     let name_fn = quote! {
-        fn name() -> &'static str { stringify!(#name) }
+        fn name() -> &'static str {
+            stringify!(#name)
+        }
     };
 
+    // extract struct fields
     let fields = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
-            syn::Fields::Named(fields) => fields.named.iter().collect::<Vec<_>>(),
-            syn::Fields::Unnamed(fields) => fields.unnamed.iter().collect::<Vec<_>>(),
+            syn::Fields::Named(fields) => fields.named.iter().collect(),
+            syn::Fields::Unnamed(fields) => fields.unnamed.iter().collect(),
             syn::Fields::Unit => Vec::new(),
         },
-        syn::Data::Enum(_) => panic!("Not yet supported Edit derive macro in Enum"),
-        syn::Data::Union(_) => panic!("Not yet supported Edit derive macro in Union"),
+        _ => panic!("Edit derive only supports structs"),
     };
-    let (field_accessors, (value_types, (value_names, value_limits))): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = fields.into_iter().enumerate().filter_map(|(i, field)| {
-        let field_accessor = match &field.ident {
-            Some(ident) => FieldAccessor::Ident(ident.clone()),
-            None => FieldAccessor::Index(Index::from(i)),
-        };
 
-        let value_type = match &field.ty {
-            syn::Type::Path(type_path) => {
-                let type_last_segment = type_path.path.segments.last()
-                    .expect(format!("No type path segment for field {field_accessor:?}").as_str());
-                let type_last_ident = &type_last_segment.ident;
-                match type_last_ident.to_string().as_str() {
-                    "bool" => quote! { Value::Bool },
-                    "i32" => quote! { Value::Int32 },
-                    "i64" => quote! { Value::Int64 },
-                    "u32" => quote! { Value::UInt32 },
-                    "u64" => quote! { Value::UInt64 },
-                    "f32" => quote! { Value::Float32 },
-                    "f64" => quote! { Value::Float64 },
-                    "String" => quote! { Value::String },
-                    "Vec2" => quote! { Value::Vec2 },
-                    "Vec3" => quote! { Value::Vec3 },
-                    "Vec4" => quote! { Value::Vec4 },
-                    "IVec2" => quote! { Value::IVec2 },
-                    "IVec3" => quote! { Value::IVec3 },
-                    "IVec4" => quote! { Value::IVec4 },
-                    "UVec2" => quote! { Value::UVec2 },
-                    "UVec3" => quote! { Value::UVec3 },
-                    "UVec4" => quote! { Value::UVec4 },
-                    "EntityId" => quote! { Value::Entity },
-                    "AssetId" => quote! { Value::Asset },
-                    "Vec" => {
-                        let generic_arg = match &type_last_segment.arguments {
-                            syn::PathArguments::AngleBracketed(generic_arguments) => generic_arguments.args.first().unwrap(),
-                            _ => return None,
-                        };
-                        match generic_arg {
-                            syn::GenericArgument::Type(syn::Type::Path(generic_path)) => {
-                                let generic_type_last_ident = &generic_path.path.segments.last()
-                                    .expect(format!("No type path segment for field {field_accessor:?}").as_str()).ident;
-                                match generic_type_last_ident.to_string().as_str() {
-                                    "bool" => quote! { Value::VecBool },
-                                    "i32" => quote! { Value::VecInt32 },
-                                    "i64" => quote! { Value::VecInt64 },
-                                    "u32" => quote! { Value::VecUInt32 },
-                                    "u64" => quote! { Value::VecUInt64 },
-                                    "f32" => quote! { Value::VecFloat32 },
-                                    "f64" => quote! { Value::VecFloat64 },
-                                    "String" => quote! { Value::VecString },
-                                    "EntityId" => quote! { Value::VecEntity },
-                                    "AssetId" => quote! { Value::VecAsset },
-                                    _ => return None,
-                                }
-                            }
-                            _ => return None,
-                        }
-                    }
-                    _ => return None,
-                }
-            }
-            _ => return None,
-        };
+    // process each field
+    let (get_data_lines, set_data_lines): (Vec<TokenStream>, Vec<TokenStream>) = fields
+        .iter()
+        .enumerate()
+        .filter_map(|(i, field)| {
+            // determine field accessor
+            let field_accessor = match &field.ident {
+                Some(ident) => FieldAccessor::Ident(ident.clone()),
+                None => FieldAccessor::Index(Index::from(i)),
+            };
 
-        let mut value_name = field_accessor.to_string();
-        let mut value_limit = None;
-        field.attrs.iter().for_each(|attr| {
-            if attr.path().is_ident("edit") {
-                if let syn::Meta::List(meta) = &attr.meta {
-                    if let Err(err) = meta.parse_nested_meta(|meta| {
+            // parse field attributes
+            let mut value_name = field_accessor.to_string();
+            let mut value_limit = None;
+
+            // process #[edit(...)] attributes
+            let mut ignore = false;
+            for attr in &field.attrs {
+                if attr.path().is_ident("edit") {
+                    attr.parse_nested_meta(|meta| {
                         if meta.path.is_ident("name") {
-                            if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit), .. }) = meta.value()?.parse()? {
+                            if let syn::Expr::Lit(syn::ExprLit {
+                                lit: syn::Lit::Str(lit),
+                                ..
+                            }) = meta.value()?.parse()?
+                            {
                                 value_name = lit.value();
-                            } else {
-                                return Err(meta.error("name must be a string literal"));
                             }
                         } else if meta.path.is_ident("limit") {
-                            if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(lit), .. }) = meta.value()?.parse()? {
-                                value_limit = Some(TokenStream::from_str(&lit.value())?);
-                            } else {
-                                return Err(meta.error("limit must be a string literal"));
+                            if let syn::Expr::Lit(syn::ExprLit {
+                                lit: syn::Lit::Str(lit),
+                                ..
+                            }) = meta.value()?.parse()?
+                            {
+                                value_limit = Some(syn::parse_str::<syn::Expr>(&lit.value())?);
                             }
-                        } else {
-                            return Err(meta.error("unsupported edit property"));
+                        } else if meta.path.is_ident("ignore") {
+                            ignore = true
                         }
                         Ok(())
-                    }) {
-                        panic!("source={:?}, error={}", err.span().source_text(), err.to_string());
+                    })
+                    .unwrap();
+                    if ignore {
+                        return None;
                     }
-                } else {
-                    panic!("edit attribute content should be key value pair list, example: #[edit(limit = \"Limit::ReadOnly\", name = \"foo\")]");
                 }
             }
-        });
 
-        Some((field_accessor, (value_type, (value_name, value_limit))))
-    }).unzip();
+            // handle Vec types and nested structures
+            match &field.ty {
+                Type::Path(type_path) => {
+                    let last_segment = type_path.path.segments.last().unwrap();
+                    let type_name = last_segment.ident.to_string();
 
-    let insert_values = zip(&value_types, &field_accessors)
-        .map(|(value_type, field_accessor)| quote! { #value_type (self.#field_accessor.clone()) })
-        .collect::<Vec<_>>();
-    let insert_tokens = zip(&value_names, zip(insert_values, &value_limits))
-        .map(|(value_name, (insert_value, value_limit))| {
-            if let Some(limit) = value_limit {
-                quote! { .insert_with_limit(#value_name, #insert_value, #limit) }
-            } else {
-                quote! { .insert(#value_name, #insert_value) }
+                    // check for Vec<T> types
+                    if type_name == "Vec" {
+                        if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
+                            if let Some(syn::GenericArgument::Type(element_type)) =
+                                args.args.first()
+                            {
+                                return handle_vec_type(
+                                    &field_accessor,
+                                    &value_name,
+                                    &value_limit,
+                                    element_type,
+                                );
+                            }
+                        }
+                    }
+
+                    // handle basic types
+                    if BASIC_TYPES.contains(&type_name.as_str()) {
+                        return handle_basic_type(
+                            &field_accessor,
+                            &value_name,
+                            &value_limit,
+                            &type_name,
+                        );
+                    }
+                }
+                _ => {}
             }
+
+            // handle nested structures
+            Some(handle_nested_data(
+                &field_accessor,
+                &value_name,
+                &value_limit,
+            ))
         })
-        .collect::<Vec<_>>();
-    let get_data_fn = quote! {
-        fn get_data(&self, data: &mut Data) {
-            data #( #insert_tokens )*;
-        }
-    };
+        .unzip();
 
-    let set_datas = zip(value_limits, zip(value_types, zip(value_names, field_accessors)))
-        .filter(|(value_limit, _)| !value_limit.as_ref().is_some_and(|limit| limit.to_string().contains("ReadOnly")))
-        .map(|(_, (value_type, (value_name, field_accessor)))| quote! { if let Some(#value_type (v)) = data.get(#value_name) { self.#field_accessor = v.clone() } })
-        .collect::<Vec<_>>();
-    let set_data_fn = quote! {
-        fn set_data(&mut self, data: &Data) {
-            #( #set_datas )*
-        }
-    };
-
-    quote! {
+    // assemble final implementation
+    let expanded = quote! {
         impl Edit for #name {
             #name_fn
-            #get_data_fn
-            #set_data_fn
+
+            fn get_data(&self, data: &mut Data) {
+                #(#get_data_lines)*
+            }
+
+            fn set_data(&mut self, data: &Data) {
+                #(#set_data_lines)*
+            }
         }
+    };
+
+    expanded.into()
+}
+
+fn handle_vec_type(
+    field_accessor: &FieldAccessor,
+    value_name: &str,
+    value_limit: &Option<syn::Expr>,
+    element_type: &Type,
+) -> Option<(TokenStream, TokenStream)> {
+    // get inner type name
+    let element_type_name = if let Type::Path(type_path) = element_type {
+        type_path.path.segments.last()?.ident.to_string()
+    } else {
+        return None;
+    };
+
+    // generate Value type and conversion
+    let (value_type, is_basic) = match element_type_name.as_str() {
+        "bool" => (quote! { Value::VecBool }, true),
+        "i32" => (quote! { Value::VecInt32 }, true),
+        "i64" => (quote! { Value::VecInt64 }, true),
+        "u32" => (quote! { Value::VecUInt32 }, true),
+        "u64" => (quote! { Value::VecUInt64 }, true),
+        "f32" => (quote! { Value::VecFloat32 }, true),
+        "f64" => (quote! { Value::VecFloat64 }, true),
+        "String" => (quote! { Value::VecString }, true),
+        "EntityId" => (quote! { Value::VecEntity }, true),
+        "AssetId" => (quote! { Value::VecAsset }, true),
+        _ => (quote! { Value::Data }, false),
+    };
+
+    if is_basic {
+        // handle basic vector types
+        let get_line = if let Some(limit) = value_limit {
+            quote! {
+                data.insert_with_limit(#value_name, #value_type(self.#field_accessor.clone()), #limit);
+            }
+        } else {
+            quote! {
+                data.insert(#value_name, #value_type(self.#field_accessor.clone()));
+            }
+        };
+
+        let set_line = if !is_read_only(value_limit) {
+            quote! {
+                if let Some(#value_type(v)) = data.get(#value_name) {
+                    self.#field_accessor = v.clone();
+                }
+            }
+        } else {
+            quote! {}
+        };
+
+        Some((get_line, set_line))
+    } else {
+        // handle nested vector types (Vec<MyStruct>)
+        let get_line = quote! {
+            data.insert(#value_name, #value_type({
+                let mut nested_data = Data::new();
+                for item in &self.#field_accessor {
+                    item.get_data(&mut nested_data);
+                }
+                nested_data
+            }));
+        };
+
+        let set_line = if !is_read_only(value_limit) {
+            quote! {
+                if let Some(#value_type(v)) = data.get(#value_name) {
+                    self.#field_accessor = v.values.iter()
+                        .filter_map(|(_, val)| Some(Edit::from_data(val)))
+                        .collect();
+                }
+            }
+        } else {
+            quote! {}
+        };
+
+        Some((get_line, set_line))
     }
 }
 
+fn handle_basic_type(
+    field_accessor: &FieldAccessor,
+    value_name: &str,
+    value_limit: &Option<syn::Expr>,
+    type_name: &str,
+) -> Option<(TokenStream, TokenStream)> {
+    let value_type = match type_name {
+        "bool" => quote! { Value::Bool },
+        "i32" => quote! { Value::Int32 },
+        "i64" => quote! { Value::Int64 },
+        "u32" => quote! { Value::UInt32 },
+        "u64" => quote! { Value::UInt64 },
+        "f32" => quote! { Value::Float32 },
+        "f64" => quote! { Value::Float64 },
+        "String" => quote! { Value::String },
+        "Vec2" => quote! { Value::Vec2 },
+        "Vec3" => quote! { Value::Vec3 },
+        "Vec4" => quote! { Value::Vec4 },
+        "IVec2" => quote! { Value::IVec2 },
+        "IVec3" => quote! { Value::IVec3 },
+        "IVec4" => quote! { Value::IVec4 },
+        "UVec2" => quote! { Value::UVec2 },
+        "UVec3" => quote! { Value::UVec3 },
+        "UVec4" => quote! { Value::UVec4 },
+        "EntityId" => quote! { Value::Entity },
+        "AssetId" => quote! { Value::Asset },
+        "Data" => quote! { Value::Data },
+        _ => return None,
+    };
+
+    let get_line = if let Some(limit) = value_limit {
+        quote! {
+            data.insert_with_limit(#value_name, #value_type(self.#field_accessor.clone()), #limit);
+        }
+    } else {
+        quote! {
+            data.insert(#value_name, #value_type(self.#field_accessor.clone()));
+        }
+    };
+
+    let set_line = if !is_read_only(value_limit) {
+        quote! {
+            if let Some(#value_type(v)) = data.get(#value_name) {
+                self.#field_accessor = v.clone();
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    Some((get_line, set_line))
+}
+
+fn handle_nested_data(
+    field_accessor: &FieldAccessor,
+    value_name: &str,
+    value_limit: &Option<syn::Expr>,
+) -> (TokenStream, TokenStream) {
+    let get_line = quote! {
+        let mut nested_data = Data::new();
+        self.#field_accessor.get_data(&mut nested_data);
+    };
+    let get_line = if let Some(limit) = value_limit {
+        quote! {
+            #get_line
+            data.insert_with_limit(#value_name, Value::Data(nested_data), #limit);
+        }
+    } else {
+        quote! {
+            #get_line
+            data.insert(#value_name, Value::Data(nested_data));
+        }
+    };
+
+    let set_line = if !is_read_only(value_limit) {
+        quote! {
+            if let Some(Value::Data(nested_data)) = data.get(#value_name) {
+                self.#field_accessor.set_data(nested_data);
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    (get_line, set_line)
+}
+
+/// Check if limit is ReadOnly.
+fn is_read_only(limit: &Option<syn::Expr>) -> bool {
+    limit.as_ref().map_or(false, |l| {
+        l.to_token_stream().to_string().contains("ReadOnly")
+    })
+}
+
+/// Field accessor helper.
 #[derive(Debug)]
 enum FieldAccessor {
     Ident(Ident),
@@ -161,8 +320,8 @@ enum FieldAccessor {
 impl ToString for FieldAccessor {
     fn to_string(&self) -> String {
         match self {
-            FieldAccessor::Ident(ident) => ident.to_string(),
-            FieldAccessor::Index(index) => format!("unnamed-{}", index.index),
+            Self::Ident(ident) => ident.to_string(),
+            Self::Index(index) => format!("unnamed-{}", index.index),
         }
     }
 }
@@ -170,8 +329,8 @@ impl ToString for FieldAccessor {
 impl ToTokens for FieldAccessor {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            FieldAccessor::Ident(ident) => ident.to_tokens(tokens),
-            FieldAccessor::Index(index) => index.to_tokens(tokens),
+            Self::Ident(ident) => ident.to_tokens(tokens),
+            Self::Index(index) => index.to_tokens(tokens),
         }
     }
 }
