@@ -575,7 +575,15 @@ impl DataWindow {
                     }
                 }
             });
-            self.data_view(ui, component_name, component_data, app, &asset_dir, texts);
+            self.data_view(
+                ui,
+                component_name,
+                component_data,
+                app,
+                &asset_dir,
+                texts,
+                false,
+            );
             ui.separator();
         }
 
@@ -603,6 +611,7 @@ impl DataWindow {
         app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
         texts: &Texts,
+        mut read_only: bool,
     ) {
         let color = egui::Color32::BLACK;
         for (name, value) in &mut data.values {
@@ -612,74 +621,26 @@ impl DataWindow {
                 }
                 let limit = data.limits.get(name);
                 if let Some(Limit::ReadOnly) = limit {
-                    Self::immutable_value_view(ui, value, color, app);
-                } else {
-                    Self::mutable_value_view(
-                        ui,
-                        value,
-                        limit,
-                        name,
-                        data_name,
-                        color,
-                        app,
-                        asset_dir.as_ref(),
-                        texts,
-                    );
+                    read_only = true;
                 }
+                self.mutable_value_view(
+                    ui,
+                    value,
+                    limit,
+                    name,
+                    data_name,
+                    color,
+                    app,
+                    asset_dir.as_ref(),
+                    texts,
+                    read_only,
+                );
             });
         }
     }
 
-    fn immutable_value_view(
-        ui: &mut egui::Ui,
-        value: &Value,
-        color: egui::Color32,
-        app: &Box<dyn App>,
-    ) {
-        match value {
-            Value::Bool(b) => Self::color_label(ui, color, if *b { "☑" } else { "☐" }),
-            Value::Int32(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Int64(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::UInt32(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::UInt64(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Float32(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Float64(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::String(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Vec2(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Vec3(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Vec4(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::IVec2(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::IVec3(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::IVec4(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
-            Value::Entity(v) => Self::color_label(ui, color, format!("{v:?}")), // TODO: show entity name
-            Value::Asset(v) => {
-                Self::show_asset(ui, color, *v, app);
-            }
-            Value::VecBool(v) => Self::vec_value_view(ui, v, color),
-            Value::VecInt32(v) => Self::vec_value_view(ui, v, color),
-            Value::VecInt64(v) => Self::vec_value_view(ui, v, color),
-            Value::VecUInt32(v) => Self::vec_value_view(ui, v, color),
-            Value::VecUInt64(v) => Self::vec_value_view(ui, v, color),
-            Value::VecFloat32(v) => Self::vec_value_view(ui, v, color),
-            Value::VecFloat64(v) => Self::vec_value_view(ui, v, color),
-            Value::VecString(v) => Self::vec_value_view(ui, v, color),
-            Value::VecEntity(v) => Self::vec_value_view(ui, v, color),
-            Value::VecAsset(v) => Self::vec_value_view(ui, v, color),
-        }
-    }
-
-    fn vec_value_view<T: std::fmt::Debug>(ui: &mut egui::Ui, v: &Vec<T>, color: egui::Color32) {
-        ui.vertical(|ui| {
-            for e in v {
-                Self::color_label(ui, color, format!("{e:?}"));
-            }
-        });
-    }
-
     fn mutable_value_view(
+        &self,
         ui: &mut egui::Ui,
         value: &mut Value,
         limit: Option<&Limit>,
@@ -689,7 +650,57 @@ impl DataWindow {
         app: &Box<dyn App>,
         asset_dir: impl AsRef<Path>,
         texts: &Texts,
+        read_only: bool,
     ) {
+        if read_only {
+            match value {
+                Value::Bool(b) => Self::color_label(ui, color, if *b { "☑" } else { "☐" }),
+                Value::Int32(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Int64(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::UInt32(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::UInt64(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Float32(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Float64(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::String(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Vec2(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Vec3(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Vec4(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::IVec2(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::IVec3(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::IVec4(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
+                Value::Entity(v) => Self::color_label(ui, color, format!("{v:?}")), // TODO: show entity name
+                Value::Asset(v) => {
+                    Self::show_asset(ui, color, *v, app);
+                }
+                Value::VecBool(v) => Self::vec_value_view(ui, v, color),
+                Value::VecInt32(v) => Self::vec_value_view(ui, v, color),
+                Value::VecInt64(v) => Self::vec_value_view(ui, v, color),
+                Value::VecUInt32(v) => Self::vec_value_view(ui, v, color),
+                Value::VecUInt64(v) => Self::vec_value_view(ui, v, color),
+                Value::VecFloat32(v) => Self::vec_value_view(ui, v, color),
+                Value::VecFloat64(v) => Self::vec_value_view(ui, v, color),
+                Value::VecString(v) => Self::vec_value_view(ui, v, color),
+                Value::VecEntity(v) => Self::vec_value_view(ui, v, color),
+                Value::VecAsset(v) => Self::vec_value_view(ui, v, color),
+                Value::Data(data) => {
+                    ui.vertical(|ui| {
+                        self.data_view(
+                            ui,
+                            &format!("{} {}", data_name, name),
+                            data,
+                            app,
+                            asset_dir,
+                            texts,
+                            read_only,
+                        )
+                    });
+                }
+            }
+            return;
+        }
         match value {
             Value::Bool(b) => {
                 ui.checkbox(b, "");
@@ -974,6 +985,19 @@ impl DataWindow {
             Value::VecString(v) => Self::vec_value_view(ui, v, color),  // TODO: add/remove/change
             Value::VecEntity(v) => Self::vec_value_view(ui, v, color),  // TODO: add/remove/change
             Value::VecAsset(v) => Self::vec_value_view(ui, v, color),   // TODO: add/remove/change
+            Value::Data(data) => {
+                ui.vertical(|ui| {
+                    self.data_view(
+                        ui,
+                        &format!("{} {}", data_name, name),
+                        data,
+                        app,
+                        asset_dir,
+                        texts,
+                        read_only,
+                    )
+                });
+            }
         }
     }
 
@@ -983,6 +1007,14 @@ impl DataWindow {
             .rounding(egui::Rounding::same(3.0))
             .fill(color)
             .show(ui, |ui| ui.label(text));
+    }
+
+    fn vec_value_view<T: std::fmt::Debug>(ui: &mut egui::Ui, v: &Vec<T>, color: egui::Color32) {
+        ui.vertical(|ui| {
+            for e in v {
+                Self::color_label(ui, color, format!("{e:?}"));
+            }
+        });
     }
 
     /// Displays a DragValue for floats.

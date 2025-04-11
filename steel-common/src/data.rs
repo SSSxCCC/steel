@@ -9,7 +9,7 @@ use shipyard::EntityId;
 use std::{borrow::Cow, collections::HashMap, ops::RangeInclusive, sync::Arc};
 
 /// Limit [Value] in a range or in several enum, mainly used in Edit::get_data.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Limit {
     /// Limit i32 value to a range.
     /// Int32Range can be used in IVec types and VecInt32 to apply to all values.
@@ -84,6 +84,7 @@ pub enum Value {
     VecString(Vec<String>),
     VecEntity(Vec<EntityId>),
     VecAsset(Vec<AssetId>),
+    Data(Data),
 }
 
 impl Value {
@@ -219,7 +220,7 @@ impl Value {
 }
 
 /// Data contains all [Value] with [Limit] in a component or unique.
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Data {
     // &'static str is too dangerous to be used in here because its memory is no longer exist when steel.dll is unloaded!
     pub values: IndexMap<String, Value>,
