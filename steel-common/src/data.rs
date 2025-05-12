@@ -42,12 +42,6 @@ pub enum Limit {
     StringMultiline,
     /// The value can not be changed.
     ReadOnly,
-    /// Limit each element in a Vec2/Vec3/Vec4 to a different range.
-    VecRange(Vec<Option<RangeInclusive<f32>>>),
-    /// Limit each element in a IVec2/IVec3/IVec4 to a different range.
-    IVecRange(Vec<Option<RangeInclusive<i32>>>),
-    /// Limit each element in a UVec2/UVec3/UVec4 to a different range.
-    UVecRange(Vec<Option<RangeInclusive<u32>>>),
 }
 
 /// Value is a data which stores in component or unique.
@@ -84,7 +78,12 @@ pub enum Value {
     VecString(Vec<String>),
     VecEntity(Vec<EntityId>),
     VecAsset(Vec<AssetId>),
+    /// Value::Data is used to store a struct which implements Edit or can be converted to Data.
     Data(Data),
+    /// Value::VecData is used to store a vector of struct which implements Edit or can be converted to Data.
+    /// We could use this to replace other Value::Vec types but this has a performance cost.
+    /// So be priority to use other Value::Vec types if exists.
+    VecData(Vec<Data>),
 }
 
 impl Value {

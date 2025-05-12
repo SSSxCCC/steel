@@ -162,7 +162,7 @@ fn handle_vec_type(
         "String" => (quote! { Value::VecString }, true),
         "EntityId" => (quote! { Value::VecEntity }, true),
         "AssetId" => (quote! { Value::VecAsset }, true),
-        _ => (quote! { Value::Data }, false),
+        _ => (quote! { Value::VecData }, false),
     };
 
     if is_basic {
@@ -191,20 +191,27 @@ fn handle_vec_type(
     } else {
         // handle nested vector types (Vec<MyStruct>)
         let get_line = quote! {
-            data.insert(#value_name, #value_type({
-                let mut nested_data = Data::new();
-                for item in &self.#field_accessor {
-                    item.get_data(&mut nested_data);
-                }
-                nested_data
-            }));
+            let nested_vec_data = self.#field_accessor.iter()
+                .map(|item| item.to_data())
+                .collect();
+        };
+        let get_line = if let Some(limit) = value_limit {
+            quote! {
+                #get_line
+                data.insert_with_limit(#value_name, Value::VecData(nested_vec_data), #limit);
+            }
+        } else {
+            quote! {
+                #get_line
+                data.insert(#value_name, Value::VecData(nested_vec_data));
+            }
         };
 
         let set_line = if !is_read_only(value_limit) {
             quote! {
                 if let Some(#value_type(v)) = data.get(#value_name) {
-                    self.#field_accessor = v.values.iter()
-                        .filter_map(|(_, val)| Some(Edit::from_data(val)))
+                    self.#field_accessor = v.iter()
+                        .map(|nested_data| Edit::from_data(nested_data))
                         .collect();
                 }
             }
@@ -275,8 +282,7 @@ fn handle_nested_data(
     value_limit: &Option<syn::Expr>,
 ) -> (TokenStream, TokenStream) {
     let get_line = quote! {
-        let mut nested_data = Data::new();
-        self.#field_accessor.get_data(&mut nested_data);
+        let nested_data = self.#field_accessor.to_data();
     };
     let get_line = if let Some(limit) = value_limit {
         quote! {

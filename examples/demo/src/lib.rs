@@ -1,8 +1,9 @@
+mod components;
 mod ray_tracing_in_one_weekend;
 
-use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
+use components::{DemoComponent, TagComponent};
 use ray_tracing_in_one_weekend::RayTracingInOneWeekend;
-use shipyard::{Component, EntityId, Unique, UniqueView, UniqueViewMut};
+use shipyard::{Unique, UniqueView, UniqueViewMut};
 use steel::{
     app::{App, Schedule, SteelApp},
     asset::AssetId,
@@ -18,7 +19,7 @@ pub fn create() -> Box<dyn App> {
     SteelApp::new()
         .add_plugin(Physics2DPlugin)
         .add_and_register_unique(MyUnique::default())
-        .register_component::<TestComponent>()
+        .register_component::<DemoComponent>()
         .register_component::<TagComponent>()
         .register_component::<RayTracingInOneWeekend>()
         .add_system(
@@ -27,35 +28,6 @@ pub fn create() -> Box<dyn App> {
         )
         .add_system(Schedule::PostUpdate, test_system)
         .boxed()
-}
-
-#[derive(Component, Edit, Default)]
-struct TestComponent {
-    bool: bool,
-    int32: i32,
-    uint32: u32,
-    float32: f32,
-    string: String,
-    entity: EntityId,
-    inner: InnerStruct,
-    vec2: Vec2,
-    vec3: Vec3,
-    vec4: Vec4,
-}
-
-#[derive(Edit, Default, Clone)]
-struct InnerStruct {
-    ivec2: IVec2,
-    ivec3: IVec3,
-    inner2: InnerStruct2,
-    ivec4: IVec4,
-}
-
-#[derive(Edit, Default, Clone)]
-struct InnerStruct2 {
-    uvec2: UVec2,
-    uvec3: UVec3,
-    uvec4: UVec4,
 }
 
 #[derive(Unique, Edit, Default)]
@@ -82,6 +54,3 @@ fn test_system(
         }
     });
 }
-
-#[derive(Component, Edit, Default)]
-struct TagComponent;
