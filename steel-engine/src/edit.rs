@@ -20,6 +20,7 @@ use steel_common::data::Data;
 ///     pub float: f32,
 ///     pub string: String,
 ///     pub vec3: glam::Vec3,
+///     #[edit(ignore)]
 ///     pub other: Other, // not supported field is ignored
 /// }
 ///
