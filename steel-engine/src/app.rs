@@ -343,6 +343,10 @@ impl App for SteelApp {
         match cmd {
             Command::Save(world_data) => {
                 world_data.clear();
+                for e in self.world.borrow::<EntitiesView>().unwrap().iter() {
+                    // make sure that word_data contains entities without any components
+                    world_data.entities.insert(e, Default::default());
+                }
                 for component_fn in self
                     .world
                     .get_unique::<&ComponentRegistry>()
