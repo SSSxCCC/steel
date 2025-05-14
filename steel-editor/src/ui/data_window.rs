@@ -19,6 +19,7 @@ use steel_common::{
 pub struct DataWindow {
     selected_entity: EntityId,
     selected_unique: String,
+    drag_entity: EntityId,
     unnamed_regex: Regex,
 }
 
@@ -27,6 +28,7 @@ impl DataWindow {
         DataWindow {
             selected_entity: EntityId::dead(),
             selected_unique: String::new(),
+            drag_entity: EntityId::dead(),
             unnamed_regex: Regex::new(r"^unnamed-(\d+)$").unwrap(),
         }
     }
@@ -49,9 +51,9 @@ impl DataWindow {
             _ => panic!("Hierarchy does not have roots!"),
         };
 
+        self.drag_entity = EntityId::dead();
         if !root_entities.is_empty() {
-            let (mut drag_entity, mut drop_parent, mut drop_before) =
-                (EntityId::dead(), None, EntityId::dead());
+            let (mut drop_parent, mut drop_before) = (None, EntityId::dead());
             self.entity_level(
                 root_entities,
                 EntityId::dead(),
@@ -59,20 +61,21 @@ impl DataWindow {
                 &world_data.entities,
                 project,
                 &asset_dir,
-                &mut drag_entity,
                 &mut drop_parent,
                 &mut drop_before,
                 texts,
                 load_world_data_this_frame,
             );
             if let Some(drop_parent) = drop_parent {
-                if drag_entity != EntityId::dead() && ui.input(|input| input.pointer.any_released())
+                if self.drag_entity != EntityId::dead()
+                    && ui.input(|input| input.pointer.any_released())
                 {
                     project.app().unwrap().command(Command::AttachBefore(
-                        drag_entity,
+                        self.drag_entity,
                         drop_parent,
                         drop_before,
                     ));
+                    self.drag_entity = EntityId::dead();
                 }
             }
         }
@@ -99,7 +102,6 @@ impl DataWindow {
         entities: &EntitiesData,
         project: &mut Project,
         asset_dir: impl AsRef<Path>,
-        drag_entity: &mut EntityId,
         drop_parent: &mut Option<EntityId>,
         drop_before: &mut EntityId,
         texts: &Texts,
@@ -116,14 +118,17 @@ impl DataWindow {
             let mut entity_item = |ui: &mut egui::Ui| {
                 let drag_id = egui::Id::new(entity);
                 if ui.memory(|mem| mem.is_being_dragged(drag_id)) {
-                    *drag_entity = entity;
+                    if self.drag_entity != EntityId::dead() {
+                        log::error!("entity_level: find more than one drag entity!");
+                    }
+                    self.drag_entity = entity;
                 }
 
-                let can_accept_what_is_being_dragged = entity != *drag_entity;
+                let can_accept_what_is_being_dragged = entity != self.drag_entity;
                 let can_insert_before = true;
                 let can_insert_after = i == es.len() - 1;
 
-                let drop_result = Self::drop_target(
+                let drop_result = Self::drop_target_hierarchy(
                     ui,
                     can_accept_what_is_being_dragged,
                     can_insert_before,
@@ -220,7 +225,6 @@ impl DataWindow {
                         entities,
                         project,
                         asset_dir.as_ref(),
-                        drag_entity,
                         drop_parent,
                         drop_before,
                         texts,
@@ -484,7 +488,7 @@ impl DataWindow {
         }
     }
 
-    fn drop_target<R>(
+    fn drop_target_hierarchy<R>(
         ui: &mut egui::Ui,
         can_accept_what_is_being_dragged: bool,
         can_insert_before: bool,
@@ -534,6 +538,34 @@ impl DataWindow {
             }
         }
         None
+    }
+
+    fn drop_target<R>(
+        ui: &mut egui::Ui,
+        can_accept_what_is_being_dragged: bool,
+        body: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> bool {
+        let is_anything_being_dragged = ui.memory(|mem| mem.is_anything_being_dragged());
+
+        let margin = egui::Vec2::splat(1.0);
+        let outer_rect_bounds = ui.available_rect_before_wrap();
+        let inner_rect = outer_rect_bounds.shrink2(margin);
+        let where_to_put_background = ui.painter().add(egui::Shape::Noop);
+        let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
+        body(&mut content_ui);
+        let outer_rect =
+            egui::Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
+        let (rect, response) = ui.allocate_at_least(outer_rect.size(), egui::Sense::hover());
+
+        if is_anything_being_dragged && can_accept_what_is_being_dragged && response.hovered() {
+            let style = ui.visuals().widgets.active;
+            ui.painter().set(
+                where_to_put_background,
+                egui::epaint::Shape::rect_stroke(rect, style.rounding, style.bg_stroke),
+            );
+            return true;
+        }
+        false
     }
 
     fn entity_label(id: &EntityId, entity_data: &EntityData) -> impl Into<egui::WidgetText> {
@@ -604,7 +636,7 @@ impl DataWindow {
     }
 
     pub fn data_view(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         data_name: &str,
         data: &mut Data,
@@ -637,7 +669,7 @@ impl DataWindow {
     }
 
     fn mutable_value_view(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         value: &mut Value,
         limit: Option<&Limit>,
@@ -668,7 +700,7 @@ impl DataWindow {
                 Value::UVec2(v) => Self::color_label(ui, color, format!("{v}")),
                 Value::UVec3(v) => Self::color_label(ui, color, format!("{v}")),
                 Value::UVec4(v) => Self::color_label(ui, color, format!("{v}")),
-                Value::Entity(v) => Self::color_label(ui, color, format!("{v:?}")), // TODO: show entity name
+                Value::Entity(v) => self.show_entity(ui, v, app),
                 Value::Asset(v) => {
                     Self::show_asset(ui, color, *v, app);
                 }
@@ -682,7 +714,9 @@ impl DataWindow {
                 Value::VecFloat32(v) => Self::vec_value_default_view(ui, v, color),
                 Value::VecFloat64(v) => Self::vec_value_default_view(ui, v, color),
                 Value::VecString(v) => Self::vec_value_default_view(ui, v, color),
-                Value::VecEntity(v) => Self::vec_value_default_view(ui, v, color),
+                Value::VecEntity(v) => Self::vec_value_view(ui, v, |ui, _, e| {
+                    self.show_entity(ui, e, app);
+                }),
                 Value::VecAsset(v) => Self::vec_value_default_view(ui, v, color),
                 Value::Data(data) => {
                     ui.vertical(|ui| {
@@ -871,7 +905,7 @@ impl DataWindow {
                 });
             }
             Value::Entity(v) => {
-                Self::mutable_entity_view(ui, v);
+                self.mutable_entity_view(ui, v, app);
             }
             Value::Asset(v) => {
                 Self::mutable_asset_view(ui, v, color, app, asset_dir, texts);
@@ -901,7 +935,7 @@ impl DataWindow {
                 Self::mutable_string_view(ui, e, limit);
             }),
             Value::VecEntity(v) => Self::mutable_vec_value_view(ui, v, |ui, _, e| {
-                Self::mutable_entity_view(ui, e);
+                self.mutable_entity_view(ui, e, app);
             }),
             Value::VecAsset(v) => Self::mutable_vec_value_view(ui, v, |ui, _, e| {
                 Self::mutable_asset_view(ui, e, color, app, asset_dir, texts);
@@ -958,7 +992,7 @@ impl DataWindow {
     fn vec_value_view<T>(
         ui: &mut egui::Ui,
         v: &mut Vec<T>,
-        value_view: impl Fn(&mut egui::Ui, usize, &mut T),
+        mut value_view: impl FnMut(&mut egui::Ui, usize, &mut T),
     ) {
         ui.vertical(|ui| {
             for (i, e) in v.iter_mut().enumerate() {
@@ -970,7 +1004,7 @@ impl DataWindow {
     fn mutable_vec_value_view<T: Default>(
         ui: &mut egui::Ui,
         v: &mut Vec<T>,
-        mutable_value_view: impl Fn(&mut egui::Ui, usize, &mut T),
+        mut mutable_value_view: impl FnMut(&mut egui::Ui, usize, &mut T),
     ) {
         ui.vertical(|ui| {
             let mut remove_index = None;
@@ -1112,8 +1146,29 @@ impl DataWindow {
         ui.add(drag_value);
     }
 
-    fn mutable_entity_view(ui: &mut egui::Ui, v: &mut EntityId) {
-        ui.label(format!("{v:?}")); // TODO: change entity in editor
+    fn mutable_entity_view(&mut self, ui: &mut egui::Ui, v: &mut EntityId, app: &Box<dyn App>) {
+        let drop = Self::drop_target(ui, self.drag_entity != EntityId::dead(), |ui| {
+            self.show_entity(ui, v, app);
+        });
+        if drop
+            && self.drag_entity != EntityId::dead()
+            && ui.input(|input| input.pointer.any_released())
+        {
+            *v = self.drag_entity;
+            self.drag_entity = EntityId::dead();
+        }
+    }
+
+    fn show_entity(&mut self, ui: &mut egui::Ui, v: &EntityId, app: &Box<dyn App>) {
+        let mut name = None;
+        app.command(Command::GetEntityName(*v, &mut name));
+        let name = name.map(|name| format!("{name} - ")).unwrap_or_default();
+        if ui.button(format!("{name}{v:?}")).clicked() {
+            if *v != EntityId::dead() {
+                self.selected_entity = *v;
+                // TODO: center the selected entity in entities tab
+            }
+        }
     }
 
     fn mutable_asset_view(

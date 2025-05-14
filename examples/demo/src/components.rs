@@ -39,7 +39,7 @@ pub struct DemoComponent {
     _no_edit: NoEditStruct,
 }
 
-/// This is a nested struct used in the DemoComponent. It contains various vector types.
+/// This is a nested struct used in the DemoComponent. It contains various value types.
 #[derive(Edit, Default, Clone)]
 struct InnerStruct {
     ivec2: IVec2,
@@ -47,6 +47,8 @@ struct InnerStruct {
     ivec3: IVec3,
     inner2: InnerStruct2,
     ivec4: IVec4,
+    entity: EntityId,
+    vec_entity: Vec<EntityId>,
 }
 
 /// This is another nested struct used in the InnerStruct. It contains unsigned vector types.

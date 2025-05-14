@@ -1,0 +1,404 @@
+{
+  "entities": {
+    "entities": [
+      [
+        [
+          {
+            "index": 7,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Entity A"
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 9,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Demo Component"
+                  }
+                }
+              },
+              "DemoComponent": {
+                "values": {
+                  "bool": {
+                    "Bool": false
+                  },
+                  "int32": {
+                    "Int32": 0
+                  },
+                  "uint32": {
+                    "UInt32": 0
+                  },
+                  "float32": {
+                    "Float32": 0.0
+                  },
+                  "string": {
+                    "String": ""
+                  },
+                  "entity": {
+                    "Entity": {
+                      "index": 281474976710654,
+                      "gen": 65535
+                    }
+                  },
+                  "asset": {
+                    "Asset": 0
+                  },
+                  "inner": {
+                    "Data": {
+                      "values": {
+                        "ivec2": {
+                          "IVec2": [
+                            0,
+                            0
+                          ]
+                        },
+                        "ivec3": {
+                          "IVec3": [
+                            0,
+                            0,
+                            0
+                          ]
+                        },
+                        "inner2": {
+                          "Data": {
+                            "values": {
+                              "uvec2": {
+                                "UVec2": [
+                                  0,
+                                  0
+                                ]
+                              },
+                              "uvec3": {
+                                "UVec3": [
+                                  0,
+                                  0,
+                                  0
+                                ]
+                              },
+                              "uvec4": {
+                                "UVec4": [
+                                  0,
+                                  0,
+                                  0,
+                                  0
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "ivec4": {
+                          "IVec4": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ]
+                        },
+                        "entity": {
+                          "Entity": {
+                            "index": 7,
+                            "gen": 0
+                          }
+                        },
+                        "vec_entity": {
+                          "VecEntity": [
+                            {
+                              "index": 11,
+                              "gen": 0
+                            },
+                            {
+                              "index": 6,
+                              "gen": 0
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "vec2": {
+                    "Vec2": [
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "vec3": {
+                    "Vec3": [
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "vec4": {
+                    "Vec4": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  "vec_bool": {
+                    "VecBool": []
+                  },
+                  "vec_i32": {
+                    "VecInt32": []
+                  },
+                  "vec_i64": {
+                    "VecInt64": []
+                  },
+                  "vec_u32": {
+                    "VecUInt32": []
+                  },
+                  "vec_u64": {
+                    "VecUInt64": []
+                  },
+                  "vec_f32": {
+                    "VecFloat32": []
+                  },
+                  "vec_f64": {
+                    "VecFloat64": []
+                  },
+                  "vec_string": {
+                    "VecString": []
+                  },
+                  "vec_entity": {
+                    "VecEntity": [
+                      {
+                        "index": 7,
+                        "gen": 0
+                      },
+                      {
+                        "index": 11,
+                        "gen": 0
+                      },
+                      {
+                        "index": 6,
+                        "gen": 0
+                      }
+                    ]
+                  },
+                  "vec_asset": {
+                    "VecAsset": []
+                  },
+                  "vec_struct": {
+                    "VecData": []
+                  }
+                }
+              }
+            }
+          },
+          {
+            "DemoComponent": {
+              "inner": {
+                "EntityVec": {
+                  "0": [],
+                  "1": []
+                }
+              },
+              "vec_entity": {
+                "EntityVec": {
+                  "0": [],
+                  "1": [],
+                  "2": []
+                }
+              }
+            }
+          }
+        ]
+      ],
+      [
+        [
+          {
+            "index": 11,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Entity B"
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
+      ],
+      [
+        [
+          {
+            "index": 6,
+            "gen": 0
+          },
+          []
+        ],
+        [
+          {
+            "components": {
+              "Name": {
+                "values": {
+                  "unnamed-0": {
+                    "String": "Entity C"
+                  }
+                }
+              }
+            }
+          },
+          {}
+        ]
+      ]
+    ],
+    "nested_prefabs": [],
+    "delete": []
+  },
+  "uniques": {
+    "RenderSettings": {
+      "values": {
+        "ray_tracing": {
+          "Bool": false
+        },
+        "clear_color": {
+          "Vec4": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "Hierarchy": {
+      "values": {
+        "roots": {
+          "VecEntity": [
+            {
+              "index": 9,
+              "gen": 0
+            },
+            {
+              "index": 7,
+              "gen": 0
+            },
+            {
+              "index": 11,
+              "gen": 0
+            },
+            {
+              "index": 6,
+              "gen": 0
+            }
+          ]
+        }
+      }
+    },
+    "Physics2DManager": {
+      "values": {
+        "gravity": {
+          "Vec2": [
+            0.0,
+            -9.81
+          ]
+        },
+        "min_ccd_dt": {
+          "Float32": 0.00016666668
+        },
+        "contact_damping_ratio": {
+          "Float32": 5.0
+        },
+        "contact_natural_frequency": {
+          "Float32": 30.0
+        },
+        "joint_natural_frequency": {
+          "Float32": 1000000.0
+        },
+        "joint_damping_ratio": {
+          "Float32": 1.0
+        },
+        "warmstart_coefficient": {
+          "Float32": 1.0
+        },
+        "length_unit": {
+          "Float32": 1.0
+        },
+        "normalized_allowed_linear_error": {
+          "Float32": 0.001
+        },
+        "normalized_max_corrective_velocity": {
+          "Float32": 10.0
+        },
+        "normalized_prediction_distance": {
+          "Float32": 0.002
+        },
+        "num_solver_iterations": {
+          "UInt32": 4
+        },
+        "num_additional_friction_iterations": {
+          "UInt32": 0
+        },
+        "num_internal_pgs_iterations": {
+          "UInt32": 1
+        },
+        "num_internal_stabilization_iterations": {
+          "UInt32": 2
+        },
+        "min_island_size": {
+          "UInt32": 128
+        },
+        "max_ccd_substeps": {
+          "UInt32": 1
+        }
+      }
+    },
+    "MyUnique": {
+      "values": {
+        "scene1": {
+          "Asset": 0
+        },
+        "scene2": {
+          "Asset": 0
+        }
+      }
+    }
+  },
+  "unique_id_paths": {
+    "Hierarchy": {
+      "roots": {
+        "EntityVec": {
+          "0": [],
+          "1": [],
+          "2": [],
+          "3": []
+        }
+      }
+    }
+  }
+}

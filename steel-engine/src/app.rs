@@ -24,7 +24,8 @@ use crate::{
     ui::EguiContext,
 };
 use shipyard::{
-    EntitiesView, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, ViewMut, Workload, World,
+    EntitiesView, Get, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, View, ViewMut,
+    Workload, World,
 };
 use steel_common::platform::Platform;
 use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
@@ -406,6 +407,15 @@ impl App for SteelApp {
                 self.world
                     .remove_unique::<GetEntityAtScreenParam>()
                     .unwrap();
+            }
+            Command::GetEntityName(id, name) => {
+                *name = self
+                    .world
+                    .borrow::<View<Name>>()
+                    .unwrap()
+                    .get(id)
+                    .ok()
+                    .map(|name| name.0.clone());
             }
             Command::CreateComponent(id, component_name) => {
                 if let Some(component_fn) = self

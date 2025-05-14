@@ -88,10 +88,16 @@ pub enum Value {
 
 impl Value {
     /// Map each entity in this value to another entity. If this value does not contain entity, just clone this value.
-    pub fn map_entity(&self, f: impl Fn(EntityId) -> EntityId) -> Self {
+    pub fn map_entity(&self, f: impl Fn(EntityId) -> EntityId + Copy) -> Self {
         match self {
             Value::Entity(e) => Value::Entity(f(*e)),
             Value::VecEntity(v) => Value::VecEntity(v.iter().map(|e| f(*e)).collect()),
+            Value::Data(d) => Value::Data(d.map_value(false, |v| v.map_entity(f))),
+            Value::VecData(v) => Value::VecData(
+                v.iter()
+                    .map(|d| d.map_value(false, |v| v.map_entity(f)))
+                    .collect(),
+            ),
             _ => self.clone(),
         }
     }
@@ -101,7 +107,7 @@ impl Value {
     pub(crate) fn map_entity_with_path(
         &self,
         id_path: Option<&EntityIdPathInValue>,
-        f: impl Fn(EntityIdWithPath) -> EntityId,
+        f: impl Fn(EntityIdWithPath) -> EntityId + Copy,
     ) -> Self {
         match self {
             Value::Entity(e) => {
@@ -127,6 +133,14 @@ impl Value {
                     Value::VecEntity(vec![EntityId::dead(); es.len()])
                 }
             }
+            Value::Data(d) => {
+                Value::Data(d.map_value(false, |v| v.map_entity_with_path(id_path, f)))
+            }
+            Value::VecData(v) => Value::VecData(
+                v.iter()
+                    .map(|d| d.map_value(false, |v| v.map_entity_with_path(id_path, f)))
+                    .collect(),
+            ),
             _ => self.clone(),
         }
     }
@@ -138,7 +152,7 @@ impl Value {
         data_name: &String,
         component_or_unique_name: &String,
         id_paths: &mut DataEntityIdPaths,
-        f: impl Fn(EntityId) -> (EntityId, Option<EntityIdPath>),
+        f: impl Fn(EntityId) -> (EntityId, Option<EntityIdPath>) + Copy,
     ) -> Self {
         match self {
             Value::Entity(e) => {
@@ -175,15 +189,36 @@ impl Value {
                     })
                     .collect(),
             ),
+            Value::Data(d) => Value::Data(d.map_value(true, |v| {
+                v.map_entity_and_insert_id_paths(data_name, component_or_unique_name, id_paths, f)
+            })),
+            Value::VecData(v) => Value::VecData(
+                v.iter()
+                    .map(|d| {
+                        d.map_value(true, |v| {
+                            v.map_entity_and_insert_id_paths(
+                                data_name,
+                                component_or_unique_name,
+                                id_paths,
+                                f,
+                            )
+                        })
+                    })
+                    .collect(),
+            ),
             _ => self.clone(),
         }
     }
 
     /// Iterate each entity in this value. If this value does not contain entity, do nothing.
-    pub(crate) fn iter_entity_mut(&mut self, f: impl Fn(&mut EntityId)) {
+    pub(crate) fn iter_entity_mut(&mut self, f: impl Fn(&mut EntityId) + Copy) {
         match self {
             Value::Entity(e) => f(e),
             Value::VecEntity(v) => v.iter_mut().for_each(f),
+            Value::Data(d) => d.values.iter_mut().for_each(|(_, v)| v.iter_entity_mut(f)),
+            Value::VecData(v) => v
+                .iter_mut()
+                .for_each(|d| d.values.iter_mut().for_each(|(_, v)| v.iter_entity_mut(f))),
             _ => (),
         }
     }
@@ -192,7 +227,7 @@ impl Value {
     pub(crate) fn iter_entity_mut_with_path(
         &mut self,
         id_path: Option<&EntityIdPathInValue>,
-        f: impl Fn(&mut EntityId, Option<&EntityIdPath>),
+        f: impl Fn(&mut EntityId, Option<&EntityIdPath>) + Copy,
     ) {
         match self {
             Value::Entity(e) => {
@@ -213,6 +248,15 @@ impl Value {
                     f(e, id_paths.get(&(i as u64)));
                 }
             }
+            Value::Data(d) => d
+                .values
+                .iter_mut()
+                .for_each(|(_, v)| v.iter_entity_mut_with_path(id_path, f)),
+            Value::VecData(v) => v.iter_mut().for_each(|d| {
+                d.values
+                    .iter_mut()
+                    .for_each(|(_, v)| v.iter_entity_mut_with_path(id_path, f))
+            }),
             _ => (),
         }
     }
@@ -282,6 +326,18 @@ impl Data {
             e
         } else {
             EntityId::new_from_index_and_gen(e.index(), 0)
+        }
+    }
+
+    /// Map each value in this data to another value.
+    pub(crate) fn map_value(&self, clone_limits: bool, mut f: impl FnMut(&Value) -> Value) -> Self {
+        Data {
+            values: self.values.iter().map(|(k, v)| (k.clone(), f(v))).collect(),
+            limits: if clone_limits {
+                self.limits.clone()
+            } else {
+                Default::default()
+            },
         }
     }
 }
