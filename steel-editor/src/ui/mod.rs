@@ -170,7 +170,7 @@ impl Editor {
                                         {
                                             self.data_window.data_view(
                                                 ui,
-                                                self.data_window.selected_unique(),
+                                                &self.data_window.selected_unique().clone(), // TODO: remove clone
                                                 unique_data,
                                                 app,
                                                 asset_dir.as_ref().expect("project.asset_dir() must be some when project.app() is some"),

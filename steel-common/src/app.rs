@@ -77,6 +77,7 @@ pub enum Command<'a> {
     GetEntityCount(&'a mut usize),
     /// window_index (WindowIndex::GAME or WindowIndex::SCENE), screen_position, out_eid.
     GetEntityAtScreen(usize, IVec2, &'a mut EntityId),
+    GetEntityName(EntityId, &'a mut Option<String>),
 
     CreateComponent(EntityId, &'static str),
     DestroyComponent(EntityId, &'a String),
