@@ -533,6 +533,9 @@ pub fn physics2d_maintain_system(
     col2d.clear_all_inserted_and_modified();
 }
 
+/// The execution order of [physics2d_maintain_system].
+pub const PHYSICS2D_MAINTAIN_SYSTEM_ORDER: i32 = 2000;
+
 /// Update rigid bodies and colliders according to Transform component.
 fn physics2d_update_from_transform<'a>(
     physics2d_manager: &mut Physics2DManager,
@@ -667,6 +670,9 @@ pub fn physics2d_update_system(
     }
 }
 
+/// The execution order of [physics2d_update_system].
+pub const PHYSICS2D_UPDATE_SYSTEM_ORDER: i32 = 2000;
+
 struct DebugRenderer<'a> {
     canvas: &'a mut Canvas,
 }
@@ -704,6 +710,9 @@ pub fn physics2d_debug_render_system(
     );
 }
 
+/// The execution order of [physics2d_debug_render_system].
+pub const PHYSICS2D_DEBUG_RENDER_SYSTEM_ORDER: i32 = 2000;
+
 /// The physics2d plugin. This plugin contains:
 /// - [Physics2DManager]
 /// - [RigidBody2D]
@@ -720,12 +729,18 @@ impl Plugin for Physics2DPlugin {
             .register_component::<Collider2D>()
             .add_system(
                 Schedule::PreUpdate,
-                crate::physics2d::physics2d_maintain_system,
+                PHYSICS2D_MAINTAIN_SYSTEM_ORDER,
+                physics2d_maintain_system,
             )
-            .add_system(Schedule::Update, crate::physics2d::physics2d_update_system)
+            .add_system(
+                Schedule::Update,
+                PHYSICS2D_UPDATE_SYSTEM_ORDER,
+                physics2d_update_system,
+            )
             .add_system(
                 Schedule::DrawEditor,
-                crate::physics2d::physics2d_debug_render_system,
+                PHYSICS2D_DEBUG_RENDER_SYSTEM_ORDER,
+                physics2d_debug_render_system,
             )
     }
 }

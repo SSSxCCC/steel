@@ -24,9 +24,10 @@ pub fn create() -> Box<dyn App> {
         .register_component::<RayTracingInOneWeekend>()
         .add_system(
             Schedule::PreUpdate,
+            0,
             ray_tracing_in_one_weekend::generate_scene_system,
         )
-        .add_system(Schedule::PostUpdate, test_system)
+        .add_system(Schedule::PostUpdate, 0, test_system)
         .boxed()
 }
 

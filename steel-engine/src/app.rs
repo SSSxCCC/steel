@@ -27,6 +27,7 @@ use shipyard::{
     EntitiesView, Get, IntoWorkloadSystem, Unique, UniqueView, UniqueViewMut, View, ViewMut,
     Workload, World,
 };
+use std::collections::{BTreeMap, HashMap};
 use steel_common::platform::Platform;
 use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 
@@ -53,7 +54,7 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 /// #[no_mangle]
 /// pub fn create() -> Box<dyn App> {
 ///     SteelApp::new()
-///         .add_system(Schedule::Init, hello_world)
+///         .add_system(Schedule::Init, 0, hello_world)
 ///         .boxed()
 /// }
 ///
@@ -77,7 +78,7 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 ///         .add_plugin(Physics2DPlugin)
 ///         .register_component::<MyComponent>()
 ///         .add_unique(MyUnique)
-///         .add_system(Schedule::Update, my_system)
+///         .add_system(Schedule::Update, 0, my_system)
 ///         .boxed()
 /// }
 ///
@@ -94,19 +95,8 @@ use vulkano::{command_buffer::PrimaryCommandBufferAbstract, sync::GpuFuture};
 pub struct SteelApp {
     /// The ecs world, contains entities, components, and uniques.
     pub world: World,
-
-    pre_init_workload: Option<Workload>,
-    init_workload: Option<Workload>,
-    post_init_workload: Option<Workload>,
-
-    pre_update_workload: Option<Workload>,
-    update_workload: Option<Workload>,
-    post_update_workload: Option<Workload>,
-
-    pre_update_workload_editor: Option<Workload>,
-    post_update_workload_editor: Option<Workload>,
-
-    draw_editor_workload: Option<Workload>,
+    /// The systems that will be added to [Workload] and executed in the application.
+    systems: HashMap<Schedule, BTreeMap<i32, Vec<Box<dyn Fn(Workload) -> Workload>>>>,
 }
 
 impl SteelApp {
@@ -117,15 +107,7 @@ impl SteelApp {
         world.add_unique(UniqueRegistry::new());
         SteelApp {
             world,
-            pre_init_workload: Some(Workload::new("pre_init")),
-            init_workload: Some(Workload::new("init")),
-            post_init_workload: Some(Workload::new("post_init")),
-            pre_update_workload: Some(Workload::new("pre_update")),
-            update_workload: Some(Workload::new("update")),
-            post_update_workload: Some(Workload::new("post_update")),
-            pre_update_workload_editor: Some(Workload::new("pre_update_editor")),
-            post_update_workload_editor: Some(Workload::new("post_update_editor")),
-            draw_editor_workload: Some(Workload::new("draw_editor")),
+            systems: HashMap::new(),
         }
         .register_component::<Name>()
         .register_component::<Prefab>()
@@ -148,20 +130,35 @@ impl SteelApp {
         .add_unique(Canvas::default())
         .add_unique(Input::new())
         .add_unique(Time::new())
-        .add_system(Schedule::PreUpdate, crate::scene::scene_maintain_system)
         .add_system(
             Schedule::PreUpdate,
+            crate::scene::SCENE_MAINTAIN_SYSTEM_ORDER,
+            crate::scene::scene_maintain_system,
+        )
+        .add_system(
+            Schedule::PreUpdate,
+            crate::hierarchy::HIERARCHY_MAINTAIN_SYSTEM_ORDER,
             crate::hierarchy::hierarchy_maintain_system,
         )
-        .add_system(Schedule::PreUpdate, crate::time::time_maintain_system)
         .add_system(
             Schedule::PreUpdate,
+            crate::time::TIME_MAINTAIN_SYSTEM_ORDER,
+            crate::time::time_maintain_system,
+        )
+        .add_system(
+            Schedule::PreUpdate,
+            crate::render::canvas::CANVAS_CLEAR_SYSTEM_ORDER,
             crate::render::canvas::canvas_clear_system,
         )
-        .add_system(Schedule::PostUpdate, crate::camera::camera_maintain_system)
         .add_system(
             Schedule::PostUpdate,
+            crate::render::canvas::CANVAS_UPDATE_SYSTEM_ORDER,
             crate::render::canvas::canvas_update_system,
+        )
+        .add_system(
+            Schedule::PostUpdate,
+            crate::camera::CAMERA_MAINTAIN_SYSTEM_ORDER,
+            crate::camera::camera_maintain_system,
         )
     }
 
@@ -208,61 +205,22 @@ impl SteelApp {
         self
     }
 
-    /// Add a system into ecs world that runs on schedule.
-    pub fn add_system<B>(
+    /// Add a system into ecs world that runs on schedule in execution order. The system will try
+    /// to execute in parallel as much as possible. If it is not possible to execute in parallel,
+    /// it will be executed in order from small to large. For systems with the same order,
+    /// they will be executed in the order they were added.
+    pub fn add_system<B, R>(
         mut self,
         schedule: Schedule,
-        system: impl IntoWorkloadSystem<B, ()> + Copy,
+        order: i32,
+        system: impl IntoWorkloadSystem<B, R> + Copy + 'static,
     ) -> Self {
-        match schedule {
-            Schedule::PreInit => {
-                self.pre_init_workload =
-                    Some(self.pre_init_workload.take().unwrap().with_system(system));
-            }
-            Schedule::Init => {
-                self.init_workload = Some(self.init_workload.take().unwrap().with_system(system));
-            }
-            Schedule::PostInit => {
-                self.post_init_workload =
-                    Some(self.post_init_workload.take().unwrap().with_system(system));
-            }
-            Schedule::PreUpdate => {
-                self.pre_update_workload =
-                    Some(self.pre_update_workload.take().unwrap().with_system(system));
-                self.pre_update_workload_editor = Some(
-                    self.pre_update_workload_editor
-                        .take()
-                        .unwrap()
-                        .with_system(system),
-                );
-            }
-            Schedule::Update => {
-                self.update_workload =
-                    Some(self.update_workload.take().unwrap().with_system(system));
-            }
-            Schedule::PostUpdate => {
-                self.post_update_workload = Some(
-                    self.post_update_workload
-                        .take()
-                        .unwrap()
-                        .with_system(system),
-                );
-                self.post_update_workload_editor = Some(
-                    self.post_update_workload_editor
-                        .take()
-                        .unwrap()
-                        .with_system(system),
-                );
-            }
-            Schedule::DrawEditor => {
-                self.draw_editor_workload = Some(
-                    self.draw_editor_workload
-                        .take()
-                        .unwrap()
-                        .with_system(system),
-                );
-            }
-        }
+        self.systems
+            .entry(schedule)
+            .or_default()
+            .entry(order)
+            .or_default()
+            .push(Box::new(move |workload| workload.with_system(system)));
         self
     }
 
@@ -282,27 +240,37 @@ impl App for SteelApp {
         ));
         self.world.add_unique(SceneManager::new(info.scene));
 
+        let mut create_workload_fn = |schedule: Schedule| {
+            let mut workload = Workload::new("");
+            for (_, systems) in self.systems.entry(schedule).or_default() {
+                for add_system_fn in systems {
+                    workload = add_system_fn(workload);
+                }
+            }
+            workload
+        };
         Workload::new("init")
-            .append(&mut self.pre_init_workload.take().unwrap())
-            .append(&mut self.init_workload.take().unwrap())
-            .append(&mut self.post_init_workload.take().unwrap())
+            .append(&mut create_workload_fn(Schedule::PreInit))
+            .append(&mut create_workload_fn(Schedule::Init))
+            .append(&mut create_workload_fn(Schedule::PostInit))
             .add_to_world(&self.world)
             .unwrap();
         Workload::new("update_all")
-            .append(&mut self.pre_update_workload.take().unwrap())
-            .append(&mut self.update_workload.take().unwrap())
-            .append(&mut self.post_update_workload.take().unwrap())
+            .append(&mut create_workload_fn(Schedule::PreUpdate))
+            .append(&mut create_workload_fn(Schedule::Update))
+            .append(&mut create_workload_fn(Schedule::PostUpdate))
             .add_to_world(&self.world)
             .unwrap();
         Workload::new("update_editor")
-            .append(&mut self.pre_update_workload_editor.take().unwrap())
-            .append(&mut self.post_update_workload_editor.take().unwrap())
+            .append(&mut create_workload_fn(Schedule::PreUpdate))
+            .append(&mut create_workload_fn(Schedule::PostUpdate))
             .add_to_world(&self.world)
             .unwrap();
         Workload::new("draw_editor")
-            .append(&mut self.draw_editor_workload.take().unwrap())
+            .append(&mut create_workload_fn(Schedule::DrawEditor))
             .add_to_world(&self.world)
             .unwrap();
+        self.systems.clear();
 
         self.world.run_workload("init").unwrap();
     }
@@ -589,6 +557,7 @@ impl App for SteelApp {
 }
 
 /// System running schedule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Schedule {
     /// The schedule that runs once when the application starts before [Schedule::Init].
     PreInit,

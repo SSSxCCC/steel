@@ -119,6 +119,9 @@ pub fn canvas_clear_system(mut canvas: UniqueViewMut<Canvas>) {
     canvas.clear();
 }
 
+/// The execution order of [canvas_clear_system].
+pub const CANVAS_CLEAR_SYSTEM_ORDER: i32 = -4000;
+
 /// Collect render data from [Mesh], [Texture], and [Material] components to [Canvas].
 pub fn canvas_update_system(
     meshs: View<Mesh>,
@@ -245,6 +248,9 @@ pub fn canvas_update_system(
         }
     }
 }
+
+/// The execution order of [canvas_update_system].
+pub const CANVAS_UPDATE_SYSTEM_ORDER: i32 = 4000;
 
 /// CanvasRenderContext stores many render objects that exist between frames.
 #[derive(Unique)]
