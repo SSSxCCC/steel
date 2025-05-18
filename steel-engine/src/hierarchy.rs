@@ -191,6 +191,9 @@ pub fn hierarchy_maintain_system(mut all_storages: AllStoragesViewMut) {
     all_storages.run(clear_track_data_system);
 }
 
+/// The execution order of [hierarchy_maintain_system].
+pub const HIERARCHY_MAINTAIN_SYSTEM_ORDER: i32 = -8000;
+
 pub(crate) fn clear_track_data_system(mut parents: ViewMut<Parent>) {
     parents.clear_all_removed_and_deleted();
     parents.clear_all_inserted_and_modified();

@@ -51,3 +51,6 @@ pub fn time_maintain_system(mut time: UniqueViewMut<Time>) {
     time.delta = (now_instant - time.last_instant).as_secs_f32();
     time.last_instant = now_instant;
 }
+
+/// The execution order of [time_maintain_system].
+pub const TIME_MAINTAIN_SYSTEM_ORDER: i32 = -6000;

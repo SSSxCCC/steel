@@ -156,3 +156,6 @@ pub fn camera_maintain_system(
         info.settings = **camera;
     } // TODO: handle situation without Camera
 }
+
+/// The execution order of [camera_maintain_system].
+pub const CAMERA_MAINTAIN_SYSTEM_ORDER: i32 = 6000;

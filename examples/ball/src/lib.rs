@@ -26,11 +26,11 @@ pub fn create() -> Box<dyn App> {
         .register_component::<Ball>()
         .register_component::<Border>()
         .register_component::<MainMenu>()
-        .add_system(Schedule::PreUpdate, main_menu_system)
-        .add_system(Schedule::Update, player_control_system)
-        .add_system(Schedule::Update, push_ball_system)
-        .add_system(Schedule::Update, border_check_system)
-        .add_system(Schedule::Update, lose_system)
+        .add_system(Schedule::PreUpdate, 0, main_menu_system)
+        .add_system(Schedule::Update, 0, player_control_system)
+        .add_system(Schedule::Update, 0, push_ball_system)
+        .add_system(Schedule::Update, 0, border_check_system)
+        .add_system(Schedule::Update, 0, lose_system)
         .boxed()
 }
 

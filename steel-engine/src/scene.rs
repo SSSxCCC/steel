@@ -134,3 +134,6 @@ pub fn scene_maintain_system(mut all_storages: AllStoragesViewMut) {
         );
     }
 }
+
+/// The execution order of [scene_maintain_system].
+pub const SCENE_MAINTAIN_SYSTEM_ORDER: i32 = -10000;
