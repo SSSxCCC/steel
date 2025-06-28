@@ -9,7 +9,9 @@ use steel::{
     data::{Data, Limit, Value},
     edit::Edit,
     input::Input,
-    physics2d::{Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D},
+    physics2d::{
+        Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D, PHYSICS2D_UPDATE_SYSTEM_ORDER,
+    },
     platform::BuildTarget,
     scene::SceneManager,
     time::Time,
@@ -29,7 +31,11 @@ pub fn create() -> Box<dyn App> {
         .add_system(Schedule::PreUpdate, 0, main_menu_system)
         .add_system(Schedule::Update, 0, player_control_system)
         .add_system(Schedule::Update, 0, push_ball_system)
-        .add_system(Schedule::Update, 0, border_check_system)
+        .add_system(
+            Schedule::Update,
+            PHYSICS2D_UPDATE_SYSTEM_ORDER + 1,
+            border_check_system,
+        )
         .add_system(Schedule::Update, 0, lose_system)
         .boxed()
 }
