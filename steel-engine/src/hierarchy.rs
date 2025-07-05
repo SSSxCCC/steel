@@ -267,18 +267,15 @@ fn dettach(
 /// # Example
 /// ```rust
 /// use shipyard::{EntitiesViewMut, EntityId, UniqueView, UniqueViewMut, ViewMut};
-/// use steel::{
-///     hierarchy::{Children, Hierarchy, Parent},
-///     input::Input,
-/// };
+/// use steel::{hierarchy::{Children, Hierarchy, Parent}, ui::EguiContext};
 /// fn my_system(
 ///     mut hierarchy: UniqueViewMut<Hierarchy>,
 ///     mut childrens: ViewMut<Children>,
 ///     mut parents: ViewMut<Parent>,
 ///     mut entities: EntitiesViewMut,
-///     input: UniqueView<Input>,
+///     egui_ctx: UniqueView<EguiContext>,
 /// ) {
-///     if input.mouse_pressed(0) {
+///     if egui_ctx.input(|i| i.pointer.primary_down()) {
 ///         let child = entities.add_entity((), ());
 ///         let parent = entities.add_entity((), ());
 ///         steel::hierarchy::attach_before(
@@ -308,18 +305,15 @@ pub fn attach_before(
 /// # Example
 /// ```rust
 /// use shipyard::{EntitiesViewMut, EntityId, UniqueView, UniqueViewMut, ViewMut};
-/// use steel::{
-///     hierarchy::{Children, Hierarchy, Parent},
-///     input::Input,
-/// };
+/// use steel::{hierarchy::{Children, Hierarchy, Parent}, ui::EguiContext};
 /// fn my_system(
 ///     mut hierarchy: UniqueViewMut<Hierarchy>,
 ///     mut childrens: ViewMut<Children>,
 ///     mut parents: ViewMut<Parent>,
 ///     mut entities: EntitiesViewMut,
-///     input: UniqueView<Input>,
+///     egui_ctx: UniqueView<EguiContext>,
 /// ) {
-///     if input.mouse_pressed(0) {
+///     if  egui_ctx.input(|i| i.pointer.primary_down()) {
 ///         let child = entities.add_entity((), ());
 ///         let parent = entities.add_entity((), ());
 ///         steel::hierarchy::attach_after(

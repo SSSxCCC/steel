@@ -49,9 +49,6 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
     let (context, ray_tracing_supported) = steel_common::create_context();
     let mut windows = VulkanoWindows::default();
 
-    // input
-    let mut events = Vec::new();
-
     // egui
     let mut gui = None;
 
@@ -146,15 +143,8 @@ fn _main(event_loop: EventLoop<()>, platform: Platform) {
                 }
                 _ => (),
             }
-            // Warning: event.to_static() may drop some events, like ScaleFactorChanged
-            // TODO: find a way to deliver all events to WinitInputHelper
-            if let Some(event) = event.to_static() {
-                events.push(event);
-            }
         }
         Event::RedrawRequested(_) => {
-            app.command(Command::UpdateInput(&events));
-            events.clear();
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 let window_size = renderer.window().inner_size();
                 if window_size.width == 0 || window_size.height == 0 {

@@ -245,14 +245,14 @@ impl PrefabAssets {
 /// use steel::{
 ///     asset::AssetManager,
 ///     hierarchy::{Children, Hierarchy, Parent},
-///     input::Input,
+///     ui::EguiContext,
 /// };
 ///
 /// fn my_system(all_storages: AllStoragesView) {
 ///     if all_storages
-///         .get_unique::<&Input>()
+///         .get_unique::<&EguiContext>()
 ///         .unwrap()
-///         .mouse_pressed(0)
+///         .input(|i| i.pointer.primary_down())
 ///     {
 ///         let prefab_asset = all_storages
 ///             .get_unique::<&AssetManager>()

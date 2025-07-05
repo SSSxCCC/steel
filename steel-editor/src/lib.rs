@@ -22,7 +22,6 @@ use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
-use winit_input_helper::WinitInputHelper;
 
 /// Whether to exit the editor when compiling the code.
 /// Steel Editor supports hot reload by using libloading. However libloading and rayon have critical issues when working together.
@@ -72,10 +71,6 @@ fn _main(event_loop: EventLoop<()>) {
     let mut windows = VulkanoWindows::default();
     let mut window_title = None;
     let mut scene_camera = SceneCamera::default();
-
-    // input
-    let mut input_editor = WinitInputHelper::new(); // for editor window
-    let mut events = Vec::new();
 
     // egui
     let mut gui_editor = None; // for editor ui
@@ -170,10 +165,7 @@ fn _main(event_loop: EventLoop<()>) {
                 _ => (),
             }
             // Warning: event.to_static() may drop some events, like ScaleFactorChanged
-            // TODO: find a way to deliver all events to WinitInputHelper
             if let Some(mut event) = event.to_static() {
-                events.push(event.clone());
-
                 if project.is_running() {
                     if let Some(gui) = gui.as_mut() {
                         adjust_event_for_window(
@@ -188,7 +180,6 @@ fn _main(event_loop: EventLoop<()>) {
         }
         Event::RedrawRequested(_) => {
             project.maintain_asset_dir();
-            input_editor.step_with_window_events(&events);
             if let Some(renderer) = windows.get_primary_renderer_mut() {
                 if let Some(window_title) = window_title.take() {
                     renderer.window().set_title(&window_title);
@@ -216,7 +207,6 @@ fn _main(event_loop: EventLoop<()>) {
                     &mut local_data,
                     &mut scene_camera,
                     &mut window_title,
-                    &input_editor,
                 );
 
                 let is_running = project.is_running();
@@ -244,15 +234,6 @@ fn _main(event_loop: EventLoop<()>) {
                         options.zoom_factor = gui_editor.egui_ctx.zoom_factor()
                     });
                     gui.egui_ctx.begin_frame(raw_input);
-
-                    events.iter_mut().for_each(|e| {
-                        adjust_event_for_window(
-                            e,
-                            editor.game_window().position(),
-                            gui.egui_ctx.pixels_per_point(),
-                        )
-                    });
-                    app.command(Command::UpdateInput(&events));
 
                     if let Some(world_data) = world_data.as_mut() {
                         app.command(Command::Load(world_data));
@@ -324,7 +305,6 @@ fn _main(event_loop: EventLoop<()>) {
 
                 renderer.present(gpu_future, true);
             }
-            events.clear();
         }
         Event::MainEventsCleared => {
             if let Some(renderer) = windows.get_primary_renderer() {

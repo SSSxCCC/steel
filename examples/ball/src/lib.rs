@@ -8,7 +8,6 @@ use steel::{
     asset::AssetManager,
     data::{Data, Limit, Value},
     edit::Edit,
-    input::Input,
     physics2d::{
         Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D, PHYSICS2D_UPDATE_SYSTEM_ORDER,
     },
@@ -18,7 +17,6 @@ use steel::{
     transform::Transform,
     ui::EguiContext,
 };
-use winit::event::VirtualKeyCode;
 
 #[no_mangle]
 pub fn create() -> Box<dyn App> {
@@ -50,19 +48,18 @@ fn player_control_system(
     mut transform: ViewMut<Transform>,
     rb2d: View<RigidBody2D>,
     mut physics2d_manager: UniqueViewMut<Physics2DManager>,
-    input: UniqueView<Input>,
     egui_ctx: UniqueView<EguiContext>,
 ) {
     for (player, transform, rb2d) in (&player, &mut transform, &rb2d).iter() {
         if let Some(rb2d) = physics2d_manager.rigid_body_set.get_mut(rb2d.handle()) {
             let mut linvel = Vec2::ZERO;
-            if input.key_held(VirtualKeyCode::Left) {
-                linvel = Vec2::new(-player.move_speed, 0.0);
-            } else if input.key_held(VirtualKeyCode::Right) {
-                linvel = Vec2::new(player.move_speed, 0.0);
-            }
-            if steel::platform::BUILD_TARGET == BuildTarget::Android {
-                egui_ctx.input(|input| {
+            egui_ctx.input(|input| {
+                if input.key_down(egui::Key::ArrowLeft) {
+                    linvel = Vec2::new(-player.move_speed, 0.0);
+                } else if input.key_down(egui::Key::ArrowRight) {
+                    linvel = Vec2::new(player.move_speed, 0.0);
+                }
+                if steel::platform::BUILD_TARGET == BuildTarget::Android {
                     if let Some(press_origin) = input.pointer.press_origin() {
                         if press_origin.x < input.screen_rect.center().x {
                             linvel = Vec2::new(-player.move_speed, 0.0);
@@ -70,8 +67,8 @@ fn player_control_system(
                             linvel = Vec2::new(player.move_speed, 0.0);
                         }
                     }
-                });
-            }
+                }
+            });
             rb2d.set_linvel(linvel.into(), true);
 
             if transform.position.x > 9.0 {

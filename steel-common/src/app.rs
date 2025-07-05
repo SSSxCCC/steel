@@ -15,7 +15,6 @@ use std::{
 };
 use vulkano::{image::view::ImageView, sync::GpuFuture};
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
-use winit::event::WindowEvent;
 
 /// The App trait defines many functions called by steel-editor or steel-client to control the running of steel application.
 /// You usually do not need to manually implement this trait, just use steel::app::SteelApp.
@@ -87,8 +86,6 @@ pub enum Command<'a> {
     AttachBefore(EntityId, EntityId, EntityId),
     // attached_entity, parent, after
     AttachAfter(EntityId, EntityId, EntityId),
-
-    UpdateInput(&'a Vec<WindowEvent<'static>>),
 
     ResetTime,
 

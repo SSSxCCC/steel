@@ -17,8 +17,6 @@ use steel_common::{
     data::{Value, WorldData},
 };
 use vulkano_util::{context::VulkanoContext, renderer::VulkanoWindowRenderer};
-use winit::event::VirtualKeyCode;
-use winit_input_helper::WinitInputHelper;
 
 pub struct Editor {
     #[allow(unused)]
@@ -72,7 +70,6 @@ impl Editor {
         local_data: &mut LocalData,
         scene_camera: &mut SceneCamera,
         window_title: &mut Option<String>,
-        input: &WinitInputHelper,
     ) {
         gui.immediate_ui(|gui| {
             let mut load_world_data_this_frame = true;
@@ -101,7 +98,7 @@ impl Editor {
             );
 
             if project.is_compiled() {
-                self.update_editor_window(&ctx, project, world_data, input, scene_camera);
+                self.update_editor_window(&ctx, project, world_data, scene_camera);
             } else if project.is_open() {
                 Self::compile_error_dialog(&ctx, &self.texts);
             }
@@ -210,27 +207,21 @@ impl Editor {
         ctx: &egui::Context,
         project: &mut Project,
         world_data: &mut Option<WorldData>,
-        input: &WinitInputHelper,
         scene_camera: &mut SceneCamera,
     ) {
         if self.scene_focus() {
-            self.update_scene_camera(ctx, input, scene_camera);
+            self.update_scene_camera(ctx, scene_camera);
             if let Some(app) = project.app() {
-                self.click_entity(ctx, app, input);
+                self.click_entity(ctx, app);
                 if let Some(world_data) = world_data {
-                    self.drag_entity(world_data, input, scene_camera);
+                    self.drag_entity(ctx, world_data, scene_camera);
                 }
             }
         }
     }
 
-    fn update_scene_camera(
-        &self,
-        ctx: &egui::Context,
-        input: &WinitInputHelper,
-        scene_camera: &mut SceneCamera,
-    ) {
-        if input.key_pressed(VirtualKeyCode::Home) {
+    fn update_scene_camera(&self, ctx: &egui::Context, scene_camera: &mut SceneCamera) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Home)) {
             scene_camera.reset();
         }
 
@@ -241,29 +232,29 @@ impl Editor {
                 size,
                 ..
             } => {
-                if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
+                if ctx.input(|i| i.key_down(egui::Key::A) || i.key_down(egui::Key::ArrowLeft)) {
                     scene_camera.position.x -= 1.0; // TODO: * move_speed * delta_time
                 }
-                if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
+                if ctx.input(|i| i.key_down(egui::Key::D) || i.key_down(egui::Key::ArrowRight)) {
                     scene_camera.position.x += 1.0;
                 }
-                if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
+                if ctx.input(|i| i.key_down(egui::Key::W) || i.key_down(egui::Key::ArrowUp)) {
                     scene_camera.position.y += 1.0;
                 }
-                if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
+                if ctx.input(|i| i.key_down(egui::Key::S) || i.key_down(egui::Key::ArrowDown)) {
                     scene_camera.position.y -= 1.0;
                 }
 
-                let scroll_diff = input.scroll_diff();
-                if scroll_diff > 0.0 {
+                let scroll_delta = ctx.input(|i| i.scroll_delta.y);
+                if scroll_delta > 0.0 {
                     *width /= 1.1;
                     *height /= 1.1;
-                } else if scroll_diff < 0.0 {
+                } else if scroll_delta < 0.0 {
                     *width *= 1.1;
                     *height *= 1.1;
                 }
 
-                if input.mouse_held(1) {
+                if ctx.input(|i| i.pointer.secondary_down()) {
                     let screen_to_world = match size {
                         OrthographicCameraSize::FixedWidth => {
                             *width / self.scene_window.pixel().x as f32
@@ -282,17 +273,17 @@ impl Editor {
                             }
                         }
                     };
-                    let mouse_diff = input.mouse_diff();
-                    scene_camera.position.x -= mouse_diff.0 * screen_to_world;
-                    scene_camera.position.y += mouse_diff.1 * screen_to_world;
+                    let mouse_diff = ctx.input(|i| i.pointer.delta() * i.pixels_per_point());
+                    scene_camera.position.x -= mouse_diff.x * screen_to_world;
+                    scene_camera.position.y += mouse_diff.y * screen_to_world;
                 }
             }
             CameraSettings::Perspective { .. } => {
-                if input.mouse_held(1) {
+                if ctx.input(|i| i.pointer.secondary_down()) {
                     let mut rotation = scene_camera.rotation.to_scaled_axis();
-                    let mouse_diff = input.mouse_diff();
-                    rotation.y += mouse_diff.0 / 1000.0;
-                    rotation.x -= mouse_diff.1 / 1000.0;
+                    let mouse_diff = ctx.input(|i| i.pointer.delta() * i.pixels_per_point());
+                    rotation.y += mouse_diff.x / 1000.0;
+                    rotation.x -= mouse_diff.y / 1000.0;
                     rotation.x = rotation
                         .x
                         .clamp(-89.0_f32.to_radians(), 89.0_f32.to_radians());
@@ -310,33 +301,33 @@ impl Editor {
                 );
                 let right = direction.cross(Vec3::Y).normalize();
                 let up = right.cross(direction).normalize();
-                if input.key_held(VirtualKeyCode::A) || input.key_held(VirtualKeyCode::Left) {
+                if ctx.input(|i| i.key_down(egui::Key::A) || i.key_down(egui::Key::ArrowLeft)) {
                     scene_camera.position -= right; // TODO: * move_speed * delta_time
                 }
-                if input.key_held(VirtualKeyCode::D) || input.key_held(VirtualKeyCode::Right) {
+                if ctx.input(|i| i.key_down(egui::Key::D) || i.key_down(egui::Key::ArrowRight)) {
                     scene_camera.position += right;
                 }
-                if input.key_held(VirtualKeyCode::W) || input.key_held(VirtualKeyCode::Up) {
+                if ctx.input(|i| i.key_down(egui::Key::W) || i.key_down(egui::Key::ArrowUp)) {
                     scene_camera.position += direction;
                 }
-                if input.key_held(VirtualKeyCode::S) || input.key_held(VirtualKeyCode::Down) {
+                if ctx.input(|i| i.key_down(egui::Key::S) || i.key_down(egui::Key::ArrowDown)) {
                     scene_camera.position -= direction;
                 }
-                if input.key_held(VirtualKeyCode::Space) {
+                if ctx.input(|i| i.key_down(egui::Key::Space)) {
                     scene_camera.position += up;
                 }
-                if input.key_held(VirtualKeyCode::C) {
+                if ctx.input(|i| i.key_down(egui::Key::C)) {
                     scene_camera.position -= up;
                 }
             }
         }
     }
 
-    fn click_entity(&mut self, ctx: &egui::Context, app: &Box<dyn App>, input: &WinitInputHelper) {
-        if input.mouse_pressed(0) {
-            if let Some((x, y)) = input.mouse() {
-                let x = x - self.scene_window.position().x * ctx.pixels_per_point();
-                let y = y - self.scene_window.position().y * ctx.pixels_per_point();
+    fn click_entity(&mut self, ctx: &egui::Context, app: &Box<dyn App>) {
+        if ctx.input(|i| i.pointer.primary_pressed()) {
+            if let Some(press_origin) = ctx.input(|i| i.pointer.press_origin()) {
+                let x = (press_origin.x - self.scene_window.position().x) * ctx.pixels_per_point();
+                let y = (press_origin.y - self.scene_window.position().y) * ctx.pixels_per_point();
                 let screen_position = IVec2::new(x as i32, y as i32);
                 let mut eid = EntityId::dead();
                 app.command(Command::GetEntityAtScreen(
@@ -354,8 +345,8 @@ impl Editor {
 
     fn drag_entity(
         &mut self,
+        ctx: &egui::Context,
         world_data: &mut WorldData,
-        input: &WinitInputHelper,
         scene_camera: &SceneCamera,
     ) {
         if let CameraSettings::Orthographic {
@@ -365,7 +356,7 @@ impl Editor {
             ..
         } = scene_camera.settings
         {
-            if input.mouse_held(0)
+            if ctx.input(|i| i.pointer.primary_down())
                 && self.data_window.selected_entity() == self.editor_state.pressed_entity
             {
                 if let Some(entity_data) = world_data
@@ -392,9 +383,10 @@ impl Editor {
                                     }
                                 }
                             };
-                            let mouse_diff = input.mouse_diff();
-                            position.x += mouse_diff.0 * screen_to_world;
-                            position.y -= mouse_diff.1 * screen_to_world;
+                            let mouse_diff =
+                                ctx.input(|i| i.pointer.delta() * i.pixels_per_point());
+                            position.x += mouse_diff.x * screen_to_world;
+                            position.y -= mouse_diff.y * screen_to_world;
                         }
                     }
                 }
