@@ -6,7 +6,6 @@ use crate::{
     data::{ComponentRegistry, ComponentRegistryExt, EntitiesDataExt, UniqueRegistry},
     edit::Edit,
     hierarchy::{Children, Hierarchy, Parent},
-    input::Input,
     name::Name,
     prefab::{CreatePrefabParam, LoadPrefabParam, Prefab, PrefabAssets},
     render::{
@@ -128,7 +127,6 @@ impl SteelApp {
         .add_unique(MeshAssets::default())
         .add_unique(CameraInfo::new())
         .add_unique(Canvas::default())
-        .add_unique(Input::new())
         .add_unique(Time::new())
         .add_system(
             Schedule::PreUpdate,
@@ -450,10 +448,6 @@ impl App for SteelApp {
                         );
                     },
                 );
-            }
-            Command::UpdateInput(events) => {
-                self.world
-                    .run(|mut input: UniqueViewMut<Input>| input.step_with_window_events(events));
             }
             Command::ResetTime => {
                 self.world.run(|mut time: UniqueViewMut<Time>| time.reset());

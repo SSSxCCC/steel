@@ -3123,7 +3123,6 @@ dependencies = [
  "vulkano-shaders",
  "vulkano-util",
  "winit",
- "winit_input_helper",
 ]
 
 [[package]]
@@ -3150,7 +3149,6 @@ dependencies = [
  "vulkano-shaders",
  "vulkano-util",
  "winit",
- "winit_input_helper",
 ]
 
 [[package]]
@@ -3194,7 +3192,6 @@ dependencies = [
  "vulkano-shaders",
  "vulkano-util",
  "winit",
- "winit_input_helper",
 ]
 
 [[package]]
@@ -3227,7 +3224,6 @@ dependencies = [
  "vulkano-shaders",
  "vulkano-util",
  "winit",
- "winit_input_helper",
 ]
 
 [[package]]
@@ -3262,7 +3258,6 @@ dependencies = [
  "vulkano-shaders",
  "vulkano-util",
  "winit",
- "winit_input_helper",
 ]
 
 [[package]]
@@ -4186,15 +4181,6 @@ dependencies = [
  "web-sys",
  "windows-sys 0.45.0",
  "x11-dl",
-]
-
-[[package]]
-name = "winit_input_helper"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de0485e86aa2ee87d2d4c373a908c9548357bc65c5bce19fd884c8ea9eac4d7"
-dependencies = [
- "winit",
 ]
 
 [[package]]

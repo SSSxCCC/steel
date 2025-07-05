@@ -6,7 +6,6 @@ pub mod camera;
 pub mod data;
 pub mod edit;
 pub mod hierarchy;
-pub mod input;
 pub mod name;
 pub mod physics2d;
 pub mod platform;
