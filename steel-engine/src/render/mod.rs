@@ -7,24 +7,24 @@ pub mod texture;
 
 use crate::edit::Edit;
 use glam::UVec2;
-use pipeline::{
-    rasterization::RasterizationSettings,
-    raytracing::{util::ash::AshContext, RayTracingSettings},
-};
+use pipeline::{rasterization::RasterizationSettings, raytracing::RayTracingSettings};
 use shipyard::Unique;
 use std::sync::Arc;
 use steel_common::{
     app::{DrawInfo, WindowIndex},
     data::{Data, Value},
-    ext::VulkanoWindowRendererExt,
 };
 use vulkano::{
-    command_buffer::allocator::StandardCommandBufferAllocator,
-    descriptor_set::allocator::StandardDescriptorSetAllocator,
+    command_buffer::allocator::{CommandBufferAllocator, StandardCommandBufferAllocator},
+    descriptor_set::allocator::{DescriptorSetAllocator, StandardDescriptorSetAllocator},
     device::{Device, Queue},
     format::Format,
-    image::view::ImageView,
-    memory::allocator::StandardMemoryAllocator,
+    image::{
+        sampler::{Sampler, SamplerCreateInfo},
+        view::ImageView,
+        Image, ImageCreateInfo, ImageUsage,
+    },
+    memory::allocator::{AllocationCreateInfo, MemoryAllocator},
 };
 use vulkano_util::context::VulkanoContext;
 
@@ -57,10 +57,7 @@ impl FrameRenderInfo {
                 WindowIndex::GAME
             },
             window_size: info.window_size,
-            image_count: std::cmp::max(
-                info.renderer.image_count(),
-                info.renderer.image_index() as usize + 1,
-            ), // TODO: only use info.renderer.image_count() when it returns right value
+            image_count: info.renderer.swapchain_image_views().len(),
             image_index: info.renderer.image_index() as usize,
             image: info.image.clone(),
             format: info.renderer.swapchain_format(),
@@ -73,16 +70,19 @@ impl FrameRenderInfo {
 pub struct RenderContext {
     pub(crate) device: Arc<Device>,
     pub(crate) graphics_queue: Arc<Queue>,
-    pub(crate) memory_allocator: Arc<StandardMemoryAllocator>,
-    pub(crate) command_buffer_allocator: StandardCommandBufferAllocator,
-    pub(crate) descriptor_set_allocator: StandardDescriptorSetAllocator,
-    pub(crate) ash: AshContext,
+    pub(crate) memory_allocator: Arc<dyn MemoryAllocator>,
+    pub(crate) command_buffer_allocator: Arc<dyn CommandBufferAllocator>,
+    pub(crate) descriptor_set_allocator: Arc<dyn DescriptorSetAllocator>,
 
     /// If current device supports ray tracing.
     ray_tracing_supported: bool,
 
     /// The image index at [WindowIndex::GAME] and [WindowIndex::SCENE] are for game window and scene window.
     pub(crate) image_index: [usize; 2],
+
+    /// Avoid a vulkano bug "unsolvable resource conflict".
+    /// TODO: remove this when vulkano bug is fixed.
+    pub(crate) temp_image_view_and_sampler: (Arc<ImageView>, Arc<Sampler>),
 }
 
 impl RenderContext {
@@ -92,17 +92,37 @@ impl RenderContext {
             device: context.device().clone(),
             graphics_queue: context.graphics_queue().clone(),
             memory_allocator: context.memory_allocator().clone(),
-            command_buffer_allocator: StandardCommandBufferAllocator::new(
+            command_buffer_allocator: Arc::new(StandardCommandBufferAllocator::new(
                 context.device().clone(),
                 Default::default(),
-            ),
-            descriptor_set_allocator: StandardDescriptorSetAllocator::new(
+            )),
+            descriptor_set_allocator: Arc::new(StandardDescriptorSetAllocator::new(
                 context.device().clone(),
                 Default::default(),
-            ),
-            ash: AshContext::new(context),
+            )),
             ray_tracing_supported,
             image_index: [0, 0],
+            temp_image_view_and_sampler: (
+                ImageView::new_default(
+                    Image::new(
+                        context.memory_allocator().clone(),
+                        ImageCreateInfo {
+                            format: Format::R8G8B8A8_UNORM,
+                            extent: [1, 1, 1],
+                            usage: ImageUsage::SAMPLED | ImageUsage::COLOR_ATTACHMENT,
+                            ..Default::default()
+                        },
+                        AllocationCreateInfo::default(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+                Sampler::new(
+                    context.device().clone(),
+                    SamplerCreateInfo::simple_repeat_linear_no_mipmap(),
+                )
+                .unwrap(),
+            ),
         }
     }
 

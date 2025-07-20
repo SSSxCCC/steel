@@ -4,7 +4,7 @@ use super::{
     model::ModelAssets,
     pipeline::{
         rasterization::RasterizationPipeline,
-        raytracing::{material::Material, RayTracingPipeline},
+        raytracing::{material::Material, PathTracingPipeline},
     },
     texture::{Texture, TextureAssets, TextureData},
     FrameRenderInfo, RenderContext, RenderSettings,
@@ -259,7 +259,7 @@ pub(crate) struct CanvasRenderContext {
     /// Rasterization pipeline will be created in the first [crate::app::App::draw].
     pub rasterization: Option<RasterizationPipeline>,
     /// Ray tracing pipeline is None if [RenderContext::ray_tracing_supported()] is false.
-    pub ray_tracing: Option<RayTracingPipeline>,
+    pub ray_tracing: Option<PathTracingPipeline>,
 }
 
 impl CanvasRenderContext {
@@ -268,7 +268,7 @@ impl CanvasRenderContext {
             eid_images: [Vec::new(), Vec::new()],
             rasterization: None,
             ray_tracing: if context.ray_tracing_supported() {
-                Some(RayTracingPipeline::new(context))
+                Some(PathTracingPipeline::new(context))
             } else {
                 None
             },
@@ -389,7 +389,7 @@ pub(crate) fn get_entity_at_screen_system(
         )
         .unwrap();
         let mut builder = AutoCommandBufferBuilder::primary(
-            &context.command_buffer_allocator,
+            context.command_buffer_allocator.clone(),
             context.graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         )

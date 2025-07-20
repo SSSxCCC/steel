@@ -1,10 +1,9 @@
 use egui_winit_vulkano::Gui;
 use glam::{UVec2, Vec2};
 use std::sync::Arc;
-use steel_common::ext::VulkanoWindowRendererExt;
 use vulkano::{
     command_buffer::{
-        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
+        allocator::CommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
         CopyImageInfo, PrimaryCommandBufferAbstract,
     },
     device::Queue,
@@ -61,7 +60,7 @@ impl ImageWindow {
             self.pixel = pixel;
             self.close(Some(gui));
             self.images = Some(
-                (0..renderer.image_count())
+                (0..renderer.swapchain_image_views().len())
                     .map(|_| {
                         let unorm_image = Image::new(
                             context.memory_allocator().clone(),
@@ -156,7 +155,7 @@ impl ImageWindow {
     /// copy unorm image to srgb image of current frame.
     pub fn copy_image(
         &self,
-        allocator: &StandardCommandBufferAllocator,
+        allocator: Arc<dyn CommandBufferAllocator>,
         queue: Arc<Queue>,
         befor_future: Box<dyn GpuFuture>,
     ) -> Box<dyn GpuFuture> {

@@ -245,7 +245,7 @@ impl Editor {
                     scene_camera.position.y -= 1.0;
                 }
 
-                let scroll_delta = ctx.input(|i| i.scroll_delta.y);
+                let scroll_delta = ctx.input(|i| i.smooth_scroll_delta.y);
                 if scroll_delta > 0.0 {
                     *width /= 1.1;
                     *height /= 1.1;
