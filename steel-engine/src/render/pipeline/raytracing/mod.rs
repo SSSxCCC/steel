@@ -10,7 +10,6 @@ use crate::{
         canvas::Canvas, mesh::MeshData, texture::TextureData, FrameRenderInfo, RenderContext,
     },
 };
-use ash::vk;
 use glam::{Affine3A, Vec3, Vec4};
 use indexmap::IndexSet;
 use material::{EnumMaterial, Material};
@@ -21,21 +20,25 @@ use steel_common::{
     camera::CameraSettings,
     data::{Data, Limit, Value},
 };
-use util::ash::{AshBuffer, AshPipeline, SbtRegion, ShaderGroup};
 use vulkano::{
     acceleration_structure::{AabbPositions, AccelerationStructure},
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer},
     descriptor_set::{
         layout::{DescriptorBindingFlags, DescriptorSetLayout},
-        PersistentDescriptorSet, WriteDescriptorSet,
+        DescriptorSet, WriteDescriptorSet,
     },
-    device::Device,
     image::view::ImageView,
-    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
-    pipeline::{layout::PipelineDescriptorSetLayoutCreateInfo, PipelineLayout},
+    memory::allocator::{AllocationCreateInfo, MemoryAllocator, MemoryTypeFilter},
+    pipeline::{
+        layout::PipelineDescriptorSetLayoutCreateInfo,
+        ray_tracing::{
+            RayTracingPipeline, RayTracingPipelineCreateInfo, RayTracingShaderGroupCreateInfo,
+            ShaderBindingTable,
+        },
+        PipelineBindPoint, PipelineLayout,
+    },
     sync::GpuFuture,
-    VulkanObject,
 };
 
 /// Ray tracing render pipeline settings.
@@ -119,20 +122,16 @@ impl RayTracingSettings {
     }
 }
 
-/// RayTracingPipeline stores many render objects that exist between frames.
-pub(crate) struct RayTracingPipeline {
-    pipeline: AshPipeline,
+/// PathTracingPipeline stores many render objects that exist between frames.
+pub(crate) struct PathTracingPipeline {
+    pipeline: Arc<RayTracingPipeline>,
     pipeline_layout: Arc<PipelineLayout>,
     descriptor_set_layout: Arc<DescriptorSetLayout>,
-    #[allow(unused)]
-    sbt_buffer: AshBuffer,
-    sbt_region: SbtRegion,
+    shader_binding_table: ShaderBindingTable,
     rng: StdRng,
-    #[allow(unused)]
-    device: Arc<Device>, // device must be destroyed after vk buffer
 }
 
-impl RayTracingPipeline {
+impl PathTracingPipeline {
     pub fn new(context: &RenderContext) -> Self {
         let raygen_shader_module = shader::raygen::load(context.device.clone()).unwrap();
         let miss_shader_module = shader::miss::load(context.device.clone()).unwrap();
@@ -146,7 +145,7 @@ impl RayTracingPipeline {
         let sphere_closesthit_shader_module =
             shader::sphere_closesthit::load(context.device.clone()).unwrap();
 
-        let (shader_stages, stages) = util::create_shader_stages([
+        let stages = util::create_shader_stages([
             raygen_shader_module,
             miss_shader_module,
             closesthit_shader_module,
@@ -156,29 +155,32 @@ impl RayTracingPipeline {
             sphere_closesthit_shader_module,
         ]);
 
-        let shader_groups = util::ash::create_shader_groups([
-            ShaderGroup::General(0),
-            ShaderGroup::General(1),
-            ShaderGroup::TrianglesHitGroup {
-                closest_hit_shader: 2,
-                any_hit_shader: vk::SHADER_UNUSED_KHR,
+        let groups = [
+            RayTracingShaderGroupCreateInfo::General { general_shader: 0 },
+            RayTracingShaderGroupCreateInfo::General { general_shader: 1 },
+            RayTracingShaderGroupCreateInfo::TrianglesHit {
+                closest_hit_shader: Some(2),
+                any_hit_shader: None,
             },
-            ShaderGroup::ProceduralHitGroup {
-                closest_hit_shader: 4,
-                any_hit_shader: vk::SHADER_UNUSED_KHR,
+            RayTracingShaderGroupCreateInfo::ProceduralHit {
+                closest_hit_shader: Some(4),
+                any_hit_shader: None,
                 intersection_shader: 3,
             },
-            ShaderGroup::ProceduralHitGroup {
-                closest_hit_shader: 6,
-                any_hit_shader: vk::SHADER_UNUSED_KHR,
+            RayTracingShaderGroupCreateInfo::ProceduralHit {
+                closest_hit_shader: Some(6),
+                any_hit_shader: None,
                 intersection_shader: 5,
             },
-        ]);
+        ];
 
         let properties = context.device.physical_device().properties();
         let max_descriptor_count = properties
             .max_per_stage_descriptor_samplers
-            .min(properties.max_per_stage_descriptor_sampled_images);
+            .min(properties.max_per_stage_descriptor_sampled_images)
+            .min(100000);
+        // large descriptor count will cause android devices to crash, so we limit it to 100000, TODO: dynamically adjust this limit
+
         let mut pipeline_descriptor_set_layout_create_info =
             PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages);
         let bindings = &mut pipeline_descriptor_set_layout_create_info.set_layouts[0].bindings;
@@ -195,35 +197,27 @@ impl RayTracingPipeline {
         .unwrap();
         let descriptor_set_layout = pipeline_layout.set_layouts()[0].clone();
 
-        let pipeline = AshPipeline::new(
-            unsafe {
-                context.ash.rt_pipeline().create_ray_tracing_pipelines(
-                    vk::DeferredOperationKHR::null(),
-                    vk::PipelineCache::null(),
-                    &[vk::RayTracingPipelineCreateInfoKHR::builder()
-                        .stages(&shader_stages)
-                        .groups(&shader_groups)
-                        .max_pipeline_ray_recursion_depth(1)
-                        .layout(pipeline_layout.handle())
-                        .build()],
-                    None,
-                )
-            }
-            .unwrap()[0],
-            context.ash.device().clone(),
-        );
+        let pipeline = RayTracingPipeline::new(
+            context.device.clone(),
+            None,
+            RayTracingPipelineCreateInfo {
+                stages: stages.into_iter().collect(),
+                groups: groups.into_iter().collect(),
+                max_pipeline_ray_recursion_depth: 1,
+                ..RayTracingPipelineCreateInfo::layout(pipeline_layout.clone())
+            },
+        )
+        .unwrap();
 
-        let (sbt_buffer, sbt_region) =
-            util::ash::create_sbt_buffer_and_region(&context.ash, *pipeline, shader_groups.len());
+        let shader_binding_table =
+            ShaderBindingTable::new(context.memory_allocator.clone(), &pipeline).unwrap();
 
-        RayTracingPipeline {
+        PathTracingPipeline {
             pipeline,
             pipeline_layout,
             descriptor_set_layout,
-            sbt_buffer,
-            sbt_region,
+            shader_binding_table,
             rng: StdRng::from_entropy(),
-            device: context.device.clone(),
         }
     }
 
@@ -298,9 +292,9 @@ impl RayTracingPipeline {
             &mut eids,
         );
 
-        let (tlas, tlas_future) = util::vulkano::create_top_level_acceleration_structure(
+        let (tlas, tlas_future) = util::create_top_level_acceleration_structure(
             context.memory_allocator.clone(),
-            &context.command_buffer_allocator,
+            context.command_buffer_allocator.clone(),
             context.graphics_queue.clone(),
             instances,
         );
@@ -310,15 +304,15 @@ impl RayTracingPipeline {
                 .flatten()
                 .map(|e| crate::render::canvas::eid_to_u32_array(e))
                 .collect::<Vec<_>>(),
-            &context.memory_allocator,
+            context.memory_allocator.clone(),
         );
         let material_buffer = create_buffer(
             materials.into_iter().flatten().collect::<Vec<_>>(),
-            &context.memory_allocator,
+            context.memory_allocator.clone(),
         );
         let texture_indices_buffer = create_buffer(
             texture_indices.into_iter().flatten().collect::<Vec<_>>(),
-            &context.memory_allocator,
+            context.memory_allocator.clone(),
         );
         let mut descriptor_writes = vec![
             WriteDescriptorSet::acceleration_structure(0, tlas),
@@ -329,7 +323,7 @@ impl RayTracingPipeline {
             WriteDescriptorSet::buffer(6, texture_indices_buffer),
         ];
         if !obj_descs.is_empty() {
-            let obj_desc_buffer = create_buffer(obj_descs, &context.memory_allocator);
+            let obj_desc_buffer = create_buffer(obj_descs, context.memory_allocator.clone());
             descriptor_writes.push(WriteDescriptorSet::buffer(5, obj_desc_buffer));
         }
         let texture_resource_count = texture_resources.len();
@@ -343,8 +337,8 @@ impl RayTracingPipeline {
             ));
         }
 
-        let descriptor_set = PersistentDescriptorSet::new_variable(
-            &context.descriptor_set_allocator,
+        let descriptor_set = DescriptorSet::new_variable(
+            context.descriptor_set_allocator.clone(),
             self.descriptor_set_layout.clone(),
             texture_resource_count as _,
             descriptor_writes,
@@ -369,66 +363,33 @@ impl RayTracingPipeline {
             seed: self.rng.next_u32(),
         };
 
-        let command_buffer = AutoCommandBufferBuilder::primary(
-            &context.command_buffer_allocator,
+        let mut builder = AutoCommandBufferBuilder::primary(
+            context.command_buffer_allocator.clone(),
             context.graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         )
-        .unwrap()
-        .build()
         .unwrap();
 
-        let command_buffer_handle = command_buffer.handle();
+        builder
+            .bind_pipeline_ray_tracing(self.pipeline.clone())
+            .unwrap()
+            .bind_descriptor_sets(
+                PipelineBindPoint::RayTracing,
+                self.pipeline_layout.clone(),
+                0,
+                vec![descriptor_set],
+            )
+            .unwrap()
+            .push_constants(self.pipeline_layout.clone(), 0, push_constants)
+            .unwrap();
+
         unsafe {
-            context
-                .ash
-                .device()
-                .begin_command_buffer(
-                    command_buffer_handle,
-                    &vk::CommandBufferBeginInfo::builder()
-                        .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT)
-                        .build(),
-                )
-                .expect("Failed to begin recording Command Buffer at beginning!");
-            context.ash.device().cmd_bind_pipeline(
-                command_buffer_handle,
-                vk::PipelineBindPoint::RAY_TRACING_KHR,
-                *self.pipeline,
-            );
-            context.ash.device().cmd_bind_descriptor_sets(
-                command_buffer_handle,
-                vk::PipelineBindPoint::RAY_TRACING_KHR,
-                self.pipeline_layout.handle(),
-                0,
-                &[descriptor_set.handle()],
-                &[],
-            );
-            context.ash.device().cmd_push_constants(
-                command_buffer_handle,
-                self.pipeline_layout.handle(),
-                vk::ShaderStageFlags::RAYGEN_KHR,
-                0,
-                std::slice::from_raw_parts(
-                    &push_constants as *const shader::raygen::PushConstants as *const u8,
-                    std::mem::size_of::<shader::raygen::PushConstants>(),
-                ),
-            );
-            context.ash.rt_pipeline().cmd_trace_rays(
-                command_buffer_handle,
-                &self.sbt_region.raygen,
-                &self.sbt_region.miss,
-                &self.sbt_region.hit,
-                &self.sbt_region.call,
-                info.image.image().extent()[0],
-                info.image.image().extent()[1],
-                1,
-            );
-            context
-                .ash
-                .device()
-                .end_command_buffer(command_buffer_handle)
-                .unwrap();
+            builder.trace_rays(
+                self.shader_binding_table.addresses().clone(),
+                info.image.image().extent(),
+            )
         }
+        .unwrap();
 
         (
             mesh_blas_future
@@ -436,7 +397,7 @@ impl RayTracingPipeline {
                 .join(sphere_blas_future)
                 .join(tlas_future)
                 .boxed(),
-            command_buffer,
+            builder.build().unwrap(),
         )
     }
 }
@@ -467,9 +428,9 @@ fn draw_meshs(
     for (mesh, color, texture_data, material, model_matrix, eid) in meshs {
         let i = *mesh_to_index.entry(mesh.clone()).or_insert_with(|| {
             let ((blas, blas_future), (vertex_address, index_address)) =
-                util::vulkano::create_bottom_level_acceleration_structure_triangles(
+                util::create_bottom_level_acceleration_structure_triangles(
                     context.memory_allocator.clone(),
-                    &context.command_buffer_allocator,
+                    context.command_buffer_allocator.clone(),
                     context.graphics_queue.clone(),
                     mesh.vertices
                         .iter()
@@ -548,9 +509,9 @@ fn draw_shapes(
         eids[i].push(*eid);
     }
 
-    let (blas, blas_future) = util::vulkano::create_bottom_level_acceleration_structure_aabbs(
+    let (blas, blas_future) = util::create_bottom_level_acceleration_structure_aabbs(
         context.memory_allocator.clone(),
-        &context.command_buffer_allocator,
+        context.command_buffer_allocator.clone(),
         context.graphics_queue.clone(),
         vec![aabb],
     );
@@ -562,10 +523,10 @@ fn draw_shapes(
 
 fn create_buffer<T: BufferContents>(
     iter: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>,
-    memory_allocator: &Arc<StandardMemoryAllocator>,
+    memory_allocator: Arc<dyn MemoryAllocator>,
 ) -> vulkano::buffer::Subbuffer<[T]> {
     Buffer::from_iter(
-        memory_allocator.clone(),
+        memory_allocator,
         BufferCreateInfo {
             usage: BufferUsage::STORAGE_BUFFER,
             ..Default::default()

@@ -142,7 +142,7 @@ impl TextureAssets {
             SamplerCreateInfo::simple_repeat_linear_no_mipmap(),
         )?;
         let mut upload_image_commnad_buffer = AutoCommandBufferBuilder::primary(
-            &render_context.command_buffer_allocator,
+            render_context.command_buffer_allocator.clone(),
             render_context.graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         )?;

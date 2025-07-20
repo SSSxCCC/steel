@@ -19,7 +19,6 @@ use steel_common::{
 pub struct DataWindow {
     selected_entity: EntityId,
     selected_unique: String,
-    drag_entity: EntityId,
     unnamed_regex: Regex,
 }
 
@@ -28,7 +27,6 @@ impl DataWindow {
         DataWindow {
             selected_entity: EntityId::dead(),
             selected_unique: String::new(),
-            drag_entity: EntityId::dead(),
             unnamed_regex: Regex::new(r"^unnamed-(\d+)$").unwrap(),
         }
     }
@@ -51,9 +49,7 @@ impl DataWindow {
             _ => panic!("Hierarchy does not have roots!"),
         };
 
-        self.drag_entity = EntityId::dead();
         if !root_entities.is_empty() {
-            let (mut drop_parent, mut drop_before) = (None, EntityId::dead());
             self.entity_level(
                 root_entities,
                 EntityId::dead(),
@@ -61,23 +57,9 @@ impl DataWindow {
                 &world_data.entities,
                 project,
                 &asset_dir,
-                &mut drop_parent,
-                &mut drop_before,
                 texts,
                 load_world_data_this_frame,
             );
-            if let Some(drop_parent) = drop_parent {
-                if self.drag_entity != EntityId::dead()
-                    && ui.input(|input| input.pointer.any_released())
-                {
-                    project.app().unwrap().command(Command::AttachBefore(
-                        self.drag_entity,
-                        drop_parent,
-                        drop_before,
-                    ));
-                    self.drag_entity = EntityId::dead();
-                }
-            }
         }
 
         ui.menu_button("+", |ui| {
@@ -102,8 +84,6 @@ impl DataWindow {
         entities: &EntitiesData,
         project: &mut Project,
         asset_dir: impl AsRef<Path>,
-        drop_parent: &mut Option<EntityId>,
-        drop_before: &mut EntityId,
         texts: &Texts,
         load_world_data_this_frame: &mut bool,
     ) {
@@ -116,98 +96,21 @@ impl DataWindow {
             };
 
             let mut entity_item = |ui: &mut egui::Ui| {
-                let drag_id = egui::Id::new(entity);
-                if ui.memory(|mem| mem.is_being_dragged(drag_id)) {
-                    if self.drag_entity != EntityId::dead() {
-                        log::error!("entity_level: find more than one drag entity!");
-                    }
-                    self.drag_entity = entity;
-                }
+                let response = Self::drag_entity_hierarchy(ui, entity, |ui| {
+                    self.entity_item(
+                        ui,
+                        entity,
+                        entities,
+                        entity_data,
+                        project,
+                        &asset_dir,
+                        texts,
+                        load_world_data_this_frame,
+                    )
+                })
+                .response;
 
-                let can_accept_what_is_being_dragged = entity != self.drag_entity;
-                let can_insert_before = true;
-                let can_insert_after = i == es.len() - 1;
-
-                let drop_result = Self::drop_target_hierarchy(
-                    ui,
-                    can_accept_what_is_being_dragged,
-                    can_insert_before,
-                    can_insert_after,
-                    |ui| {
-                        Self::drag_source(ui, drag_id, |ui| {
-                            let r = ui.selectable_label(
-                                self.selected_entity == entity,
-                                Self::entity_label(&entity, entity_data),
-                            );
-                            if r.clicked() {
-                                self.selected_entity = entity;
-                            }
-                            r.context_menu(|ui| {
-                                if ui.button(texts.get("Duplicate")).clicked() {
-                                    log::info!("entity_context_menu->Duplicate");
-                                    Self::duplicate_entity(
-                                        entity,
-                                        entities,
-                                        project.app().unwrap(),
-                                    );
-                                    ui.close_menu();
-                                }
-                                if ui.button(texts.get("Delete")).clicked() {
-                                    log::info!("entity_context_menu->Delete");
-                                    self.delete_entity(entity, project.app().unwrap());
-                                    ui.close_menu();
-                                }
-                                if !project.is_running() {
-                                    if entities
-                                        .get(&entity)
-                                        .and_then(|entity_data| entity_data.prefab_asset())
-                                        .is_some()
-                                    {
-                                        if ui.button(texts.get("Save Prefab")).clicked() {
-                                            log::info!("entity_context_menu->Save Prefab");
-                                            Self::save_prefab(
-                                                entity,
-                                                entities,
-                                                project,
-                                                &asset_dir,
-                                                load_world_data_this_frame,
-                                            );
-                                            ui.close_menu();
-                                        }
-                                    }
-                                    if ui.button(texts.get("Save As Prefab")).clicked() {
-                                        log::info!("entity_context_menu->Save As Prefab");
-                                        Self::save_as_prefab(
-                                            entity,
-                                            entities,
-                                            project.app().unwrap(),
-                                            &asset_dir,
-                                        );
-                                        ui.close_menu();
-                                    }
-                                }
-                            });
-                        });
-                    },
-                );
-
-                if let Some(drop_result) = drop_result {
-                    match drop_result {
-                        DropResult::Before => {
-                            *drop_parent = Some(parent);
-                            *drop_before = entity;
-                        }
-                        DropResult::Into => *drop_parent = Some(entity),
-                        DropResult::After => {
-                            *drop_parent = Some(parent);
-                            *drop_before = if i + 1 < es.len() {
-                                es[i + 1]
-                            } else {
-                                EntityId::dead()
-                            };
-                        }
-                    }
-                }
+                Self::drop_entity_hierarchy(ui, response, entity, i, es, parent, project);
             };
 
             if let Some(children) = entity_data.children() {
@@ -225,8 +128,6 @@ impl DataWindow {
                         entities,
                         project,
                         asset_dir.as_ref(),
-                        drop_parent,
-                        drop_before,
                         texts,
                         load_world_data_this_frame,
                     )
@@ -236,6 +137,168 @@ impl DataWindow {
                     ui.add_space(18.0); // align with header, TODO: get correct space value dynamically
                     entity_item(ui);
                 });
+            }
+        }
+    }
+
+    fn entity_item(
+        &mut self,
+        ui: &mut egui::Ui,
+        entity: EntityId,
+        entities: &EntitiesData,
+        entity_data: &EntityData,
+        project: &mut Project,
+        asset_dir: impl AsRef<Path>,
+        texts: &Texts,
+        load_world_data_this_frame: &mut bool,
+    ) {
+        let r = ui.selectable_label(
+            self.selected_entity == entity,
+            Self::entity_label(&entity, entity_data),
+        );
+        if r.clicked() {
+            self.selected_entity = entity;
+        }
+        r.context_menu(|ui| {
+            if ui.button(texts.get("Duplicate")).clicked() {
+                log::info!("entity_context_menu->Duplicate");
+                Self::duplicate_entity(entity, entities, project.app().unwrap());
+                ui.close_menu();
+            }
+            if ui.button(texts.get("Delete")).clicked() {
+                log::info!("entity_context_menu->Delete");
+                self.delete_entity(entity, project.app().unwrap());
+                ui.close_menu();
+            }
+            if !project.is_running() {
+                if entities
+                    .get(&entity)
+                    .and_then(|entity_data| entity_data.prefab_asset())
+                    .is_some()
+                {
+                    if ui.button(texts.get("Save Prefab")).clicked() {
+                        log::info!("entity_context_menu->Save Prefab");
+                        Self::save_prefab(
+                            entity,
+                            entities,
+                            project,
+                            &asset_dir,
+                            load_world_data_this_frame,
+                        );
+                        ui.close_menu();
+                    }
+                }
+                if ui.button(texts.get("Save As Prefab")).clicked() {
+                    log::info!("entity_context_menu->Save As Prefab");
+                    Self::save_as_prefab(entity, entities, project.app().unwrap(), &asset_dir);
+                    ui.close_menu();
+                }
+            }
+        });
+    }
+
+    fn drag_entity_hierarchy<R>(
+        ui: &mut egui::Ui,
+        entity: EntityId,
+        body: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> egui::InnerResponse<R> {
+        let id = egui::Id::new(entity);
+        let is_being_dragged = ui.ctx().is_being_dragged(id);
+
+        if is_being_dragged {
+            // paint the body to a new layer
+            let layer_id = egui::LayerId::new(egui::Order::Tooltip, id);
+            let egui::InnerResponse { inner, response } =
+                ui.scope_builder(egui::UiBuilder::new().layer_id(layer_id), body);
+
+            // now we move the visuals of the body to where the mouse is
+            if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
+                let delta = pointer_pos - response.rect.center();
+                ui.ctx().transform_layer_shapes(
+                    layer_id,
+                    egui::emath::TSTransform::from_translation(delta),
+                );
+            }
+
+            egui::InnerResponse::new(inner, response)
+        } else {
+            let egui::InnerResponse { inner, response } = ui.scope(body);
+
+            // caculate press time
+            let press_time = ui.input(|input| {
+                if let Some(press_origin) = input.pointer.press_origin() {
+                    if response.rect.contains(press_origin) {
+                        if let Some(press_start_time) = input.pointer.press_start_time() {
+                            return input.time - press_start_time;
+                        }
+                    }
+                }
+                return 0.0;
+            });
+
+            // start drag after pressing some time
+            if press_time > 0.3 {
+                ui.ctx().set_dragged_id(id);
+                egui::DragAndDrop::set_payload(ui.ctx(), entity);
+            }
+
+            egui::InnerResponse::new(inner, response)
+        }
+    }
+
+    fn drop_entity_hierarchy(
+        ui: &mut egui::Ui,
+        response: egui::Response,
+        entity: EntityId,
+        i: usize,
+        es: &Vec<EntityId>,
+        parent: EntityId,
+        project: &mut Project,
+    ) {
+        if let (Some(pointer_pos), Some(drag_entity)) = (
+            ui.input(|i| i.pointer.interact_pos()),
+            response.dnd_hover_payload::<EntityId>(),
+        ) {
+            if entity != *drag_entity {
+                let rect = response.rect;
+                let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+
+                let can_insert_before = true;
+                let can_insert_after = i == es.len() - 1;
+
+                let (drop_parent, drop_before) = if can_insert_before
+                    && pointer_pos.y - rect.top() < rect.height() / 4.0
+                {
+                    ui.painter().hline(rect.x_range(), rect.top(), stroke);
+                    (parent, entity)
+                } else if can_insert_after && pointer_pos.y - rect.top() > rect.height() * 3.0 / 4.0
+                {
+                    ui.painter().hline(rect.x_range(), rect.bottom(), stroke);
+                    (
+                        parent,
+                        if i + 1 < es.len() {
+                            es[i + 1]
+                        } else {
+                            EntityId::dead()
+                        },
+                    )
+                } else {
+                    ui.painter().rect_stroke(
+                        rect,
+                        ui.visuals().widgets.active.corner_radius,
+                        stroke,
+                        egui::StrokeKind::Middle,
+                    );
+                    (entity, EntityId::dead())
+                };
+
+                if let Some(drag_entity) = response.dnd_release_payload() {
+                    project.app().unwrap().command(Command::AttachBefore(
+                        *drag_entity,
+                        drop_parent,
+                        drop_before,
+                    ));
+                }
             }
         }
     }
@@ -449,123 +512,6 @@ impl DataWindow {
             prefab_root_entity?;
         }
         Ok(())
-    }
-
-    fn drag_source<R>(ui: &mut egui::Ui, id: egui::Id, body: impl FnOnce(&mut egui::Ui) -> R) {
-        let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(id));
-
-        if !is_being_dragged {
-            let response = ui.scope(body).response;
-
-            // caculate press time
-            let press_time = ui.input(|input| {
-                if let Some(press_origin) = input.pointer.press_origin() {
-                    if response.rect.contains(press_origin) {
-                        if let Some(press_start_time) = input.pointer.press_start_time() {
-                            return input.time - press_start_time;
-                        }
-                    }
-                }
-                return 0.0;
-            });
-
-            // start drag after pressing some time
-            if press_time > 0.3 {
-                ui.memory_mut(|mem| mem.set_dragged_id(id));
-            }
-        } else {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-
-            // paint the body to a new layer
-            let layer_id = egui::LayerId::new(egui::Order::Tooltip, id);
-            let response = ui.with_layer_id(layer_id, body).response;
-
-            // now we move the visuals of the body to where the mouse is
-            if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-                let delta = pointer_pos - response.rect.center();
-                ui.ctx().translate_layer(layer_id, delta);
-            }
-        }
-    }
-
-    fn drop_target_hierarchy<R>(
-        ui: &mut egui::Ui,
-        can_accept_what_is_being_dragged: bool,
-        can_insert_before: bool,
-        can_insert_after: bool,
-        body: impl FnOnce(&mut egui::Ui) -> R,
-    ) -> Option<DropResult> {
-        let is_anything_being_dragged = ui.memory(|mem| mem.is_anything_being_dragged());
-
-        let margin = egui::Vec2::splat(1.0);
-        let outer_rect_bounds = ui.available_rect_before_wrap();
-        let inner_rect = outer_rect_bounds.shrink2(margin);
-        let where_to_put_background = ui.painter().add(egui::Shape::Noop);
-        let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
-        body(&mut content_ui);
-        let outer_rect =
-            egui::Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
-        let (rect, response) = ui.allocate_at_least(outer_rect.size(), egui::Sense::hover());
-
-        if is_anything_being_dragged && can_accept_what_is_being_dragged && response.hovered() {
-            if let Some(hover_pos) = ui.input(|input| input.pointer.hover_pos()) {
-                let style = ui.visuals().widgets.active;
-                if can_insert_before && hover_pos.y - rect.top() < rect.height() / 4.0 {
-                    ui.painter().set(
-                        where_to_put_background,
-                        egui::epaint::Shape::line_segment(
-                            [rect.left_top(), rect.right_top()],
-                            style.bg_stroke,
-                        ),
-                    );
-                    return Some(DropResult::Before);
-                } else if can_insert_after && hover_pos.y - rect.top() > rect.height() * 3.0 / 4.0 {
-                    ui.painter().set(
-                        where_to_put_background,
-                        egui::epaint::Shape::line_segment(
-                            [rect.left_bottom(), rect.right_bottom()],
-                            style.bg_stroke,
-                        ),
-                    );
-                    return Some(DropResult::After);
-                } else {
-                    ui.painter().set(
-                        where_to_put_background,
-                        egui::epaint::Shape::rect_stroke(rect, style.rounding, style.bg_stroke),
-                    );
-                    return Some(DropResult::Into);
-                }
-            }
-        }
-        None
-    }
-
-    fn drop_target<R>(
-        ui: &mut egui::Ui,
-        can_accept_what_is_being_dragged: bool,
-        body: impl FnOnce(&mut egui::Ui) -> R,
-    ) -> bool {
-        let is_anything_being_dragged = ui.memory(|mem| mem.is_anything_being_dragged());
-
-        let margin = egui::Vec2::splat(1.0);
-        let outer_rect_bounds = ui.available_rect_before_wrap();
-        let inner_rect = outer_rect_bounds.shrink2(margin);
-        let where_to_put_background = ui.painter().add(egui::Shape::Noop);
-        let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
-        body(&mut content_ui);
-        let outer_rect =
-            egui::Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
-        let (rect, response) = ui.allocate_at_least(outer_rect.size(), egui::Sense::hover());
-
-        if is_anything_being_dragged && can_accept_what_is_being_dragged && response.hovered() {
-            let style = ui.visuals().widgets.active;
-            ui.painter().set(
-                where_to_put_background,
-                egui::epaint::Shape::rect_stroke(rect, style.rounding, style.bg_stroke),
-            );
-            return true;
-        }
-        false
     }
 
     fn entity_label(id: &EntityId, entity_data: &EntityData) -> impl Into<egui::WidgetText> {
@@ -970,9 +916,9 @@ impl DataWindow {
     }
 
     fn color_label(ui: &mut egui::Ui, color: egui::Color32, text: impl Into<egui::WidgetText>) {
-        egui::Frame::none()
-            .inner_margin(egui::style::Margin::symmetric(3.0, 1.0))
-            .rounding(egui::Rounding::same(3.0))
+        egui::Frame::new()
+            .inner_margin(egui::Margin::symmetric(3, 1))
+            .corner_radius(egui::CornerRadius::same(3))
             .fill(color)
             .show(ui, |ui| ui.label(text));
     }
@@ -1044,7 +990,7 @@ impl DataWindow {
                     .find_map(|(i, (int, _))| if v == int { Some(i) } else { None })
                     .unwrap_or(0);
                 // Use component_name/unique_name + value_name as id to make sure that every id is unique
-                egui::ComboBox::from_id_source(format!("{} {}", data_name, name)).show_index(
+                egui::ComboBox::from_id_salt(format!("{} {}", data_name, name)).show_index(
                     ui,
                     &mut i,
                     int_enum.len(),
@@ -1127,9 +1073,9 @@ impl DataWindow {
         v: &mut F,
         range: Option<&RangeInclusive<F>>,
     ) {
-        let mut drag_value = egui::DragValue::new(v).max_decimals(100).speed(0.01);
+        let mut drag_value = egui::DragValue::new(v).speed(0.01);
         if let Some(range) = range {
-            drag_value = drag_value.clamp_range(range.clone());
+            drag_value = drag_value.range(range.clone());
         }
         ui.add(drag_value);
     }
@@ -1141,21 +1087,29 @@ impl DataWindow {
     ) {
         let mut drag_value = egui::DragValue::new(v);
         if let Some(range) = range {
-            drag_value = drag_value.clamp_range(range.clone());
+            drag_value = drag_value.range(range.clone());
         }
         ui.add(drag_value);
     }
 
     fn mutable_entity_view(&mut self, ui: &mut egui::Ui, v: &mut EntityId, app: &Box<dyn App>) {
-        let drop = Self::drop_target(ui, self.drag_entity != EntityId::dead(), |ui| {
-            self.show_entity(ui, v, app);
-        });
-        if drop
-            && self.drag_entity != EntityId::dead()
-            && ui.input(|input| input.pointer.any_released())
-        {
-            *v = self.drag_entity;
-            self.drag_entity = EntityId::dead();
+        let response = ui
+            .scope(|ui| {
+                self.show_entity(ui, v, app);
+            })
+            .response;
+
+        if response.dnd_hover_payload::<EntityId>().is_some() {
+            ui.painter().rect_stroke(
+                response.rect,
+                ui.visuals().widgets.active.corner_radius,
+                egui::Stroke::new(1.0, egui::Color32::WHITE),
+                egui::StrokeKind::Middle,
+            );
+
+            if let Some(drag_entity) = response.dnd_release_payload() {
+                *v = *drag_entity;
+            }
         }
     }
 
@@ -1264,10 +1218,4 @@ impl DataWindow {
     pub fn selected_unique(&self) -> &String {
         &self.selected_unique
     }
-}
-
-enum DropResult {
-    Before,
-    Into,
-    After,
 }

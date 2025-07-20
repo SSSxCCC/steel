@@ -4,12 +4,11 @@ pub mod app;
 pub mod asset;
 pub mod camera;
 pub mod data;
-pub mod ext;
 pub mod platform;
 pub mod prefab;
 
 use vulkano::{
-    device::{DeviceExtensions, Features},
+    device::{DeviceExtensions, DeviceFeatures},
     instance::{Instance, InstanceCreateInfo},
     VulkanLibrary,
 };
@@ -41,7 +40,7 @@ pub fn create_context() -> (VulkanoContext, bool) {
     ray_tracing_extensions.khr_deferred_host_operations = true;
     ray_tracing_extensions.khr_acceleration_structure = true;
     ray_tracing_extensions.khr_ray_tracing_pipeline = true;
-    let mut ray_tracing_features = Features::empty();
+    let mut ray_tracing_features = DeviceFeatures::empty();
     ray_tracing_features.acceleration_structure = true;
     ray_tracing_features.ray_tracing_pipeline = true;
     ray_tracing_features.buffer_device_address = true;

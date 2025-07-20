@@ -19,11 +19,11 @@ use vulkano::{
         AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer,
         RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
     },
-    descriptor_set::{layout::DescriptorBindingFlags, PersistentDescriptorSet, WriteDescriptorSet},
+    descriptor_set::{layout::DescriptorBindingFlags, DescriptorSet, WriteDescriptorSet},
     device::Device,
     format::Format,
     image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
-    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
+    memory::allocator::{AllocationCreateInfo, MemoryAllocator, MemoryTypeFilter},
     pipeline::{
         graphics::{
             color_blend::{AttachmentBlend, ColorBlendAttachmentState, ColorBlendState},
@@ -106,8 +106,7 @@ impl RasterizationPipeline {
 
     fn update_depth_stencil_images(&mut self, context: &RenderContext, info: &FrameRenderInfo) {
         let depth_stencil_images = &mut self.depth_stencil_images[info.window_index];
-        if depth_stencil_images.len() >= info.image_count {
-            // TODO: use == instead of >= when we can get right image count
+        if depth_stencil_images.len() == info.image_count {
             let [width, height, _] = depth_stencil_images[0].image().extent();
             if info.window_size.x == width && info.window_size.y == height {
                 return;
@@ -189,7 +188,9 @@ impl RasterizationPipeline {
         let properties = context.device.physical_device().properties();
         let max_descriptor_count = properties
             .max_per_stage_descriptor_samplers
-            .min(properties.max_per_stage_descriptor_sampled_images);
+            .min(properties.max_per_stage_descriptor_sampled_images)
+            .min(100000);
+        // large descriptor count will cause android devices to crash, so we limit it to 100000, TODO: dynamically adjust this limit
 
         let pipeline_mesh = Self::create_pipeline(
             context,
@@ -250,9 +251,7 @@ impl RasterizationPipeline {
             &mut PipelineDescriptorSetLayoutCreateInfo,
         ),
     ) -> Arc<GraphicsPipeline> {
-        let vertex_input_state = vertex_definition
-            .definition(&vs.info().input_interface)
-            .unwrap();
+        let vertex_input_state = vertex_definition.definition(&vs).unwrap();
         let stages = [
             PipelineShaderStageCreateInfo::new(vs),
             PipelineShaderStageCreateInfo::new(fs),
@@ -347,7 +346,7 @@ impl RasterizationPipeline {
         .unwrap();
 
         let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-            &context.command_buffer_allocator,
+            context.command_buffer_allocator.clone(),
             context.graphics_queue.queue_family_index(),
             CommandBufferUsage::OneTimeSubmit,
         )
@@ -448,7 +447,7 @@ impl RasterizationPipeline {
 fn draw_points(
     points: &Vec<(Vec3, Vec4, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
+    memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     push_constants: shader::vertex::vs::PushConstants,
 ) {
@@ -473,7 +472,7 @@ fn draw_points(
 fn draw_lines(
     lines: &Vec<[(Vec3, Vec4, EntityId); 2]>,
     pipeline: Arc<GraphicsPipeline>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
+    memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     push_constants: shader::vertex::vs::PushConstants,
 ) {
@@ -499,11 +498,11 @@ fn draw_lines(
 fn draw_vertices(
     vertices: Vec<shader::vertex::VertexData>,
     pipeline: Arc<GraphicsPipeline>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
+    memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     push_constants: shader::vertex::vs::PushConstants,
 ) {
-    let vertex_buffer = create_buffer(vertices, &memory_allocator, BufferUsage::VERTEX_BUFFER);
+    let vertex_buffer = create_buffer(vertices, memory_allocator, BufferUsage::VERTEX_BUFFER);
 
     command_buffer_builder
         .bind_pipeline_graphics(pipeline.clone())
@@ -511,9 +510,8 @@ fn draw_vertices(
         .push_constants(pipeline.layout().clone(), 0, push_constants)
         .unwrap()
         .bind_vertex_buffers(0, vertex_buffer.clone())
-        .unwrap()
-        .draw(vertex_buffer.len() as u32, 1, 0, 0)
         .unwrap();
+    unsafe { command_buffer_builder.draw(vertex_buffer.len() as u32, 1, 0, 0) }.unwrap();
 }
 
 fn draw_meshs(
@@ -541,12 +539,12 @@ fn draw_meshs(
             });
             let vertex_buffer = create_buffer(
                 vertices,
-                &render_context.memory_allocator,
+                render_context.memory_allocator.clone(),
                 BufferUsage::VERTEX_BUFFER,
             );
             let index_buffer = create_buffer(
                 mesh.indices.clone(),
-                &render_context.memory_allocator,
+                render_context.memory_allocator.clone(),
                 BufferUsage::INDEX_BUFFER,
             );
             vertex_buffers.push(vertex_buffer);
@@ -575,8 +573,12 @@ fn draw_meshs(
         ));
     }
 
-    let descriptor_set = PersistentDescriptorSet::new_variable(
-        &render_context.descriptor_set_allocator,
+    if !image_view_samplers.is_empty() {
+        image_view_samplers.push(render_context.temp_image_view_and_sampler.clone());
+    }
+
+    let descriptor_set = DescriptorSet::new_variable(
+        render_context.descriptor_set_allocator.clone(),
         pipeline.layout().set_layouts()[0].clone(),
         image_view_samplers.len() as u32,
         if image_view_samplers.is_empty() {
@@ -610,29 +612,31 @@ fn draw_meshs(
     {
         let instance_buffer = create_buffer(
             instances,
-            &render_context.memory_allocator,
+            render_context.memory_allocator.clone(),
             BufferUsage::VERTEX_BUFFER,
         );
         command_buffer_builder
             .bind_vertex_buffers(0, (vertex_buffer.clone(), instance_buffer.clone()))
             .unwrap()
             .bind_index_buffer(index_buffer.clone())
-            .unwrap()
-            .draw_indexed(
+            .unwrap();
+        unsafe {
+            command_buffer_builder.draw_indexed(
                 index_buffer.len() as u32,
                 instance_buffer.len() as u32,
                 0,
                 0,
                 0,
             )
-            .unwrap();
+        }
+        .unwrap();
     }
 }
 
 fn draw_circles(
     circles: &Vec<(Vec4, Option<TextureData>, Affine3A, EntityId)>,
     pipeline: Arc<GraphicsPipeline>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
+    memory_allocator: Arc<dyn MemoryAllocator>,
     command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     push_constants: shader::vertex::vs::PushConstants,
     render_context: &RenderContext,
@@ -676,8 +680,12 @@ fn draw_circles(
         ));
     }
 
-    let descriptor_set = PersistentDescriptorSet::new_variable(
-        &render_context.descriptor_set_allocator,
+    if !image_view_samplers.is_empty() {
+        image_view_samplers.push(render_context.temp_image_view_and_sampler.clone());
+    }
+
+    let descriptor_set = DescriptorSet::new_variable(
+        render_context.descriptor_set_allocator.clone(),
         pipeline.layout().set_layouts()[0].clone(),
         image_view_samplers.len() as u32,
         if image_view_samplers.is_empty() {
@@ -693,9 +701,17 @@ fn draw_circles(
     )
     .unwrap();
 
-    let vertex_buffer = create_buffer(vertices, &memory_allocator, BufferUsage::VERTEX_BUFFER);
-    let index_buffer = create_buffer(indices, &memory_allocator, BufferUsage::INDEX_BUFFER);
-    let instance_buffer = create_buffer(instances, &memory_allocator, BufferUsage::VERTEX_BUFFER);
+    let vertex_buffer = create_buffer(
+        vertices,
+        memory_allocator.clone(),
+        BufferUsage::VERTEX_BUFFER,
+    );
+    let index_buffer = create_buffer(indices, memory_allocator.clone(), BufferUsage::INDEX_BUFFER);
+    let instance_buffer = create_buffer(
+        instances,
+        memory_allocator.clone(),
+        BufferUsage::VERTEX_BUFFER,
+    );
 
     command_buffer_builder
         .bind_pipeline_graphics(pipeline.clone())
@@ -712,26 +728,28 @@ fn draw_circles(
         .bind_vertex_buffers(0, (vertex_buffer.clone(), instance_buffer.clone()))
         .unwrap()
         .bind_index_buffer(index_buffer.clone())
-        .unwrap()
-        .draw_indexed(
+        .unwrap();
+    unsafe {
+        command_buffer_builder.draw_indexed(
             index_buffer.len() as u32,
             instance_buffer.len() as u32,
             0,
             0,
             0,
         )
-        .unwrap();
+    }
+    .unwrap();
 }
 
 /// Helper function to create a buffer from a list of data.
 /// This can be used to create vertex buffer, index buffer, or instance buffer.
 fn create_buffer<T: BufferContents>(
     data: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>,
-    memory_allocator: &Arc<StandardMemoryAllocator>,
+    memory_allocator: Arc<dyn MemoryAllocator>,
     usage: BufferUsage,
 ) -> Subbuffer<[T]> {
     Buffer::from_iter(
-        memory_allocator.clone(),
+        memory_allocator,
         BufferCreateInfo {
             usage,
             ..Default::default()

@@ -96,7 +96,7 @@ impl MenuBar {
                             let project_was_compiled = project.is_compiled();
                             project.close(local_data, window_title, gui_game);
                             if crate::EXIT_EDITOR_WHEN_COMPILE && project_was_compiled {
-                                log::info!("Exit editor when close project");
+                                log::info!("Exit editor when close project, you can rerun the editor to open a new project");
                                 std::process::exit(0);
                             }
                             ui.close_menu();

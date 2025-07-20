@@ -8,7 +8,6 @@ pub mod edit;
 pub mod hierarchy;
 pub mod name;
 pub mod physics2d;
-pub mod platform;
 pub mod prefab;
 pub mod render;
 pub mod scene;
@@ -17,8 +16,8 @@ pub mod shape3d;
 pub mod time;
 pub mod transform;
 pub mod ui;
-pub mod ext {
-    pub use steel_common::ext::*;
+pub mod platform {
+    pub use steel_common::platform::*;
 }
 
 use log::{LevelFilter, Log, SetLoggerError};

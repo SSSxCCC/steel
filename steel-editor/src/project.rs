@@ -1160,13 +1160,13 @@ name = "steel"
 [dependencies]
 steel-engine = { version = "0.2.0", path = "../../steel-engine" }
 
-vulkano = "0.34.1"
-vulkano-shaders = "0.34.0"
-vulkano-util = "0.34.1"
-egui_winit_vulkano = "0.27.0"
-egui = "0.24.1"
+vulkano = "0.35.1"
+vulkano-util = "0.35.0"
+vulkano-shaders = "0.35.0"
+winit = { version = "0.30.11", features = [ "android-game-activity" ] }
+egui_winit_vulkano = "0.28.0"
+egui = "0.31.1"
 log = "0.4"
-winit = { version = "0.28.6", features = [ "android-game-activity" ] }
 shipyard = { version = "0.7.1", features = [ "serde1" ] }
 rayon = "1.8.0"
 parry2d = "0.17"

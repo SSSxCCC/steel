@@ -14,15 +14,38 @@ use vulkano::{
     },
     buffer::{Buffer, BufferCreateInfo, BufferUsage, IndexBuffer, Subbuffer},
     command_buffer::{
-        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
+        allocator::CommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
         PrimaryCommandBufferAbstract,
     },
     device::Queue,
     format::Format,
     memory::allocator::{AllocationCreateInfo, MemoryAllocator, MemoryTypeFilter},
+    pipeline::PipelineShaderStageCreateInfo,
+    shader::ShaderModule,
     sync::GpuFuture,
     DeviceSize, Packed24_8,
 };
+
+pub fn affine3a_to_rows_array_2d(affine: Affine3A) -> [[f32; 4]; 3] {
+    let cols = affine.to_cols_array_2d(); // [[f32; 3]; 4] column-major
+    [
+        [cols[0][0], cols[1][0], cols[2][0], cols[3][0]], // First row
+        [cols[0][1], cols[1][1], cols[2][1], cols[3][1]], // Second row
+        [cols[0][2], cols[1][2], cols[2][2], cols[3][2]], // Third row
+    ]
+}
+
+pub fn create_shader_stages(
+    shader_modules: impl IntoIterator<Item = Arc<ShaderModule>>,
+) -> Vec<PipelineShaderStageCreateInfo> {
+    shader_modules
+        .into_iter()
+        .map(|shader_module| {
+            let entry_point = shader_module.entry_point("main").unwrap();
+            PipelineShaderStageCreateInfo::new(entry_point)
+        })
+        .collect()
+}
 
 impl shader::closesthit::Vertex {
     pub fn new(position: Vec3, normal: Vec3, tex_coord: Vec2) -> Self {
@@ -38,7 +61,7 @@ impl shader::closesthit::Vertex {
 /// also return device addresses of vertex buffer and index buffer.
 pub fn create_bottom_level_acceleration_structure_triangles(
     memory_allocator: Arc<dyn MemoryAllocator>,
-    command_buffer_allocator: &StandardCommandBufferAllocator,
+    command_buffer_allocator: Arc<dyn CommandBufferAllocator>,
     queue: Arc<Queue>,
     vertices: Vec<shader::closesthit::Vertex>,
     indices: Option<Vec<u32>>,
@@ -125,7 +148,7 @@ pub fn create_bottom_level_acceleration_structure_triangles(
 
 pub fn create_bottom_level_acceleration_structure_aabbs(
     memory_allocator: Arc<dyn MemoryAllocator>,
-    command_buffer_allocator: &StandardCommandBufferAllocator,
+    command_buffer_allocator: Arc<dyn CommandBufferAllocator>,
     queue: Arc<Queue>,
     aabb_positions: Vec<AabbPositions>,
 ) -> (Arc<AccelerationStructure>, Box<dyn GpuFuture>) {
@@ -187,7 +210,7 @@ pub fn create_bottom_level_acceleration_structure_aabbs(
 
 pub fn create_top_level_acceleration_structure(
     memory_allocator: Arc<dyn MemoryAllocator>,
-    command_buffer_allocator: &StandardCommandBufferAllocator,
+    command_buffer_allocator: Arc<dyn CommandBufferAllocator>,
     queue: Arc<Queue>,
     instances: Vec<(Arc<AccelerationStructure>, u32, Vec<Affine3A>)>,
 ) -> (Arc<AccelerationStructure>, Box<dyn GpuFuture>) {
@@ -204,7 +227,7 @@ pub fn create_top_level_acceleration_structure(
         .flatten()
         .map(
             |(transform, sbt_index, blas_ref, obj_desc_index)| AccelerationStructureInstance {
-                transform: super::affine3a_to_rows_array_2d(transform),
+                transform: affine3a_to_rows_array_2d(transform),
                 instance_custom_index_and_mask: Packed24_8::new(obj_desc_index as _, 0xff),
                 instance_shader_binding_table_record_offset_and_flags: Packed24_8::new(
                     sbt_index,
@@ -267,7 +290,7 @@ pub fn create_top_level_acceleration_structure(
 
 fn build_acceleration_structure(
     memory_allocator: Arc<dyn MemoryAllocator>,
-    command_buffer_allocator: &StandardCommandBufferAllocator,
+    command_buffer_allocator: Arc<dyn CommandBufferAllocator>,
     queue: Arc<Queue>,
     ty: AccelerationStructureType,
     mut build_info: AccelerationStructureBuildGeometryInfo,

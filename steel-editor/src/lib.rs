@@ -8,19 +8,26 @@ mod utils;
 use crate::{project::Project, ui::Editor, utils::LocalData};
 use egui_winit_vulkano::{Gui, GuiConfig};
 use glam::Vec2;
+use std::sync::Arc;
 use steel_common::{
     app::{Command, DrawInfo, EditorInfo, UpdateInfo},
     camera::SceneCamera,
     data::WorldData,
 };
 use vulkano::{
-    command_buffer::allocator::StandardCommandBufferAllocator, format::Format, image::ImageUsage,
+    command_buffer::allocator::{CommandBufferAllocator, StandardCommandBufferAllocator},
+    format::Format,
+    image::ImageUsage,
     sync::GpuFuture,
 };
-use vulkano_util::window::{VulkanoWindows, WindowDescriptor};
+use vulkano_util::{
+    context::VulkanoContext,
+    window::{VulkanoWindows, WindowDescriptor},
+};
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
+    application::ApplicationHandler,
+    event::WindowEvent,
+    event_loop::{ControlFlow, EventLoop},
 };
 
 /// Whether to exit the editor when compiling the code.
@@ -34,7 +41,7 @@ pub const EXIT_EDITOR_WHEN_COMPILE: bool = true;
 // TODO: remove android code in steel-editor, or find a way to make steel-editor work in android
 
 #[cfg(target_os = "android")]
-use winit::platform::android::activity::AndroidApp;
+use winit::platform::android::{activity::AndroidApp, EventLoopBuilderExtAndroid};
 
 #[cfg(target_os = "android")]
 #[no_mangle]
@@ -42,8 +49,7 @@ fn android_main(app: AndroidApp) {
     android_logger::init_once(
         android_logger::Config::default().with_max_level(log::LevelFilter::Trace),
     );
-    use winit::platform::android::EventLoopBuilderExtAndroid;
-    let event_loop = EventLoopBuilder::new().with_android_app(app).build();
+    let event_loop = EventLoop::builder().with_android_app(app).build().unwrap();
     _main(event_loop);
 }
 
@@ -54,11 +60,13 @@ fn main() {
         .filter_level(log::LevelFilter::Trace)
         .parse_default_env()
         .init();
-    let event_loop = EventLoopBuilder::new().build();
+    let event_loop = EventLoop::new().unwrap();
     _main(event_loop);
 }
 
 fn _main(event_loop: EventLoop<()>) {
+    event_loop.set_control_flow(ControlFlow::Poll);
+
     // local data
     let mut local_data = LocalData::load();
 
@@ -66,19 +74,21 @@ fn _main(event_loop: EventLoop<()>) {
     let (context, ray_tracing_supported) = steel_common::create_context();
     // TODO: use the same command buffer allocator in steel::render::RenderContext,
     // or fix issue in main::ui::image_window::ImageWindow and remove this.
-    let command_buffer_allocator =
-        StandardCommandBufferAllocator::new(context.device().clone(), Default::default());
-    let mut windows = VulkanoWindows::default();
+    let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
+        context.device().clone(),
+        Default::default(),
+    ));
+    let windows = VulkanoWindows::default();
     let mut window_title = None;
     let mut scene_camera = SceneCamera::default();
 
     // egui
-    let mut gui_editor = None; // for editor ui
+    let gui_editor = None; // for editor ui
     let mut gui: Option<Gui> = None; // for in-game ui
-    let mut editor = Editor::new(&local_data);
+    let editor = Editor::new(&local_data);
 
     // project
-    let mut project = Project::new(
+    let project = Project::new(
         ray_tracing_supported,
         &mut local_data,
         &mut scene_camera,
@@ -87,239 +97,274 @@ fn _main(event_loop: EventLoop<()>) {
         &mut gui,
     );
 
+    // application
+    let mut application = Application {
+        local_data,
+        context,
+        command_buffer_allocator,
+        windows,
+        window_title,
+        scene_camera,
+        gui_editor,
+        gui,
+        editor,
+        project,
+    };
+
     log::info!("Start main loop!");
-    event_loop.run(move |event, event_loop, control_flow| match event {
-        Event::Resumed => {
-            log::debug!("Event::Resumed");
-            windows.create_window(
-                &event_loop,
-                &context,
-                &WindowDescriptor {
-                    title: window_title.take().unwrap_or("Steel Editor".into()),
-                    ..Default::default()
-                },
-                |info| {
-                    info.image_format = Format::B8G8R8A8_UNORM; // for egui, see https://github.com/hakolao/egui_winit_vulkano
-                    info.image_usage |= ImageUsage::STORAGE;
-                },
-            );
-            let renderer = windows.get_primary_renderer().unwrap();
-            log::info!("Swapchain image format: {:?}", renderer.swapchain_format());
-            gui_editor = Some(Gui::new(
-                &event_loop,
-                renderer.surface(),
-                renderer.graphics_queue(),
-                renderer.swapchain_format(),
-                GuiConfig {
-                    is_overlay: false,
-                    ..Default::default()
-                },
-            ));
-            // load fonts to support displaying chinese in egui
-            let mut fonts = egui::FontDefinitions::default();
-            fonts.font_data.insert(
-                "msyh".to_owned(),
-                egui::FontData::from_static(include_bytes!("../fonts/msyh.ttc")),
-            );
-            fonts
-                .families
-                .get_mut(&egui::FontFamily::Proportional)
-                .unwrap()
-                .insert(0, "msyh".to_owned());
-            fonts
-                .families
-                .get_mut(&egui::FontFamily::Monospace)
-                .unwrap()
-                .push("msyh".to_owned());
-            gui_editor.as_ref().unwrap().egui_ctx.set_fonts(fonts);
-        }
-        Event::Suspended => {
-            log::debug!("Event::Suspended");
-            editor.suspend();
-            gui_editor = None;
-            gui = None;
-            windows.remove_renderer(windows.primary_window_id().unwrap());
-        }
-        Event::WindowEvent { event, .. } => {
-            if let Some(gui_editor) = gui_editor.as_mut() {
-                let _pass_events_to_game = !gui_editor.update(&event);
-            }
-            match event {
-                WindowEvent::CloseRequested => {
-                    log::info!("WindowEvent::CloseRequested");
-                    project.exit(&mut local_data, scene_camera);
-                    *control_flow = ControlFlow::Exit;
-                }
-                WindowEvent::Resized(_) => {
-                    log::debug!("WindowEvent::Resized");
-                    if let Some(renderer) = windows.get_primary_renderer_mut() {
-                        renderer.resize()
-                    }
-                }
-                WindowEvent::ScaleFactorChanged { .. } => {
-                    log::debug!("WindowEvent::ScaleFactorChanged");
-                    if let Some(renderer) = windows.get_primary_renderer_mut() {
-                        renderer.resize()
-                    }
-                }
-                _ => (),
-            }
-            // Warning: event.to_static() may drop some events, like ScaleFactorChanged
-            if let Some(mut event) = event.to_static() {
-                if project.is_running() {
-                    if let Some(gui) = gui.as_mut() {
-                        adjust_event_for_window(
-                            &mut event,
-                            editor.game_window().position(),
-                            gui.egui_ctx.pixels_per_point(),
-                        );
-                        let _pass_events_to_game = !gui.update(&event);
-                    }
-                }
-            }
-        }
-        Event::RedrawRequested(_) => {
-            project.maintain_asset_dir();
-            if let Some(renderer) = windows.get_primary_renderer_mut() {
-                if let Some(window_title) = window_title.take() {
-                    renderer.window().set_title(&window_title);
-                }
-
-                let window_size = renderer.window().inner_size();
-                if window_size.width == 0 || window_size.height == 0 {
-                    return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
-                }
-                let mut gpu_future = renderer.acquire().unwrap();
-
-                let gui_editor = gui_editor.as_mut().unwrap();
-                let mut world_data = project.app().map(|app| {
-                    let mut world_data = WorldData::default();
-                    app.command(Command::Save(&mut world_data));
-                    world_data
-                });
-                editor.ui(
-                    gui_editor,
-                    &mut gui,
-                    &context,
-                    renderer,
-                    &mut project,
-                    &mut world_data,
-                    &mut local_data,
-                    &mut scene_camera,
-                    &mut window_title,
-                );
-
-                let is_running = project.is_running();
-                if let Some(app) = project.app() {
-                    if gui.is_none() {
-                        gui = Some(Gui::new(
-                            &event_loop,
-                            renderer.surface(),
-                            renderer.graphics_queue(),
-                            renderer.swapchain_format(),
-                            GuiConfig {
-                                is_overlay: true,
-                                ..Default::default()
-                            },
-                        ));
-                    }
-                    let gui = gui.as_mut().unwrap();
-                    let mut raw_input = gui.egui_winit.take_egui_input(renderer.window());
-                    let screen_size = editor.game_window().size();
-                    raw_input.screen_rect = Some(egui::Rect::from_x_y_ranges(
-                        0.0..=(screen_size.x as f32),
-                        0.0..=(screen_size.y as f32),
-                    ));
-                    gui.egui_ctx.options_mut(|options| {
-                        options.zoom_factor = gui_editor.egui_ctx.zoom_factor()
-                    });
-                    gui.egui_ctx.begin_frame(raw_input);
-
-                    if let Some(world_data) = world_data.as_mut() {
-                        app.command(Command::Load(world_data));
-                    }
-
-                    app.update(UpdateInfo {
-                        update: is_running,
-                        ctx: &gui.egui_ctx,
-                    });
-
-                    if let Some(image) = editor.game_window().image() {
-                        let draw_future = app.draw(DrawInfo {
-                            before_future: vulkano::sync::now(context.device().clone()).boxed(),
-                            context: &context,
-                            renderer: &renderer,
-                            image: image.clone(),
-                            window_size: editor.game_window().pixel(),
-                            editor_info: None,
-                        });
-                        // There is a display abnormal problem, it seems like that this image displayed without finishing drawing.
-                        // We wait for draw future here to avoid this problem.
-                        // TODO: fix this display problem.
-                        draw_future
-                            .then_signal_fence_and_flush()
-                            .unwrap()
-                            .wait(None)
-                            .unwrap();
-                        let gui_future = gui.draw_on_image(
-                            vulkano::sync::now(context.device().clone()).boxed(), // TODO: use draw_future
-                            image.clone(),
-                        );
-                        let copy_future = editor.game_window().copy_image(
-                            &command_buffer_allocator,
-                            context.graphics_queue().clone(),
-                            gui_future,
-                        );
-                        gpu_future = gpu_future.join(copy_future).boxed();
-                    }
-
-                    if let Some(image) = editor.scene_window().image() {
-                        let draw_future = app.draw(DrawInfo {
-                            before_future: vulkano::sync::now(context.device().clone()).boxed(),
-                            context: &context,
-                            renderer: &renderer,
-                            image: image.clone(),
-                            window_size: editor.scene_window().pixel(),
-                            editor_info: Some(EditorInfo {
-                                camera: &scene_camera,
-                            }),
-                        });
-                        // There is a crash problem "access to a resource has been denied".
-                        // We wait for draw future here to avoid this problem.
-                        // TODO: fix this crash problem.
-                        draw_future
-                            .then_signal_fence_and_flush()
-                            .unwrap()
-                            .wait(None)
-                            .unwrap();
-                        let copy_future = editor.scene_window().copy_image(
-                            &command_buffer_allocator,
-                            context.graphics_queue().clone(),
-                            vulkano::sync::now(context.device().clone()).boxed(), // TODO: use draw_future
-                        );
-                        gpu_future = gpu_future.join(copy_future).boxed();
-                    }
-                }
-
-                gpu_future = gui_editor.draw_on_image(gpu_future, renderer.swapchain_image_view());
-
-                renderer.present(gpu_future, true);
-            }
-        }
-        Event::MainEventsCleared => {
-            if let Some(renderer) = windows.get_primary_renderer() {
-                renderer.window().request_redraw()
-            }
-        }
-        _ => (),
-    });
+    event_loop.run_app(&mut application).unwrap();
 }
 
-fn adjust_event_for_window(
-    event: &mut WindowEvent<'static>,
-    window_position: Vec2,
-    scale_factor: f32,
-) {
+struct Application {
+    local_data: LocalData,
+    context: VulkanoContext,
+    command_buffer_allocator: Arc<dyn CommandBufferAllocator>,
+    windows: VulkanoWindows,
+    window_title: Option<String>,
+    scene_camera: SceneCamera,
+    gui_editor: Option<Gui>,
+    gui: Option<Gui>,
+    editor: Editor,
+    project: Project,
+}
+
+impl ApplicationHandler for Application {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        log::debug!("Resumed");
+        self.windows.create_window(
+            &event_loop,
+            &self.context,
+            &WindowDescriptor {
+                title: self.window_title.take().unwrap_or("Steel Editor".into()),
+                ..Default::default()
+            },
+            |info| {
+                info.image_format = Format::B8G8R8A8_UNORM; // for egui, see https://github.com/hakolao/egui_winit_vulkano
+                info.image_usage |= ImageUsage::STORAGE;
+            },
+        );
+        let renderer = self.windows.get_primary_renderer().unwrap();
+        log::info!("Swapchain image format: {:?}", renderer.swapchain_format());
+        self.gui_editor = Some(Gui::new(
+            &event_loop,
+            renderer.surface(),
+            renderer.graphics_queue(),
+            renderer.swapchain_format(),
+            GuiConfig {
+                is_overlay: false,
+                ..Default::default()
+            },
+        ));
+        // load fonts to support displaying chinese in egui
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "msyh".to_owned(),
+            Arc::new(egui::FontData::from_static(include_bytes!(
+                "../fonts/msyh.ttc"
+            ))),
+        );
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .insert(0, "msyh".to_owned());
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
+            .unwrap()
+            .push("msyh".to_owned());
+        self.gui_editor.as_ref().unwrap().egui_ctx.set_fonts(fonts);
+    }
+
+    fn suspended(&mut self, _: &winit::event_loop::ActiveEventLoop) {
+        log::debug!("Suspended");
+        self.editor.suspend();
+        self.gui_editor = None;
+        self.gui = None;
+        self.windows
+            .remove_renderer(self.windows.primary_window_id().unwrap());
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _: winit::window::WindowId,
+        event: WindowEvent,
+    ) {
+        if let Some(gui_editor) = self.gui_editor.as_mut() {
+            let _pass_events_to_game = !gui_editor.update(&event);
+        }
+        if self.project.is_running() {
+            if let Some(gui) = self.gui.as_mut() {
+                let mut event = event.clone();
+                adjust_event_for_window(
+                    &mut event,
+                    self.editor.game_window().position(),
+                    gui.egui_ctx.pixels_per_point(),
+                );
+                let _pass_events_to_game = !gui.update(&event);
+            }
+        }
+
+        match event {
+            WindowEvent::CloseRequested => {
+                log::info!("WindowEvent::CloseRequested");
+                self.project.exit(&mut self.local_data, self.scene_camera);
+                event_loop.exit();
+            }
+            WindowEvent::Resized(_) => {
+                log::debug!("WindowEvent::Resized");
+                if let Some(renderer) = self.windows.get_primary_renderer_mut() {
+                    renderer.resize();
+                    renderer.window().request_redraw();
+                }
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                log::debug!("WindowEvent::ScaleFactorChanged");
+                if let Some(renderer) = self.windows.get_primary_renderer_mut() {
+                    renderer.resize();
+                    renderer.window().request_redraw();
+                }
+            }
+            WindowEvent::RedrawRequested => {
+                self.project.maintain_asset_dir();
+                if let Some(renderer) = self.windows.get_primary_renderer_mut() {
+                    if let Some(window_title) = self.window_title.take() {
+                        renderer.window().set_title(&window_title);
+                    }
+
+                    let window_size = renderer.window().inner_size();
+                    if window_size.width == 0 || window_size.height == 0 {
+                        return; // Prevent "Failed to recreate swapchain: ImageExtentZeroLengthDimensions" in renderer.acquire().unwrap()
+                    }
+                    let mut gpu_future = renderer.acquire(None, |_| {}).unwrap();
+
+                    let gui_editor = self.gui_editor.as_mut().unwrap();
+                    let mut world_data = self.project.app().map(|app| {
+                        let mut world_data = WorldData::default();
+                        app.command(Command::Save(&mut world_data));
+                        world_data
+                    });
+                    self.editor.ui(
+                        gui_editor,
+                        &mut self.gui,
+                        &self.context,
+                        renderer,
+                        &mut self.project,
+                        &mut world_data,
+                        &mut self.local_data,
+                        &mut self.scene_camera,
+                        &mut self.window_title,
+                    );
+
+                    let is_running = self.project.is_running();
+                    if let Some(app) = self.project.app() {
+                        if self.gui.is_none() {
+                            self.gui = Some(Gui::new(
+                                &event_loop,
+                                renderer.surface(),
+                                renderer.graphics_queue(),
+                                renderer.swapchain_format(),
+                                GuiConfig {
+                                    is_overlay: true,
+                                    ..Default::default()
+                                },
+                            ));
+                        }
+                        let gui = self.gui.as_mut().unwrap();
+                        let mut raw_input = gui.egui_winit.take_egui_input(renderer.window());
+                        let screen_size = self.editor.game_window().size();
+                        raw_input.screen_rect = Some(egui::Rect::from_x_y_ranges(
+                            0.0..=(screen_size.x as f32),
+                            0.0..=(screen_size.y as f32),
+                        ));
+                        gui.egui_ctx.options_mut(|options| {
+                            options.zoom_factor = gui_editor.egui_ctx.zoom_factor()
+                        });
+                        gui.egui_ctx.begin_pass(raw_input);
+
+                        if let Some(world_data) = world_data.as_mut() {
+                            app.command(Command::Load(world_data));
+                        }
+
+                        app.update(UpdateInfo {
+                            update: is_running,
+                            ctx: &gui.egui_ctx,
+                        });
+
+                        if let Some(image) = self.editor.game_window().image() {
+                            let draw_future = app.draw(DrawInfo {
+                                before_future: vulkano::sync::now(self.context.device().clone())
+                                    .boxed(),
+                                context: &self.context,
+                                renderer: &renderer,
+                                image: image.clone(),
+                                window_size: self.editor.game_window().pixel(),
+                                editor_info: None,
+                            });
+                            // There is a display abnormal problem, it seems like that this image displayed without finishing drawing.
+                            // We wait for draw future here to avoid this problem.
+                            // TODO: fix this display problem.
+                            draw_future
+                                .then_signal_fence_and_flush()
+                                .unwrap()
+                                .wait(None)
+                                .unwrap();
+                            let gui_future = gui.draw_on_image(
+                                vulkano::sync::now(self.context.device().clone()).boxed(), // TODO: use draw_future
+                                image.clone(),
+                            );
+                            let copy_future = self.editor.game_window().copy_image(
+                                self.command_buffer_allocator.clone(),
+                                self.context.graphics_queue().clone(),
+                                gui_future,
+                            );
+                            gpu_future = gpu_future.join(copy_future).boxed();
+                        }
+
+                        if let Some(image) = self.editor.scene_window().image() {
+                            let draw_future = app.draw(DrawInfo {
+                                before_future: vulkano::sync::now(self.context.device().clone())
+                                    .boxed(),
+                                context: &self.context,
+                                renderer: &renderer,
+                                image: image.clone(),
+                                window_size: self.editor.scene_window().pixel(),
+                                editor_info: Some(EditorInfo {
+                                    camera: &self.scene_camera,
+                                }),
+                            });
+                            // There is a crash problem "access to a resource has been denied".
+                            // We wait for draw future here to avoid this problem.
+                            // TODO: fix this crash problem.
+                            draw_future
+                                .then_signal_fence_and_flush()
+                                .unwrap()
+                                .wait(None)
+                                .unwrap();
+                            let copy_future = self.editor.scene_window().copy_image(
+                                self.command_buffer_allocator.clone(),
+                                self.context.graphics_queue().clone(),
+                                vulkano::sync::now(self.context.device().clone()).boxed(), // TODO: use draw_future
+                            );
+                            gpu_future = gpu_future.join(copy_future).boxed();
+                        }
+                    }
+
+                    gpu_future =
+                        gui_editor.draw_on_image(gpu_future, renderer.swapchain_image_view());
+
+                    renderer.present(gpu_future, true);
+
+                    renderer.window().request_redraw();
+                }
+            }
+            _ => (),
+        }
+    }
+}
+
+fn adjust_event_for_window(event: &mut WindowEvent, window_position: Vec2, scale_factor: f32) {
     match event {
         WindowEvent::CursorMoved { position, .. } => {
             let (window_position, scale_factor) = (window_position.as_dvec2(), scale_factor as f64);
@@ -331,9 +376,6 @@ fn adjust_event_for_window(
             touch.location.x = touch.location.x - window_position.x * scale_factor;
             touch.location.y = touch.location.y - window_position.y * scale_factor;
         }
-        // events that we do not need change
-        // note: we must write all types of event here, because when we upgrade winit,
-        // we will know the types of event we did not consider
         WindowEvent::CursorLeft { .. }
         | WindowEvent::CursorEntered { .. }
         | WindowEvent::Focused(_)
@@ -344,21 +386,21 @@ fn adjust_event_for_window(
         | WindowEvent::DroppedFile(_)
         | WindowEvent::HoveredFile(_)
         | WindowEvent::HoveredFileCancelled
-        | WindowEvent::ReceivedCharacter(_)
         | WindowEvent::KeyboardInput { .. }
         | WindowEvent::ModifiersChanged(_)
         | WindowEvent::Ime(_)
         | WindowEvent::MouseWheel { .. }
         | WindowEvent::MouseInput { .. }
-        | WindowEvent::TouchpadMagnify { .. }
-        | WindowEvent::SmartMagnify { .. }
-        | WindowEvent::TouchpadRotate { .. }
         | WindowEvent::TouchpadPressure { .. }
         | WindowEvent::AxisMotion { .. }
         | WindowEvent::ThemeChanged(_)
-        | WindowEvent::Occluded(_) => (),
-        WindowEvent::ScaleFactorChanged { .. } => {
-            unreachable!("Static event can't be about scale factor changing")
-        }
+        | WindowEvent::Occluded(_)
+        | WindowEvent::ActivationTokenDone { .. }
+        | WindowEvent::PinchGesture { .. }
+        | WindowEvent::PanGesture { .. }
+        | WindowEvent::DoubleTapGesture { .. }
+        | WindowEvent::RotationGesture { .. }
+        | WindowEvent::ScaleFactorChanged { .. }
+        | WindowEvent::RedrawRequested => (),
     }
 }
