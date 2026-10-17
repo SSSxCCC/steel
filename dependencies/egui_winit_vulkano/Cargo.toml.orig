@@ -1,0 +1,33 @@
+[package]
+name = "egui_winit_vulkano"
+version = "0.28.0"
+authors = ["hakolao <okkohakola@gmail.com>"]
+edition = "2021"
+description = "Egui immediate mode gui integration with winit and Vulkano"
+homepage = "https://github.com/hakolao/egui_winit_vulkano"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/hakolao/egui_winit_vulkano"
+categories = ["gui", "game-development"]
+keywords = ["gui", "imgui", "immediate", "portable", "gamedev"]
+
+[features]
+default = ["clipboard", "links", "wayland", "x11", "image"]
+links = ["egui-winit/links"]
+clipboard = ["egui-winit/clipboard"]
+wayland = ["winit/wayland", "winit/wayland-dlopen", "egui-winit/wayland"]
+x11 = ["winit/x11", "egui-winit/x11"]
+
+[dependencies]
+ahash = "0.8"
+egui-winit = { version = "0.31", default-features = false }
+egui = "0.31"
+image = { version = "0.25", optional = true }
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+vulkano = { version = "0.35" }
+vulkano-shaders = "0.35"
+
+[dev-dependencies]
+cgmath = "0.18.0"
+egui_demo_lib = "0.31.0"
+vulkano-util = { version = "0.35" }

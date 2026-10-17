@@ -5,17 +5,19 @@ use components::{DemoComponent, TagComponent};
 use ray_tracing_in_one_weekend::RayTracingInOneWeekend;
 use shipyard::{Unique, UniqueView, UniqueViewMut};
 use steel::{
-    app::{App, Schedule, SteelApp},
+    app::{Schedule, SteelApp},
     asset::AssetId,
     data::{Data, Value},
     edit::Edit,
+    egui, log,
     physics2d::Physics2DPlugin,
     scene::SceneManager,
+    steel_main,
     ui::EguiContext,
 };
 
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
+#[steel_main]
+pub fn main() {
     SteelApp::new()
         .add_plugin(Physics2DPlugin)
         .add_and_register_unique(MyUnique::default())
@@ -28,7 +30,7 @@ pub fn create() -> Box<dyn App> {
             ray_tracing_in_one_weekend::generate_scene_system,
         )
         .add_system(Schedule::PostUpdate, 0, test_system)
-        .boxed()
+        .run();
 }
 
 #[derive(Unique, Edit, Default)]

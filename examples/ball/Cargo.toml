@@ -1,29 +1,17 @@
 [package]
-name = "steel-project"
+name = "ball"
 version = "0.2.0"
 edition = "2021"
 
-[lib]
-name = "steel"
-
 [dependencies]
-steel-engine = { version = "0.2.0", path = "../../steel-engine" }
+steel-engine = { version = "0.2.0", path = "../.." }
+rand = "0.8"
+shipyard = "0.7"
 
-vulkano = "0.35.1"
-vulkano-util = "0.35.0"
-vulkano-shaders = "0.35.0"
-winit = { version = "0.30.11", features = [ "android-game-activity" ] }
-egui_winit_vulkano = "0.28.0"
-egui = "0.31.1"
-log = "0.4"
-shipyard = { version = "0.7.1", features = [ "serde1" ] }
-rayon = "1.8.0"
-parry2d = "0.17"
-parry3d = "0.17"
-rapier2d = { version = "0.22", features = [ "debug-render" ] }
-rapier3d = { version = "0.22", features = [ "debug-render" ] }
-nalgebra = { version = "0.33", features = [ "convert-glam024" ] }
-glam = { version = "0.24.2", features = [ "serde" ] }
-serde = { version = "1.0", features = [ "derive" ] }
-serde_json = "1.0"
-indexmap = { version = "2.2.2", features = [ "serde" ] }
+[lib]
+name = "main"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "ball"
+path = "src/main.rs"

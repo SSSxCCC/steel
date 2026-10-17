@@ -1,0 +1,32 @@
+[package]
+name = "steel-editor"
+version = "0.2.0"
+edition = "2021"
+description = "The editor for the steel game engine."
+license = "MIT"
+
+[dependencies]
+steel-common = { version = "0.2.0", path = "../steel-common" }
+
+rfd = "0.14"
+regex = "1.10"
+sys-locale = "0.3"
+egui_demo_lib = "0.31"
+egui_dock = "0.16"
+notify = "6.1"
+open = "5.3"
+rand = "0.8"
+
+vulkano = { version = "0.35", path = "../../dependencies/vulkano" }
+vulkano-util = { version = "0.35", path = "../../dependencies/vulkano-util" }
+winit = { version = "0.30", features = [ "android-game-activity" ] }
+egui_winit_vulkano = { version = "0.28", path = "../../dependencies/egui_winit_vulkano" }
+egui = "0.31"
+log = "0.4"
+shipyard = { version = "0.7", features = [ "serde1" ] }
+glam = { version = "0.24", features = [ "serde" ] }
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = "1.0"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger = "0.10"

@@ -1,15 +1,30 @@
 [workspace]
 resolver = "2"
 members = [
-    "steel-engine",
-    "steel-common",
-    "steel-editor",
-    "steel-build/steel-dynlib",
-    "steel-build/steel-client",
-    "steel-build/steel-server",
-]
-exclude = [
-    "steel-build/steel-project",
+    # All of Steel's official crates are within the `crates` folder!
+    "crates/*",
+    "examples/empty-project",
     "examples/demo",
     "examples/ball",
 ]
+
+[package]
+name = "steel-engine"
+version = "0.2.0"
+edition = "2021"
+description = "The steel game engine library."
+license = "MIT"
+
+[lib]
+name = "steel"
+
+[dependencies]
+steel-internal = { version = "0.2.0", path = "crates/steel-internal" }
+
+[features]
+defalut = []
+editor = ["steel-internal/editor"]
+
+[[example]]
+name = "hello_world"
+path = "examples/hello_world.rs"

@@ -1,0 +1,14 @@
+[package]
+name = "steel-proc"
+version = "0.2.0"
+edition = "2021"
+description = "The steel game engine proc-macro library."
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"

@@ -1,5 +1,3 @@
-use glam::{vec3, Quat, Vec3};
-use parry3d::shape::SharedShape;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use shipyard::{
     AllStoragesViewMut, Component, EntityId, IntoIter, IntoWithId, Remove, UniqueViewMut, ViewMut,
@@ -7,10 +5,11 @@ use shipyard::{
 use steel::{
     data::Data,
     edit::Edit,
+    glam::{vec3, Quat, Vec3},
     hierarchy::{Children, Hierarchy, Parent},
     name::Name,
     render::{mesh::Mesh, pipeline::raytracing::material::Material},
-    shape3d::Shape3D,
+    shape3d::{Shape3D, SharedShape},
     transform::Transform,
 };
 

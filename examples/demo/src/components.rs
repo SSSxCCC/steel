@@ -1,9 +1,9 @@
-use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use shipyard::{Component, EntityId};
 use steel::{
     asset::AssetId,
     data::{Data, Limit, Value},
     edit::Edit,
+    glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4},
 };
 
 /// This is a tag component. It doesn't have any data, but it can be used to mark entities.

@@ -45,6 +45,15 @@ cd steel-editor
 
 You can learn about the Steel engine through this [tutorial](tutorial/eng/1-introduction.md).
 
+# Examples
+
+There are many examples under examples folder. "examples/hello_world.rs" is a single file example that can run directly:
+```
+cargo run --example hello_world --features editor
+```
+
+"examples/empty-project" is an example that can be compiled and run directly on any platform supported by the Steel Engine.
+
 # Editor demo
 
 ![image](demo/demo.png)
@@ -63,7 +72,8 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [x] 2D rendering basic
 - [x] 2D texture
 - [x] 3D rendering basic
-- [x] 3D model
+- [x] obj model
+- [ ] gltf model
 - [x] Ray traced rendering
 - [x] 2D physics
 - [ ] 3D physics
@@ -73,9 +83,8 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [ ] Particle system
 - [ ] Network synchronization
 - [ ] AI
-- [x] Build Windows program
-- [x] Build Android application
-- [ ] Customize build
+- [x] Run on Windows
+- [x] Run on Android
 - [x] Write a tutorial
 - [ ] Tests
 
