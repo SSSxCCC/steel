@@ -1,5 +1,8 @@
 //! The editor for the [steel game engine](https://github.com/SSSxCCC/steel).
 
+#[cfg(target_os = "android")]
+compile_error!("Steel Editor is not supported on Android; use steel-client instead.");
+
 mod locale;
 mod project;
 mod ui;
