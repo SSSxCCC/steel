@@ -83,7 +83,7 @@ impl Project {
     }
 
     fn open_inner(path: &PathBuf) -> Result<(), Box<dyn Error>> {
-        let asset_dir = path.join("asset");
+        let asset_dir = path.join(ASSET_DIR);
         if !asset_dir.is_dir() {
             fs::create_dir(&asset_dir)?;
             log::debug!("Created directory: {}", asset_dir.display());
@@ -710,7 +710,10 @@ impl ProjectState {
             .and_then(|compiled| compiled.scene)
             .ok_or("No scene is open, you must open a scene as init scene before export")?;
 
-        Self::export_asset(self.asset_dir(), self.path.join("build/windows/asset"))?;
+        Self::export_asset(
+            self.asset_dir(),
+            self.path.join("build/windows").join(ASSET_DIR),
+        )?;
 
         let exe_path = PathBuf::from("target/debug/steel-client.exe");
         if exe_path.exists() {

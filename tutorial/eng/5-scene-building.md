@@ -53,7 +53,7 @@ Finally, don’t forget to save our scene, otherwise we will have to build it ag
 
 Click the "Scene -> Save As" button in the top menu of the editor. A file save dialog will pop up. Enter "game" and choose Save. The saved file will automatically be added with the suffix ".scene". Currently, the scene file is in json format, so you can open it directly to view the content.
 
-Note that our scene needs to be saved in the asset directory of the game project directory. The file save dialog is in this directory by default. The asset directory is the resource directory of the game, and the scene is also a game resource. When the game is packaged, all files in the asset directory will be included.
+Note that our scene needs to be saved in the `assets` directory of the game project. The file save dialog starts in this directory. This is the game's resource directory, and scenes are game resources too. Include its contents when packaging the game.
 
 After the current scene is saved, the editor will record the location where the current scene is saved. The next time you modify the scene and need to save it again, just click the "Scene -> Save" button in the top menu.
 

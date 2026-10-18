@@ -2,36 +2,36 @@
 
 ## Set up the environment
 
-Currently, it is recommended to run in VSCode, convenient for debugging.
+The editor is integrated into a Steel application and is not a standalone executable. The editor feature is for desktop builds; Android applications should use `steel-client`.
 1. Install [Visual Studio 2022][Visual Studio 2022] with "Desktop development with C++" in Windows, keep the default check.
 2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs].
 3. Install [VSCode][VSCode] with "C/C++" and "rust-analyzer" extensions.
 
 ## Run Steel Editor
 
-The Steel Editor can be run by compiling the source code, or by running it directly using the compiled executable file. Currently, it is recommended to open the Steel source code in VSCode to run the Steel Editor, because it is convenient for debugging. The subsequent content and pictures in this tutorial are based on running the Steel Editor using the source code, but it is also applicable to running the Steel Editor using the executable file.
+Open the repository in VSCode if desired, then run an example application with the editor feature enabled.
 
 ### Run from source
 
-1. Download the code of the Steel, and checkout "v0.2" branch, because the current tutorial is written based on this version:
+1. Clone the repository:
 ```
 git clone https://github.com/SSSxCCC/steel
 cd steel
-git checkout v0.2
 ```
-2. Use VSCode to open the root directory "steel" and press F5 to compile and run in debug mode. Or you can run it using the command:
+2. Start the ball example with the editor:
 ```
-cargo run -p steel-editor -F desktop
+cd examples/ball
+cargo run --features steel-engine/editor
 ```
 
-### Run using executable file
+To use the starter project instead, run this from the repository root:
+```
+cargo run --manifest-path examples/empty-project/Cargo.toml --features steel-engine/editor
+```
 
-1. Download "steel-editor.zip" from the [Releases][Releases] page and unzip it.
-2. Open Windows PowerShell and execute:
-```
-cd steel-editor
-.\steel-editor.exe
-```
+The editor uses the `assets` directory under the process's current working directory. For the ball example, launch the command from `examples/ball` so its project assets are used.
+
+To run without the editor, run `cargo run` from the example directory. Game code changes require rebuilding and relaunching the application; the editor's Project -> Compile menu does not compile Rust source code.
 
 ## Steel editor UI introduction
 
@@ -47,9 +47,9 @@ In front of the entire interface is the editor window. In the editor window ther
 * Uniques: Display all uniques in the current scene;
 * Unique: Displays the contents of the currently selected unique.
 
-Behind the editor window is the VSCode window. All logs output in the editor are displayed in the terminal below VSCode. Currently, all Steel engine codes have been opened in VSCode and can be viewed and modified at any time. At the same time, VSCode is also used to view and modify the project code created by the Steel editor. The specific method will be introduced in subsequent chapters.
+Run the command from a terminal to see log output there. VSCode can be used to edit both the engine and example application source.
 
-There is an examples directory under the Steel engine source code directory, and there is a ball directory under it, which is the final content of the catch ball game of the example project of this tutorial. If you encounter difficulties while reading this tutorial, you can open the ball directory under the examples directory at any time for reference.
+The `examples/ball` directory contains the source and assets for the catch-the-ball game used in this tutorial.
 
 [Next: Create Project][3]
 
@@ -75,4 +75,3 @@ There is an examples directory under the Steel engine source code directory, and
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [Visual Studio 2022]: https://visualstudio.microsoft.com/vs/
 [VSCode]: https://code.visualstudio.com/
-[Releases]: https://github.com/SSSxCCC/steel/releases

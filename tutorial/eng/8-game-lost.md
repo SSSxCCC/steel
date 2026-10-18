@@ -13,19 +13,13 @@ We first create a Border component to mark our border entity:
 struct Border;
 ```
 
-Also register:
+Register it in the existing `SteelApp` builder chain in `main`:
 
 ```rust
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
-    SteelApp::new()
-        ...
-        .register_component::<Border>()
-        ...
-}
+    .register_component::<Border>()
 ```
 
-Remember to compile after you finish writing the code.
+Rebuild and restart the application with the editor enabled before editing the scene.
 
 Then create an entity named Border in the scene, delete the Renderer2D component, and add the Collider2D component and the Border component. Check the sensor of the Collider2D component, and adjust its position and size by changing the position and scale of the Transform to just cover the area bounded by the wall and the board:
 
@@ -97,20 +91,18 @@ fn lose_system(
 }
 ```
 
-Both border_check_system and lose_system can be run in Schedule::Update:
+Register both systems in `Schedule::Update`, with an explicit order:
 
 ```rust
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
-    SteelApp::new()
-        ...
-        .add_system(Schedule::Update, border_check_system)
-        .add_system(Schedule::Update, lose_system)
-        .boxed()
-}
+    .add_system(
+        Schedule::Update,
+        PHYSICS2D_UPDATE_SYSTEM_ORDER + 1,
+        border_check_system,
+    )
+    .add_system(Schedule::Update, 0, lose_system)
 ```
 
-Compile and run the game again, let the ball fall off the screen, and we can see the prompt "You lose!" in the middle of the screen.
+`PHYSICS2D_UPDATE_SYSTEM_ORDER` is exported by `steel::physics2d`; running the border check after the physics update ensures it reads current intersection results. Rebuild and run the game, then let the ball fall outside the boundary to see the "You lose!" message.
 
 [Next: Main Menu][9]
 

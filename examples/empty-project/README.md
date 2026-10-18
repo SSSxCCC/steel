@@ -1,6 +1,6 @@
 # empty-project example
 
-empty-project is a simple cross-platform example that can be compiled and run directly on any platform supported by the Steel Engine. You can copy this directory as a newly created project.
+`empty-project` is a starter Steel application. The editor is integrated into the application and is supported on desktop only; Android builds must use the game client.
 
 ## Run in desktop
 
@@ -10,15 +10,17 @@ In current directory:
 cargo run
 ```
 
-## Run editor in desktop
+## Run with the editor (desktop only)
 
-In current directory:
+From this directory:
 
 ```
-cargo run -F steel-engine/editor
+cargo run --features steel-engine/editor
 ```
 
-## Run in android
+The editor uses the process working directory for its project and `assets` directory. Rebuild and restart the application after changing Rust source; the editor's Project -> Compile menu does not compile source code.
+
+## Build the Android client
 
 For the first time, install cargo-ndk:
 
@@ -30,20 +32,11 @@ cargo install cargo-ndk
 In current directory:
 
 ```
-cargo ndk -t arm64-v8a -o ../android-project/app/src/main/jniLibs/ build
+cargo ndk -t arm64-v8a -o target/android/jniLibs build --lib
 ```
 
-Delete the assets folder under the ../android-project/app/src/main directory, and copy the assets folder from the current directory there.
+This creates the Android native library. Package it and this project's `assets` directory in an Android application; this repository does not include a Gradle application wrapper or APK install step. Do not enable `steel-engine/editor` for Android.
 
-In "../android-project":
+Before building, install Android Studio with the Android SDK and NDK, and configure `ANDROID_HOME` and `ANDROID_NDK_HOME`.
 
-```
-.\gradlew build
-.\gradlew installDebug
-```
-
-Note: before compiling the android apk, you need to install the Android SDK and Java.
-
-1. Android SDK: You can install the Android SDK by installing [Android Studio](https://developer.android.com/studio). At the same time, install NDK in the SDK Manager of Android Studio. And set the system environment variables ANDROID_HOME and ANDROID_NDK_HOME to the installation directories of SDK and NDK respectively.
-
-2. Java: Install [Java](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html), and be sure to select 64-bit Java-17 to download and install. And set the system environment variable JAVA_HOME to the installation directory of Java.
+Install Java 17 and set `JAVA_HOME` to its installation directory.

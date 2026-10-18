@@ -17,18 +17,13 @@ struct Ball {
 
 We store the initial velocity of the ball in the member variable start_velocity so that we can change it at any time in the editor. Its type is Vec2, because velocity is a vector, which defines both the direction and magnitude of the velocity. We also have a member variable started of type bool to record whether we have given the ball an initial velocity, to prevent us from setting the initial velocity of the ball multiple times. The started variable does not need to be modified in the editor, so we can add the edit attribute to it, in which we set limit to Limit::ReadOnly, so that this variable is read-only in the editor.
 
-After writing the Ball component, remember to register it in SteelApp:
+Register the component in the existing `SteelApp` builder chain in `main`:
 
 ```rust
-pub fn create() -> Box<dyn App> {
-    SteelApp::new()
-        ...
-        .register_component::<Ball>()
-        ...
-}
+    .register_component::<Ball>()
 ```
 
-Click the "Project -> Compile" button in the top menu again to compile. You can then add a Ball component to the Ball entity in the editor and set the value of start_velocity, for example (8, 16).
+Rebuild and restart the application with the editor enabled. You can then add a Ball component to the Ball entity and set `start_velocity`, for example to (8, 16). Save the scene after editing.
 
 ## push_ball_system
 
@@ -53,19 +48,13 @@ fn push_ball_system(
 
 We find our ball by looking for entities that have both a Ball component and a RigidBody2D component. If started is false, it means we haven't set an initial velocity for it yet, so we set an initial velocity and set started to true to ensure that the velocity is not set next time.
 
-push_ball_system can also be run in Schedule::Update:
+Register `push_ball_system` in `Schedule::Update` with an order value:
 
 ```rust
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
-    SteelApp::new()
-        ...
-        .add_system(Schedule::Update, push_ball_system)
-        ...
-}
+    .add_system(Schedule::Update, 0, push_ball_system)
 ```
 
-Compile and run the game, and you should see the ball fly out at the beginning of the game.
+Rebuild and run the game; the ball should receive its initial velocity when gameplay starts.
 
 [Next: Game Lost][8]
 

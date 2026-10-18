@@ -1,36 +1,32 @@
 # 运行Steel编辑器
 
-## 搭建环境
+## 环境准备
 
-1. 在Windows系统安装[Visual Studio 2022][Visual Studio 2022]的"使用C++的桌面开发"，保持默认勾选
-2. 为了[shaderc-rs][shaderc-rs]，安装[Rust][Rust]，[Git][Git]，[Python][Python]，[CMake][CMake]和[Ninja][Ninja]
-3. 安装[VSCode][VSCode]及其"C/C++"和"rust-analyzer"插件
+在Windows上安装[Rust][Rust]、[Git][Git]和[Visual Studio 2022][Visual Studio 2022]（勾选“使用C++的桌面开发”）。构建着色器依赖还需要[Python][Python]、[CMake][CMake]和[Ninja][Ninja]。推荐使用带有“C/C++”和“rust-analyzer”扩展的[VSCode][VSCode]。
 
-## 运行Steel编辑器
+Steel编辑器集成在Steel应用中，不再是独立可执行程序。桌面应用启用`editor` feature后会启动编辑器；Android应用应使用`steel-client`，不支持编辑器。
 
-Steel编辑器可以使用源码编译运行，或者使用已经编译好了的可执行文件直接运行。目前推荐在VSCode中打开Steel的源码运行Steel编辑器，因为方便调试。本教程后续的内容和图片是基于使用源码运行Steel编辑器的方式，不过也同样适用于使用可执行文件运行Steel编辑器的方式。
+## 从源码运行
 
-### 使用源码运行
-
-1. 下载Steel的源码，并切换到v0.2版本的分支，因为当前教程是基于这个版本写的：
+1. 克隆仓库：
 ```
 git clone https://github.com/SSSxCCC/steel
 cd steel
-git checkout v0.2
 ```
-2. 使用VSCode打开根目录“steel”，按F5即可以调试模式编译运行。或者你也可以使用命令运行：
+2. 从接球示例目录启动编辑器：
 ```
-cargo run -p steel-editor -F desktop
+cd examples/ball
+cargo run --features steel-engine/editor
 ```
 
-### 使用可执行文件运行
+也可以从仓库根目录运行单文件hello-world示例：
+```
+cargo run --example hello_world --features editor
+```
 
-1. 在[Release页面][Release]下载“steel-editor.zip”并解压
-2. 打开Windows PowerShell，执行：
-```
-cd steel-editor
-.\steel-editor.exe
-```
+编辑器使用进程当前工作目录下的`assets`目录。接球示例命令需要从`examples/ball`目录运行，这样才能使用该示例的场景和资源。修改游戏Rust代码后，需要重新构建并启动应用；“Project -> Compile”不会编译Rust源码。
+
+不启用编辑器时，在示例目录直接执行`cargo run`即可通过`steel-client`运行游戏。
 
 ## Steel编辑器界面介绍
 
@@ -46,9 +42,9 @@ cd steel-editor
 * Uniques：显示当前场景所有的单例（Unique）；
 * Unique：显示当前选中的单例的内容。
 
-编辑器窗口的后面是VSCode窗口。编辑器中输出的所有log都显示在VSCode下面的控制台中。目前所有Steel引擎代码都已经在VSCode中打开，可以随时查看和修改。同时VSCode也用于查看修改Steel编辑器创建的项目代码，具体方式将在后续章节中介绍。
+请从终端运行命令以查看log输出。你可以使用VSCode查看和修改Steel引擎及示例应用源码。
 
-Steel引擎源码目录下面有一个examples目录，其下面有一个ball目录，是本教程的示例项目接球游戏最终完成的内容，如果你在阅读本教程遇到了困难，可以随时打开examples目录下的ball目录来参考。
+`examples/ball`目录包含本教程接球游戏的源码和资源，遇到困难时可以参考该示例。
 
 [下一章：创建项目][3]
 
@@ -74,4 +70,3 @@ Steel引擎源码目录下面有一个examples目录，其下面有一个ball目
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [Visual Studio 2022]: https://visualstudio.microsoft.com/vs/
 [VSCode]: https://code.visualstudio.com/
-[Release]: https://github.com/SSSxCCC/steel/releases
