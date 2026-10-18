@@ -7,6 +7,9 @@ license = "MIT"
 repository = "https://github.com/SSSxCCC/steel"
 documentation = "https://docs.rs/steel-internal"
 
+[lib]
+doctest = false
+
 [dependencies]
 steel-common = { version = "0.3.0", path = "../steel-common" }
 steel-client = { version = "0.3.0", path = "../steel-client" }
