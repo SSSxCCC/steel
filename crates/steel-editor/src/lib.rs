@@ -3,36 +3,49 @@
 #[cfg(target_os = "android")]
 compile_error!("Steel Editor is not supported on Android; use steel-client instead.");
 
+#[cfg(not(target_os = "android"))]
 mod locale;
+#[cfg(not(target_os = "android"))]
 mod project;
+#[cfg(not(target_os = "android"))]
 mod ui;
+#[cfg(not(target_os = "android"))]
 mod utils;
 
+#[cfg(not(target_os = "android"))]
 use crate::{project::Project, ui::Editor, utils::LocalData};
+#[cfg(not(target_os = "android"))]
 use egui_winit_vulkano::{Gui, GuiConfig};
+#[cfg(not(target_os = "android"))]
 use glam::Vec2;
+#[cfg(not(target_os = "android"))]
 use std::sync::Arc;
+#[cfg(not(target_os = "android"))]
 use steel_common::{
     app::{App, Command, DrawInfo, EditorInfo, UpdateInfo},
     camera::SceneCamera,
     data::WorldData,
 };
+#[cfg(not(target_os = "android"))]
 use vulkano::{
     command_buffer::allocator::{CommandBufferAllocator, StandardCommandBufferAllocator},
     format::Format,
     image::ImageUsage,
     sync::GpuFuture,
 };
+#[cfg(not(target_os = "android"))]
 use vulkano_util::{
     context::VulkanoContext,
     window::{VulkanoWindows, WindowDescriptor},
 };
+#[cfg(not(target_os = "android"))]
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ControlFlow, EventLoop},
 };
 
+#[cfg(not(target_os = "android"))]
 pub fn run(app: Box<dyn App>) {
     env_logger::builder()
         .filter_level(log::LevelFilter::Trace)
@@ -91,6 +104,7 @@ pub fn run(app: Box<dyn App>) {
     event_loop.run_app(&mut application).unwrap();
 }
 
+#[cfg(not(target_os = "android"))]
 struct Application {
     local_data: LocalData,
     context: VulkanoContext,
@@ -104,6 +118,7 @@ struct Application {
     project: Project,
 }
 
+#[cfg(not(target_os = "android"))]
 impl ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         log::debug!("Resumed");
@@ -338,6 +353,7 @@ impl ApplicationHandler for Application {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn adjust_event_for_window(event: &mut WindowEvent, window_position: Vec2, scale_factor: f32) {
     match event {
         WindowEvent::CursorMoved { position, .. } => {

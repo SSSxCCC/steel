@@ -1,5 +1,8 @@
 //! The [steel game engine](https://github.com/SSSxCCC/steel) core library.
 
+#[cfg(all(target_os = "android", feature = "editor"))]
+compile_error!("Steel Editor is not supported on Android; use steel-client instead.");
+
 pub mod app;
 pub mod asset;
 pub mod camera;

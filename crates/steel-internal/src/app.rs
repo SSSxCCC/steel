@@ -228,7 +228,7 @@ impl SteelApp {
     }
 
     pub fn run(self) {
-        #[cfg(feature = "editor")]
+        #[cfg(all(feature = "editor", not(target_os = "android")))]
         steel_editor::run(Box::new(self));
 
         #[cfg(not(feature = "editor"))]

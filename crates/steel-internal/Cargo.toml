@@ -10,7 +10,6 @@ documentation = "https://docs.rs/steel-internal"
 [dependencies]
 steel-common = { version = "0.3.0", path = "../steel-common" }
 steel-client = { version = "0.3.0", path = "../steel-client" }
-steel-editor = { version = "0.3.0", path = "../steel-editor", optional = true }
 steel-proc = { version = "0.3.0", path = "../steel-proc" }
 image = "0.25"
 obj-rs = "0.7"
@@ -33,6 +32,9 @@ glam = { version = "0.24", features = [ "serde" ] }
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 indexmap = { version = "2.2", features = [ "serde" ] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+steel-editor = { version = "0.3.0", path = "../steel-editor", optional = true }
 
 [features]
 default = []
