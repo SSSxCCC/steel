@@ -55,6 +55,8 @@ Click the "Scene -> Save As" button in the top menu of the editor. A file save d
 
 Note that our scene needs to be saved in the `assets` directory of the game project. The file save dialog starts in this directory. This is the game's resource directory, and scenes are game resources too. Include its contents when packaging the game.
 
+The game client starts from `assets/main.scene`. If you want to run this ball scene directly with `cargo run`, save it as `main.scene` instead of `game.scene`. Other scene names do not become the startup scene automatically; your game can load them explicitly.
+
 After the current scene is saved, the editor will record the location where the current scene is saved. The next time you modify the scene and need to save it again, just click the "Scene -> Save" button in the top menu.
 
 If you want to roll back to the last saved state after modifying the scene, click "Scene -> Load" in the top menu to load the last saved scene file.

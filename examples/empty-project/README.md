@@ -20,6 +20,8 @@ cargo run --features steel-engine/editor
 
 The editor uses the process working directory for its project and `assets` directory. Rebuild and restart the application after changing Rust source; the editor's Project -> Compile menu does not compile source code.
 
+The game client automatically loads `assets/main.scene`. The starter does not include a scene, so create one in the editor and save it as `main.scene` if you want `cargo run` to start with that scene. Keep the `.scene.asset` sidecar file created by the editor.
+
 ## Build the Android client
 
 For the first time, install cargo-ndk:

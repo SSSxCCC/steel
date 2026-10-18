@@ -15,6 +15,8 @@ cargo run --features steel-engine/editor
 
 Copy `examples/empty-project` to a directory under the repository's `examples` folder, then rename the package in its `Cargo.toml`. Its `steel-engine` path dependency is relative to the repository root; if you place the project elsewhere, adjust that path to point to the checkout. Run `cargo run --features steel-engine/editor` from the new project directory. The editor uses that process working directory and its `assets` directory for game resources.
 
+The game client automatically loads `assets/main.scene` as its startup scene. Save the scene you want `cargo run` to start as `main.scene`; other scene files are available to your game code but are not selected automatically. The empty starter has no scene yet, so it starts with an empty world until you create and save `main.scene`.
+
 The editor's Project -> Compile menu initializes/reloads the app state; it does not invoke Cargo to compile changed Rust source. Rebuild and restart the application after changing game code.
 
 [Next: Write Code][4]
