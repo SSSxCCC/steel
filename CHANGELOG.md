@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Fix the game client so it loads `assets/main.scene` as the startup scene when present. Projects without that scene continue to start with an empty world.
+- Update the bilingual tutorials and empty-project README to document startup scene selection.
+
 ## 0.3.0
 
 ### Highlights

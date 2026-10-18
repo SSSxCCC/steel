@@ -3728,7 +3728,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "steel-client"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "android_logger",
  "env_logger",
@@ -3804,14 +3804,14 @@ dependencies = [
 
 [[package]]
 name = "steel-engine"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "steel-internal",
 ]
 
 [[package]]
 name = "steel-internal"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bytemuck",
  "egui",
