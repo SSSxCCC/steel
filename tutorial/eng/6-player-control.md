@@ -75,20 +75,52 @@ The system sets a horizontal velocity while an arrow key is pressed. On Android,
 
 ## Build for Android
 
-The editor is not supported on Android. Android builds use the Steel client. Install Android Studio with the SDK and NDK, Java 17, the Rust target, and cargo-ndk:
+The editor is not supported on Android. Android builds use the Steel client. Install Android Studio with the SDK and the NDK version required by the Gradle project, plus Java 17. Set `ANDROID_HOME`, `ANDROID_NDK_HOME`, and `JAVA_HOME`, then install the Rust target and cargo-ndk:
 
 ```
 rustup target add aarch64-linux-android
 cargo install cargo-ndk
 ```
 
-From `examples/ball`, build the Android native library into the included Gradle application's library directory:
+Run the following steps from your own game project's root. First copy Steel's `examples/android-project` into your repository as `android-project`. Exclude the `.gradle`, `build`, and `app/build` cache directories.
+
+Windows PowerShell (assuming the two repositories are siblings):
 
 ```
-cargo ndk -t arm64-v8a -o ../android-project/app/src/main/jniLibs build --lib
+robocopy ..\steel\examples\android-project .\android-project /E /XD .gradle build app\build
 ```
 
-Copy the contents of `examples/ball/assets` to `examples/android-project/app/src/main/assets`, then run `gradlew assembleDebug` (`gradlew.bat assembleDebug` on Windows) from `examples/android-project`. The wrapper currently targets arm64 Android devices and uses the SDK/NDK versions configured in its Gradle files.
+Robocopy exit codes from 0 through 7 indicate that the copy completed without a fatal error.
+
+macOS/Linux:
+
+```
+rsync -a --exclude='.gradle' --exclude='build' --exclude='app/build' ../steel/examples/android-project/ android-project/
+```
+
+Build the Android native library from your game project root:
+
+```
+cargo ndk -t arm64-v8a -o android-project/app/src/main/jniLibs build --lib
+```
+
+Copy the contents of your game's `assets` directory into `android-project/app/src/main/assets`.
+
+Windows PowerShell:
+
+```
+New-Item -ItemType Directory -Force android-project\app\src\main\assets | Out-Null
+Get-ChildItem assets -Force | Copy-Item -Destination android-project\app\src\main\assets -Recurse -Force
+```
+
+macOS/Linux:
+
+```
+mkdir -p android-project/app/src/main/assets
+cp -R assets/. android-project/app/src/main/assets/
+```
+
+Then run `gradlew assembleDebug` (`gradlew.bat assembleDebug` on Windows) from `android-project`. The APK is created under `android-project/app/build/outputs/apk/debug`. The wrapper currently targets arm64 Android devices and uses the SDK/NDK versions configured in its Gradle files. Copy updated assets again before rebuilding after they change.
 
 [Next: Push the Ball][7]
 

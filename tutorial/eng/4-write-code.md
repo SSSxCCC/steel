@@ -1,6 +1,6 @@
 # Write Code
 
-Game code lives in the Rust application, not in a dynamically loaded library. Open `examples/ball/src/lib.rs` in VSCode; this example is a workspace package that depends on the Steel engine.
+Game code lives in the Rust application, not in a dynamically loaded library. Open `src/lib.rs` in the project you created in the previous chapter. The complete tutorial game is available for reference at `examples/ball/src/lib.rs` in the Steel repository.
 
 ## Application entry point
 
@@ -24,7 +24,7 @@ fn hello_world() {
 }
 ```
 
-`add_system` takes a schedule, an order within that schedule, and the system function. For the hello-world example in the repository root, run `cargo run --example hello_world --features editor`. For the ball application, run this from `examples/ball`:
+`add_system` takes a schedule, an order within that schedule, and the system function. Run your application from its project root:
 
 ```
 cargo run --features steel-engine/editor
