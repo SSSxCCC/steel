@@ -1,5 +1,7 @@
 # The Steel Game Engine
 
+See the [0.3.0 changelog](CHANGELOG.md) for release highlights and migration notes.
+
 Steel is an open-source Rust game engine with an integrated editor. It supports rasterization and real-time ray tracing (path tracing). The editor and game client are launched by a Steel application; the editor is not a standalone executable.
 
 # Design Goals
