@@ -9,6 +9,7 @@
 - Expanded the renderer with 3D models, textures, rasterization improvements, and real-time ray tracing support.
 - Added asset ID management and prefab workflows, including nested prefabs.
 - Android builds use `steel-client`; enabling the editor on Android now fails at compile time.
+- The editor detects common system CJK fonts instead of bundling a large font file; install a CJK font to display Chinese text if none is detected.
 - Vendored graphics dependencies to carry the local Vulkano fix for [vulkano-rs/vulkano#2711](https://github.com/vulkano-rs/vulkano/issues/2711).
 
 ### Migration notes

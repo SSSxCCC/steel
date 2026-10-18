@@ -119,6 +119,48 @@ struct Application {
 }
 
 #[cfg(not(target_os = "android"))]
+fn load_system_chinese_font() -> Option<Vec<u8>> {
+    #[cfg(target_os = "windows")]
+    const FAMILIES: &[&str] = &[
+        "Microsoft YaHei",
+        "Microsoft YaHei UI",
+        "SimSun",
+        "SimHei",
+        "DengXian",
+    ];
+    #[cfg(target_os = "macos")]
+    const FAMILIES: &[&str] = &["PingFang SC", "Hiragino Sans GB", "Songti SC", "Heiti SC"];
+    #[cfg(target_os = "linux")]
+    const FAMILIES: &[&str] = &[
+        "Noto Sans CJK SC",
+        "Noto Serif CJK SC",
+        "Noto Sans SC",
+        "Source Han Sans SC",
+        "WenQuanYi Micro Hei",
+        "AR PL UMing CN",
+    ];
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    const FAMILIES: &[&str] = &["Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC"];
+
+    let source = font_kit::source::SystemSource::new();
+    for family in FAMILIES {
+        let Ok(family) = source.select_family_by_name(family) else {
+            continue;
+        };
+        for handle in family.fonts() {
+            let Ok(font) = handle.load() else {
+                continue;
+            };
+            if let Some(data) = font.copy_font_data() {
+                return Some(data.as_ref().clone());
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(not(target_os = "android"))]
 impl ApplicationHandler for Application {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         log::debug!("Resumed");
@@ -146,24 +188,29 @@ impl ApplicationHandler for Application {
                 ..Default::default()
             },
         ));
-        // load fonts to support displaying chinese in egui
+        // Load a system CJK font when one is available.
         let mut fonts = egui::FontDefinitions::default();
-        fonts.font_data.insert(
-            "msyh".to_owned(),
-            Arc::new(egui::FontData::from_static(include_bytes!(
-                "../fonts/msyh.ttc"
-            ))),
-        );
-        fonts
-            .families
-            .get_mut(&egui::FontFamily::Proportional)
-            .unwrap()
-            .insert(0, "msyh".to_owned());
-        fonts
-            .families
-            .get_mut(&egui::FontFamily::Monospace)
-            .unwrap()
-            .push("msyh".to_owned());
+        if let Some(font_data) = load_system_chinese_font() {
+            fonts.font_data.insert(
+                "system-chinese".to_owned(),
+                Arc::new(egui::FontData::from_owned(font_data)),
+            );
+            fonts
+                .families
+                .get_mut(&egui::FontFamily::Proportional)
+                .unwrap()
+                .insert(0, "system-chinese".to_owned());
+            fonts
+                .families
+                .get_mut(&egui::FontFamily::Monospace)
+                .unwrap()
+                .push("system-chinese".to_owned());
+        } else {
+            log::warn!(
+                "No system Chinese font was found; Chinese text may not display correctly. \
+                 Install a CJK font such as Noto Sans CJK or Microsoft YaHei."
+            );
+        }
         self.gui_editor.as_ref().unwrap().egui_ctx.set_fonts(fonts);
     }
 

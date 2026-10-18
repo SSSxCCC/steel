@@ -9,6 +9,8 @@ Publish crates in dependency order. The four graphics packages must be available
 3. Check package contents with `cargo package --list` and perform a `cargo publish --dry-run` for each package after its registry dependencies have been published.
 4. Verify the generated documentation and the README examples for each package.
 
+The editor discovers common CJK font families installed on the host. Users need a system CJK font for Chinese text; if none is found, the editor logs a warning and uses egui's default fonts.
+
 ## Publish order
 
 Publish each package and wait for crates.io to index it before moving to the next dependent group:
