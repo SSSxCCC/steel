@@ -4,3 +4,4 @@ version = "0.1.0"
 edition = "2021"
 description = "The game server for the steel game engine."
 license = "MIT"
+publish = false

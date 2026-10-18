@@ -1,9 +1,11 @@
 [package]
 name = "steel-common"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "The steel game engine common library, depended by both steel-engine and steel-editor."
 license = "MIT"
+repository = "https://github.com/SSSxCCC/steel"
+documentation = "https://docs.rs/steel-common"
 
 [dependencies]
 vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../../dependencies/vulkano" }

@@ -1,10 +1,11 @@
 [package]
 name = "empty-project"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
+publish = false
 
 [dependencies]
-steel-engine = { version = "0.2.0", path = "../.." }
+steel-engine = { version = "0.3.0", path = "../.." }
 
 [lib]
 name = "main"

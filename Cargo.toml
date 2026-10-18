@@ -10,19 +10,21 @@ members = [
 
 [package]
 name = "steel-engine"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "The steel game engine library."
 license = "MIT"
+repository = "https://github.com/SSSxCCC/steel"
+documentation = "https://docs.rs/steel-engine"
 
 [lib]
 name = "steel"
 
 [dependencies]
-steel-internal = { version = "0.2.0", path = "crates/steel-internal" }
+steel-internal = { version = "0.3.0", path = "crates/steel-internal" }
 
 [features]
-defalut = []
+default = []
 editor = ["steel-internal/editor"]
 
 [[example]]
