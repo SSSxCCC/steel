@@ -82,13 +82,13 @@ rustup target add aarch64-linux-android
 cargo install cargo-ndk
 ```
 
-From the game project directory (for example, `examples/ball`), build the Android native library:
+From `examples/ball`, build the Android native library into the included Gradle application's library directory:
 
 ```
-cargo ndk -t arm64-v8a -o target/android/jniLibs build --lib
+cargo ndk -t arm64-v8a -o ../android-project/app/src/main/jniLibs build --lib
 ```
 
-Package the resulting library and the game's `assets` directory into an Android application. Steel does not currently include a Gradle application wrapper or an editor menu that installs the APK.
+Copy the contents of `examples/ball/assets` to `examples/android-project/app/src/main/assets`, then run `gradlew assembleDebug` (`gradlew.bat assembleDebug` on Windows) from `examples/android-project`. The wrapper currently targets arm64 Android devices and uses the SDK/NDK versions configured in its Gradle files.
 
 [Next: Push the Ball][7]
 

@@ -54,12 +54,12 @@ rustup target add aarch64-linux-android
 cargo install cargo-ndk
 ```
 
-From an example project directory, build the Android native library with:
+For the ball example, build the Android native library into the included Gradle application's `jniLibs` directory:
 ```
-cargo ndk -t arm64-v8a -o target/android/jniLibs build --lib
+cargo ndk -t arm64-v8a -o ../android-project/app/src/main/jniLibs build --lib
 ```
 
-Package the resulting library and the project's `assets` directory in an Android application. This repository does not currently provide an Android Gradle application wrapper.
+Copy the contents of `examples/ball/assets` to `examples/android-project/app/src/main/assets`, then run `gradlew assembleDebug` (`gradlew.bat assembleDebug` on Windows) from `examples/android-project`. The wrapper currently targets arm64 Android devices and requires the SDK/NDK versions configured in its Gradle files.
 
 ## Vendored graphics dependencies
 

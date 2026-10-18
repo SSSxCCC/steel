@@ -35,7 +35,7 @@ In current directory:
 cargo ndk -t arm64-v8a -o target/android/jniLibs build --lib
 ```
 
-This creates the Android native library. Package it and this project's `assets` directory in an Android application; this repository does not include a Gradle application wrapper or APK install step. Do not enable `steel-engine/editor` for Android.
+This creates the Android native library. Package it and this project's `assets` directory in an Android application; do not enable `steel-engine/editor` for Android. The repository includes an example Gradle application at `../android-project`; copy the generated `libmain.so` into its `app/src/main/jniLibs/arm64-v8a` directory and the project's assets into `app/src/main/assets`, then run `gradlew assembleDebug` (`gradlew.bat assembleDebug` on Windows) from that example directory.
 
 Before building, install Android Studio with the Android SDK and NDK, and configure `ANDROID_HOME` and `ANDROID_NDK_HOME`.
 
