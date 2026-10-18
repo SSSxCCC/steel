@@ -62,6 +62,8 @@ mkdir -p assets
 
 The starter entry point is in `src/lib.rs` and `src/main.rs`.
 
+The game client automatically loads `assets/main.scene` as its startup scene. Save the scene you want `cargo run` to start as `main.scene`; other scene files are available to your game code but are not selected automatically. The empty starter has no scene yet, so it starts with an empty world until you create and save `main.scene`.
+
 After changing Rust source, rebuild and relaunch the application. The editor's Project -> Compile menu does not invoke Cargo. The complete catch-the-ball game from the tutorial remains available under `examples/ball` in the Steel repository.
 
 ## Push to your remote repository

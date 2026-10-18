@@ -5,7 +5,7 @@ use glam::UVec2;
 use std::{error::Error, path::Path};
 use steel_common::{
     app::{App, Command, DrawInfo, InitInfo, UpdateInfo},
-    asset::AssetInfo,
+    asset::{AssetId, AssetInfo},
     platform::{BuildTarget, Platform, BUILD_TARGET},
 };
 use vulkano::{format::Format, image::ImageUsage};
@@ -57,15 +57,17 @@ pub fn run(mut app: Box<dyn App>) {
     let gui = None;
 
     // insert all assets into AssetManager
-    let insert_asset_fn = |asset_info_file: &Path| -> Result<(), Box<dyn Error>> {
+    let mut default_scene = None;
+    let mut insert_asset_fn = |asset_info_file: &Path| -> Result<(), Box<dyn Error>> {
         let asset_info_string = platform.read_asset_to_string(asset_info_file)?;
         let asset_id = serde_json::from_str::<AssetInfo>(&asset_info_string)?.id;
-        let asest_file_path = AssetInfo::asset_info_path_to_asset_path(asset_info_file);
+        let asset_file_path = AssetInfo::asset_info_path_to_asset_path(asset_info_file);
         log::debug!(
             "Insert asset \"{}\", id: {asset_id:?}",
-            asest_file_path.display()
+            asset_file_path.display()
         );
-        app.command(Command::InsertAsset(asset_id, asest_file_path));
+        default_scene = default_scene.or_else(|| default_scene_asset(&asset_file_path, asset_id));
+        app.command(Command::InsertAsset(asset_id, asset_file_path));
         Ok(())
     };
     platform
@@ -82,12 +84,18 @@ pub fn run(mut app: Box<dyn App>) {
             }
         });
 
+    if let Some(scene) = default_scene {
+        log::info!("Loading default scene: assets/main.scene ({scene:?})");
+    } else {
+        log::info!("No assets/main.scene found; starting with an empty scene");
+    }
+
     // call App::init
     app.init(InitInfo {
         platform,
         context: &context,
         ray_tracing_supported,
-        scene: None,
+        scene: default_scene,
     });
 
     // application
@@ -100,6 +108,39 @@ pub fn run(mut app: Box<dyn App>) {
 
     log::info!("Start main loop!");
     event_loop.run_app(&mut application).unwrap();
+}
+
+fn default_scene_asset(asset_path: &Path, asset_id: AssetId) -> Option<AssetId> {
+    (asset_path == Path::new("main.scene")).then_some(asset_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_scene_asset;
+    use std::path::Path;
+    use steel_common::asset::AssetId;
+
+    #[test]
+    fn root_main_scene_is_the_default_scene() {
+        let asset_id = AssetId::new(42);
+
+        assert_eq!(
+            default_scene_asset(Path::new("main.scene"), asset_id),
+            Some(asset_id)
+        );
+    }
+
+    #[test]
+    fn other_scene_paths_are_not_selected_as_default() {
+        assert_eq!(
+            default_scene_asset(Path::new("game.scene"), AssetId::new(42)),
+            None
+        );
+        assert_eq!(
+            default_scene_asset(Path::new("scenes/main.scene"), AssetId::new(43)),
+            None
+        );
+    }
 }
 
 struct Application {
