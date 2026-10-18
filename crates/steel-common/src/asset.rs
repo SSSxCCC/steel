@@ -61,6 +61,9 @@ impl AssetInfo {
     /// Helper function to get the corresponding asset file path from an asset info file path.
     /// # Example
     /// ```rust
+    /// use std::path::PathBuf;
+    /// use steel_common::asset::AssetInfo;
+    ///
     /// let asset_file = PathBuf::from("texts/test.txt");
     /// let asset_info_file = PathBuf::from("texts/test.txt.asset");
     /// assert_eq!(asset_file, AssetInfo::asset_info_path_to_asset_path(asset_info_file));
@@ -82,6 +85,9 @@ impl AssetInfo {
     /// Helper function to get the corresponding asset info file path from an asset file path.
     /// # Example
     /// ```rust
+    /// use std::path::PathBuf;
+    /// use steel_common::asset::AssetInfo;
+    ///
     /// let asset_file = PathBuf::from("texts/test.txt");
     /// let asset_info_file = PathBuf::from("texts/test.txt.asset");
     /// assert_eq!(AssetInfo::asset_path_to_asset_info_path(asset_file), asset_info_file);

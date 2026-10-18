@@ -275,6 +275,8 @@ impl Data {
     /// create a new data, then you can continue to call [Data::insert] or [Data::insert_with_limit] to fill this data.
     /// # example
     /// ```rust
+    /// use steel_common::data::{Data, Value};
+    ///
     /// let data = Data::new().insert("name", Value::String("Sam".into()))
     ///     .insert("age", Value::Float32(18.0));
     /// ```
