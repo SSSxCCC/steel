@@ -1,13 +1,13 @@
 [package]
-name = "egui_winit_vulkano"
+name = "steel-egui-winit-vulkano"
 version = "0.28.0"
 authors = ["hakolao <okkohakola@gmail.com>"]
 edition = "2021"
 description = "Egui immediate mode gui integration with winit and Vulkano"
-homepage = "https://github.com/hakolao/egui_winit_vulkano"
+homepage = "https://github.com/SSSxCCC/steel"
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/hakolao/egui_winit_vulkano"
+repository = "https://github.com/SSSxCCC/steel"
 categories = ["gui", "game-development"]
 keywords = ["gui", "imgui", "immediate", "portable", "gamedev"]
 
@@ -24,10 +24,10 @@ egui-winit = { version = "0.31", default-features = false }
 egui = "0.31"
 image = { version = "0.25", optional = true }
 winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
-vulkano = { version = "0.35" }
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../vulkano" }
 vulkano-shaders = "0.35"
 
 [dev-dependencies]
 cgmath = "0.18.0"
 egui_demo_lib = "0.31.0"
-vulkano-util = { version = "0.35" }
+vulkano-util = { package = "steel-vulkano-util", version = "0.35.0", path = "../vulkano-util" }

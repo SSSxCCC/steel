@@ -1,10 +1,10 @@
 [package]
-name = "vulkano"
+name = "steel-vulkano"
 version = "0.35.2"
 authors = ["Pierre Krieger <pierre.krieger1708@gmail.com>", "The vulkano contributors"]
-repository = "https://github.com/vulkano-rs/vulkano/tree/master/vulkano"
+repository = "https://github.com/SSSxCCC/steel"
 description = "Safe wrapper for the Vulkan graphics API"
-documentation = "https://docs.rs/vulkano"
+documentation = "https://docs.rs/steel-vulkano"
 readme = "../README.md"
 build = "build.rs"
 edition = { workspace = true }
@@ -28,7 +28,7 @@ serde = { workspace = true, optional = true }
 slabbin = { workspace = true }
 smallvec = { workspace = true }
 thread_local = { workspace = true }
-vulkano-macros = { workspace = true, optional = true }
+vulkano-macros = { package = "steel-vulkano-macros", version = "0.35.0", path = "../vulkano-macros", optional = true }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 raw-window-metal = { workspace = true }

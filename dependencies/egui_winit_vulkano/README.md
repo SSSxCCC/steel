@@ -1,6 +1,8 @@
-# egui_winit_vulkano
+# steel-egui-winit-vulkano
 
-[![Crates.io](https://img.shields.io/crates/v/egui_winit_vulkano.svg)](https://crates.io/crates/egui_winit_vulkano)
+Steel publishes this vendored integration as `steel-egui-winit-vulkano` to use the local `steel-vulkano` fork. The Rust library name remains `egui_winit_vulkano`.
+
+[![Crates.io](https://img.shields.io/crates/v/steel-egui-winit-vulkano.svg)](https://crates.io/crates/steel-egui-winit-vulkano)
 ![Apache](https://img.shields.io/badge/license-Apache-blue.svg)
 ![CI](https://github.com/hakolao/egui_winit_vulkano/workflows/CI/badge.svg)
 

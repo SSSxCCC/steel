@@ -1,8 +1,8 @@
 [package]
-name = "vulkano-util"
+name = "steel-vulkano-util"
 version = "0.35.0"
 authors = ["The vulkano contributors"]
-repository = "https://github.com/vulkano-rs/vulkano/tree/master/vulkano-util"
+repository = "https://github.com/SSSxCCC/steel"
 description = "Utility functionality to make usage of vulkano easier"
 documentation = "https://docs.rs/vulkano-util"
 readme = "../README.md"
@@ -15,7 +15,7 @@ categories = { workspace = true }
 
 [dependencies]
 foldhash = { workspace = true }
-vulkano = { workspace = true }
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../vulkano" }
 winit = { workspace = true }
 
 [lints]

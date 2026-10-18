@@ -17,10 +17,10 @@ notify = "6.1"
 open = "5.3"
 rand = "0.8"
 
-vulkano = { version = "0.35", path = "../../dependencies/vulkano" }
-vulkano-util = { version = "0.35", path = "../../dependencies/vulkano-util" }
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../../dependencies/vulkano" }
+vulkano-util = { package = "steel-vulkano-util", version = "0.35.0", path = "../../dependencies/vulkano-util" }
 winit = { version = "0.30", features = [ "android-game-activity" ] }
-egui_winit_vulkano = { version = "0.28", path = "../../dependencies/egui_winit_vulkano" }
+egui_winit_vulkano = { package = "steel-egui-winit-vulkano", version = "0.28.0", path = "../../dependencies/egui_winit_vulkano" }
 egui = "0.31"
 log = "0.4"
 shipyard = { version = "0.7", features = [ "serde1" ] }

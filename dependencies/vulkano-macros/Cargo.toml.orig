@@ -1,0 +1,23 @@
+[package]
+name = "steel-vulkano-macros"
+version = "0.35.0"
+authors = ["The vulkano contributors"]
+repository = "https://github.com/SSSxCCC/steel"
+description = "Macros used by vulkano"
+documentation = "https://docs.rs/steel-vulkano-macros"
+readme = "../README.md"
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
+proc-macro-crate = { workspace = true }

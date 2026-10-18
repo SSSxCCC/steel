@@ -6,8 +6,8 @@ description = "The steel game engine common library, depended by both steel-engi
 license = "MIT"
 
 [dependencies]
-vulkano = { version = "0.35", path = "../../dependencies/vulkano" }
-vulkano-util = { version = "0.35", path = "../../dependencies/vulkano-util" }
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../../dependencies/vulkano" }
+vulkano-util = { package = "steel-vulkano-util", version = "0.35.0", path = "../../dependencies/vulkano-util" }
 winit = { version = "0.30", features = [ "android-game-activity" ] }
 
 egui = "0.31"

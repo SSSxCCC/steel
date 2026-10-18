@@ -2,6 +2,8 @@
 
 # [Vulkano](https://vulkano.rs)
 
+Steel maintains this fork alongside `steel-vulkano` to carry the fix for [vulkano-rs/vulkano#2711](https://github.com/vulkano-rs/vulkano/issues/2711) until it is available in an upstream release. The published package is named `steel-vulkano-util`; its Rust library name remains `vulkano_util`.
+
 [![Build Status](https://github.com/vulkano-rs/vulkano/workflows/Rust/badge.svg)](https://github.com/vulkano-rs/vulkano/actions?query=workflow%3ARust)
 [![Discord](https://img.shields.io/discord/937149253296476201?label=discord)](https://discord.gg/xjHzXQp8hw)
 [![Website/guide](https://img.shields.io/badge/-website/guide-%23555.svg)](https://vulkano.rs/)
@@ -9,12 +11,12 @@
 [![vulkano crates.io](https://img.shields.io/crates/v/vulkano?label=vulkano)](https://crates.io/crates/vulkano)
 [![vulkano-shaders crates.io](https://img.shields.io/crates/v/vulkano-shaders?label=shaders)](https://crates.io/crates/vulkano-shaders)
 [![vulkano-taskgraph crates.io](https://img.shields.io/crates/v/vulkano-taskgraph?label=taskgraph)](https://crates.io/crates/vulkano-taskgraph)
-[![vulkano-util crates.io](https://img.shields.io/crates/v/vulkano-util?label=util)](https://crates.io/crates/vulkano-util)
+[![steel-vulkano-util crates.io](https://img.shields.io/crates/v/steel-vulkano-util?label=steel-vulkano-util)](https://crates.io/crates/steel-vulkano-util)
 <br/>
 [![vulkano docs](https://img.shields.io/docsrs/vulkano?label=vulkano%20docs)](https://docs.rs/vulkano)
 [![vulkano-shaders docs](https://img.shields.io/docsrs/vulkano-shaders?label=shaders%20docs)](https://docs.rs/vulkano-shaders)
 [![vulkano-taskgraph docs](https://img.shields.io/docsrs/vulkano-taskgraph?label=taskgraph%20docs)](https://docs.rs/vulkano-taskgraph)
-[![vulkano-util docs](https://img.shields.io/docsrs/vulkano-util?label=util%20docs)](https://docs.rs/vulkano-util)
+[![steel-vulkano-util docs](https://img.shields.io/docsrs/steel-vulkano-util?label=steel-vulkano-util%20docs)](https://docs.rs/steel-vulkano-util)
 
 Vulkano is a Rust wrapper around [the Vulkan graphics API](https://www.khronos.org/vulkan/).
 It follows the Rust philosophy, which is that as long as you don't use unsafe code you shouldn't

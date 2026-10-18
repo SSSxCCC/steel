@@ -15,8 +15,8 @@ obj-rs = "0.7"
 rand = "0.8"
 bytemuck = "1.14"
 
-vulkano = { version = "0.35", path = "../../dependencies/vulkano" }
-vulkano-util = { version = "0.35", path = "../../dependencies/vulkano-util" }
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../../dependencies/vulkano" }
+vulkano-util = { package = "steel-vulkano-util", version = "0.35.0", path = "../../dependencies/vulkano-util" }
 vulkano-shaders = "0.35"
 egui = "0.31"
 log = "0.4"

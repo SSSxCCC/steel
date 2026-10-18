@@ -982,22 +982,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_winit_vulkano"
-version = "0.28.0"
-dependencies = [
- "ahash",
- "cgmath",
- "egui",
- "egui-winit",
- "egui_demo_lib",
- "image",
- "vulkano 0.35.2",
- "vulkano-shaders",
- "vulkano-util",
- "winit",
-]
-
-[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3604,14 +3588,14 @@ name = "steel-client"
 version = "0.2.0"
 dependencies = [
  "android_logger",
- "egui_winit_vulkano",
  "env_logger",
  "glam",
  "log",
  "serde_json",
  "steel-common",
- "vulkano 0.35.2",
- "vulkano-util",
+ "steel-egui-winit-vulkano",
+ "steel-vulkano",
+ "steel-vulkano-util",
  "winit",
 ]
 
@@ -3627,8 +3611,8 @@ dependencies = [
  "ndk",
  "serde",
  "shipyard",
- "vulkano 0.35.2",
- "vulkano-util",
+ "steel-vulkano",
+ "steel-vulkano-util",
  "winit",
 ]
 
@@ -3639,7 +3623,6 @@ dependencies = [
  "egui",
  "egui_demo_lib",
  "egui_dock",
- "egui_winit_vulkano",
  "env_logger",
  "glam",
  "log",
@@ -3652,9 +3635,26 @@ dependencies = [
  "serde_json",
  "shipyard",
  "steel-common",
+ "steel-egui-winit-vulkano",
+ "steel-vulkano",
+ "steel-vulkano-util",
  "sys-locale",
- "vulkano 0.35.2",
- "vulkano-util",
+ "winit",
+]
+
+[[package]]
+name = "steel-egui-winit-vulkano"
+version = "0.28.0"
+dependencies = [
+ "ahash",
+ "cgmath",
+ "egui",
+ "egui-winit",
+ "egui_demo_lib",
+ "image",
+ "steel-vulkano",
+ "steel-vulkano-util",
+ "vulkano-shaders",
  "winit",
 ]
 
@@ -3690,9 +3690,9 @@ dependencies = [
  "steel-common",
  "steel-editor",
  "steel-proc",
- "vulkano 0.35.2",
+ "steel-vulkano",
+ "steel-vulkano-util",
  "vulkano-shaders",
- "vulkano-util",
 ]
 
 [[package]]
@@ -3711,6 +3711,56 @@ version = "0.1.0"
 [[package]]
 name = "steel-shader"
 version = "0.1.0"
+
+[[package]]
+name = "steel-vulkano"
+version = "0.35.2"
+dependencies = [
+ "ash",
+ "bytemuck",
+ "crossbeam-queue",
+ "foldhash",
+ "half",
+ "heck 0.4.1",
+ "indexmap",
+ "libc",
+ "libloading",
+ "nom 7.1.3",
+ "once_cell",
+ "parking_lot",
+ "proc-macro2",
+ "quote",
+ "raw-window-handle",
+ "raw-window-metal",
+ "serde",
+ "serde_json",
+ "slabbin",
+ "smallvec",
+ "steel-vulkano-macros",
+ "thread_local",
+ "vk-parse",
+ "x11-dl",
+ "x11rb",
+]
+
+[[package]]
+name = "steel-vulkano-macros"
+version = "0.35.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "steel-vulkano-util"
+version = "0.35.0"
+dependencies = [
+ "foldhash",
+ "steel-vulkano",
+ "winit",
+]
 
 [[package]]
 name = "strict-num"
@@ -4090,37 +4140,6 @@ dependencies = [
 [[package]]
 name = "vulkano"
 version = "0.35.2"
-dependencies = [
- "ash",
- "bytemuck",
- "crossbeam-queue",
- "foldhash",
- "half",
- "heck 0.4.1",
- "indexmap",
- "libc",
- "libloading",
- "nom 7.1.3",
- "once_cell",
- "parking_lot",
- "proc-macro2",
- "quote",
- "raw-window-handle",
- "raw-window-metal",
- "serde",
- "serde_json",
- "slabbin",
- "smallvec",
- "thread_local",
- "vk-parse",
- "vulkano-macros",
- "x11-dl",
- "x11rb",
-]
-
-[[package]]
-name = "vulkano"
-version = "0.35.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee487adf7c13e5aa46d4d7fac6ffb8e172eb7e6472aaf815e9ade4992f8f2414"
 dependencies = [
@@ -4148,18 +4167,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vulkano-macros"
-version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dc929c42c9336fd082079ac3ea30126e4a0dfe36fd2e2b3581303f7d140d20f"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "vulkano-shaders"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4171,16 +4178,7 @@ dependencies = [
  "quote",
  "shaderc",
  "syn",
- "vulkano 0.35.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "vulkano-util"
-version = "0.35.0"
-dependencies = [
- "foldhash",
- "vulkano 0.35.2",
- "winit",
+ "vulkano",
 ]
 
 [[package]]

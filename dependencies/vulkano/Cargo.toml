@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 rust-version = "1.75.0"
-name = "vulkano"
+name = "steel-vulkano"
 version = "0.35.2"
 authors = [
     "Pierre Krieger <pierre.krieger1708@gmail.com>",
@@ -26,8 +26,9 @@ autotests = false
 autobenches = false
 description = "Safe wrapper for the Vulkan graphics API"
 homepage = "https://vulkano.rs"
-documentation = "https://docs.rs/vulkano"
+documentation = "https://docs.rs/steel-vulkano"
 readme = "README.md"
+exclude = ["Cargo.toml.orig", ".cargo_vcs_info.json"]
 keywords = [
     "vulkan",
     "bindings",
@@ -37,7 +38,7 @@ keywords = [
 ]
 categories = ["rendering::graphics-api"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/vulkano-rs/vulkano/tree/master/vulkano"
+repository = "https://github.com/SSSxCCC/steel"
 
 [features]
 default = [
@@ -103,7 +104,9 @@ version = "1.8"
 version = "1.1"
 
 [dependencies.vulkano-macros]
-version = "0.35"
+package = "steel-vulkano-macros"
+version = "0.35.0"
+path = "../vulkano-macros"
 optional = true
 
 [dev-dependencies.libc]

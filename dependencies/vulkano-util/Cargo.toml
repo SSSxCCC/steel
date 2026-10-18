@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 rust-version = "1.75.0"
-name = "vulkano-util"
+name = "steel-vulkano-util"
 version = "0.35.0"
 authors = ["The vulkano contributors"]
 build = false
@@ -23,8 +23,9 @@ autotests = false
 autobenches = false
 description = "Utility functionality to make usage of vulkano easier"
 homepage = "https://vulkano.rs"
-documentation = "https://docs.rs/vulkano-util"
+documentation = "https://docs.rs/steel-vulkano-util"
 readme = "README.md"
+exclude = ["Cargo.toml.orig", ".cargo_vcs_info.json"]
 keywords = [
     "vulkan",
     "bindings",
@@ -34,7 +35,7 @@ keywords = [
 ]
 categories = ["rendering::graphics-api"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/vulkano-rs/vulkano/tree/master/vulkano-util"
+repository = "https://github.com/SSSxCCC/steel"
 
 [lib]
 name = "vulkano_util"
@@ -44,7 +45,8 @@ path = "src/lib.rs"
 version = "0.1"
 
 [dependencies.vulkano]
-version = "0.35"
+package = "steel-vulkano"
+version = "0.35.2"
 default-features = false
 path = "../vulkano"
 
