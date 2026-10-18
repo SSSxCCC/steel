@@ -1,0 +1,22 @@
+[package]
+name = "steel-vulkano-util"
+version = "0.35.0"
+authors = ["The vulkano contributors"]
+repository = "https://github.com/SSSxCCC/steel"
+description = "Utility functionality to make usage of vulkano easier"
+documentation = "https://docs.rs/vulkano-util"
+readme = "../README.md"
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+foldhash = { workspace = true }
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../vulkano" }
+winit = { workspace = true }
+
+[lints]
+workspace = true

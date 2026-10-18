@@ -1,16 +1,21 @@
 # Create Project
 
-In this chapter we create our ball game project.
+The current editor uses the Steel application that was built to launch it; it does not create or compile a separate Rust project from the Project menu. Start from the included example project instead.
 
-Click the "Project -> Open" button in the top menu of the editor and you can see the "Open Project" dialog. Then click the "Browse" button to select a folder for the ball game project, for example "D:\steel-projects\ball". Finally click the "Open" button in the dialog:
+## Use the ball example
 
-![image](../images/create-project.png)
+The repository's `examples/ball` package contains the tutorial game source and assets. Launch it with `examples/ball` as the working directory so the editor finds the example's `assets` directory:
 
-The project will start compiling. You can see the compilation output from the terminal:
+```
+cd examples/ball
+cargo run --features steel-engine/editor
+```
 
-![image](../images/create-project-finish.png)
+## Start a new project
 
-When you see "Project::compile end", it means that the project has been compiled successfully.
+Copy `examples/empty-project` to a directory under the repository's `examples` folder, then rename the package in its `Cargo.toml`. Its `steel-engine` path dependency is relative to the repository root; if you place the project elsewhere, adjust that path to point to the checkout. Run `cargo run --features steel-engine/editor` from the new project directory. The editor uses that process working directory and its `assets` directory for game resources.
+
+The editor's Project -> Compile menu initializes/reloads the app state; it does not invoke Cargo to compile changed Rust source. Rebuild and restart the application after changing game code.
 
 [Next: Write Code][4]
 

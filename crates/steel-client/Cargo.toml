@@ -1,0 +1,25 @@
+[package]
+name = "steel-client"
+version = "0.3.0"
+edition = "2021"
+description = "The game client for the steel game engine."
+license = "MIT"
+repository = "https://github.com/SSSxCCC/steel"
+documentation = "https://docs.rs/steel-client"
+
+[dependencies]
+steel-common = { version = "0.3.0", path = "../steel-common" }
+
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../../dependencies/vulkano" }
+vulkano-util = { package = "steel-vulkano-util", version = "0.35.0", path = "../../dependencies/vulkano-util" }
+winit = { version = "0.30", features = [ "android-game-activity" ] }
+egui_winit_vulkano = { package = "steel-egui-winit-vulkano", version = "0.28.0", path = "../../dependencies/egui_winit_vulkano" }
+log = "0.4"
+glam = { version = "0.24", features = [ "serde" ] }
+serde_json = "1.0"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger = "0.10"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.13"

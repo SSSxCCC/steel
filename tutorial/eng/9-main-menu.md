@@ -11,16 +11,10 @@ We first create a MainMenu component to mark whether the main menu is currently 
 struct MainMenu;
 ```
 
-And register the MainMenu component:
+Register the component in the existing `SteelApp` builder chain in `main`:
 
 ```rust
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
-    SteelApp::new()
-        ...
-        .register_component::<MainMenu>()
-        ...
-}
+    .register_component::<MainMenu>()
 ```
 
 ## main_menu_system
@@ -32,6 +26,7 @@ fn main_menu_system(
     main_menu_component: View<MainMenu>,
     egui_ctx: UniqueView<EguiContext>,
     mut scene_manager: UniqueViewMut<SceneManager>,
+    asset_manager: UniqueView<AssetManager>,
 ) {
     for _ in main_menu_component.iter() {
         egui::CentralPanel::default().show(&egui_ctx, |ui| {
@@ -46,7 +41,9 @@ fn main_menu_system(
                 )
                 .clicked()
             {
-                scene_manager.switch_scene("game.scene".into());
+                if let Some(game_scene) = asset_manager.get_asset_id("game.scene") {
+                    scene_manager.switch_scene(game_scene);
+                }
             }
         });
     }
@@ -59,21 +56,15 @@ The main advantages of separating the main menu scene from the game scene are as
 * The main menu interface does not need to load all entities of the game scene;
 * Every time you jump from the main menu scene to the game scene, all entities and components of the game scene are automatically restored, and we do not need to manually restore the scene.
 
-We put main_menu_system in Schedule::PreUpdate. Schedule::PreUpdate will also be executed when the game is not running in the editor, so that we can always see the main menu interface display effect in the editor's game window:
+Register `main_menu_system` in `Schedule::PreUpdate` so the menu is also drawn in the editor's Game window when gameplay is stopped:
 
 ```rust
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
-    SteelApp::new()
-        ...
-        .add_system(Schedule::PreUpdate, main_menu_system)
-        ...
-}
+    .add_system(Schedule::PreUpdate, 0, main_menu_system)
 ```
 
 ## Creating the main scene
 
-First, compile the code you just wrote, and then you can start creating our main menu scene.
+Rebuild and restart the application with the editor feature enabled, then create the main menu scene.
 
 Click the "Scene -> New" button in the top menu of the editor to create a new scene, add an entity named "Main Menu", delete the Renderer2D component and Transform component of this entity, and then add the MainMenu component.
 
@@ -127,12 +118,15 @@ fn lose_system(
     time: UniqueView<Time>,
     egui_ctx: UniqueView<EguiContext>,
     mut scene_manager: UniqueViewMut<SceneManager>,
+    asset_manager: UniqueView<AssetManager>,
 ) {
     for lose in (&mut lose).iter() {
         ...
         lose.lose_time -= time.delta();
         if lose.lose_time < 0.0 {
-            scene_manager.switch_scene("main.scene".into());
+            if let Some(main_scene) = asset_manager.get_asset_id("main.scene") {
+                scene_manager.switch_scene(main_scene);
+            }
         }
     }
 }
@@ -140,7 +134,7 @@ fn lose_system(
 
 We use the delta method of the Time unique to get the duration of the previous frame, and then subtract the duration of the previous frame from the lose_time. When the lose_time is less than 0, it means that 5 seconds have passed. We then use the switch_scene method of the SceneManager unique to switch to "main.scene".
 
-Finally, compile the code and run the game in the main menu scene. Click the start game button to switch to the game scene. After the game lost, it will automatically switch back to the main menu scene 5 seconds later. In this way, our game interface forms a closed loop, and users no longer need to re-run the game program to restart the game!
+Finally, rebuild and run the application with the main menu scene selected. Click Start Game to switch to the game scene. After losing, the game returns to the main menu after five seconds.
 
 [Prev: Game Lost][8]
 

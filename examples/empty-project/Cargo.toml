@@ -1,0 +1,16 @@
+[package]
+name = "empty-project"
+version = "0.3.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+steel-engine = { version = "0.3.0", path = "../.." }
+
+[lib]
+name = "main"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "empty-project"
+path = "src/main.rs"

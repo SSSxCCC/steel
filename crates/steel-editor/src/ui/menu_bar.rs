@@ -1,0 +1,418 @@
+use crate::{
+    locale::{Language, Texts},
+    project::Project,
+    ui::data_window::DataWindow,
+    utils::LocalData,
+};
+use egui_dock::DockState;
+use shipyard::EntityId;
+use std::time::Instant;
+use steel_common::{
+    app::Command,
+    camera::SceneCamera,
+    data::{Data, WorldData},
+};
+
+pub struct MenuBar {
+    show_compile_dialog: bool,
+    show_asset_system_introduction_dialog: bool,
+    show_scene_camera_edit_window: bool,
+    switch_to_game_window_on_start: bool,
+    fps_counter: FpsCounter,
+}
+
+impl MenuBar {
+    pub fn new() -> Self {
+        MenuBar {
+            show_compile_dialog: false,
+            show_asset_system_introduction_dialog: false,
+            show_scene_camera_edit_window: false,
+            switch_to_game_window_on_start: false,
+            fps_counter: FpsCounter::new(),
+        }
+    }
+
+    pub fn ui(
+        &mut self,
+        data_window: &mut DataWindow,
+        ctx: &egui::Context,
+        dock_state: &mut DockState<String>,
+        project: &mut Project,
+        world_data: &mut Option<WorldData>,
+        local_data: &mut LocalData,
+        scene_camera: &mut SceneCamera,
+        texts: &mut Texts,
+        load_world_data_this_frame: &mut bool,
+    ) {
+        self.compile_dialog(ctx, texts);
+
+        self.asset_system_introduction_dialog(ctx, texts);
+
+        self.scene_camera_edit_window(data_window, ctx, project, scene_camera, texts);
+
+        egui::TopBottomPanel::top("my_top_panel").show(&ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button(texts.get("Project"), |ui| {
+                    if project.is_open() {
+                        if ui.button(texts.get("Compile")).clicked() {
+                            log::info!("Menu->Project->Compile");
+                            self.show_compile_dialog = true;
+                            ui.close_menu();
+                        }
+                    }
+                    if project.is_compiled() && !project.is_running() {
+                        ui.menu_button(texts.get("Export"), |ui| {
+                            if ui.button("Windows").clicked() {
+                                log::info!("Menu->Project->Export->Windows");
+                                project.export_windows();
+                                // TODO: display a dialog to show export result
+                                ui.close_menu();
+                            }
+                            if ui.button("Android").clicked() {
+                                log::info!("Menu->Project->Export->Android");
+                                project.export_android();
+                                // TODO: display a dialog to show export result
+                                ui.close_menu();
+                            }
+                        });
+                    }
+                });
+
+                ui.add_enabled_ui(project.is_compiled(), |ui| {
+                    ui.menu_button(texts.get("Edit"), |ui| {
+                        ui.add_enabled_ui(
+                            data_window.selected_entity() != EntityId::dead()
+                                && world_data.is_some(),
+                            |ui| {
+                                let world_data = world_data.as_ref().unwrap();
+                                if ui.button(texts.get("Duplicate")).clicked() {
+                                    log::info!("Menu->Edit->Duplicate");
+                                    DataWindow::duplicate_entity(
+                                        data_window.selected_entity(),
+                                        &world_data.entities,
+                                        project.app().unwrap(),
+                                    );
+                                    ui.close_menu();
+                                }
+                                if ui.button(texts.get("Delete")).clicked() {
+                                    log::info!("Menu->Edit->Delete");
+                                    data_window.delete_entity(
+                                        data_window.selected_entity(),
+                                        project.app().unwrap(),
+                                    );
+                                    ui.close_menu();
+                                }
+                                if !project.is_running() {
+                                    if world_data
+                                        .entities
+                                        .get(&data_window.selected_entity())
+                                        .and_then(|entity_data| entity_data.prefab_asset())
+                                        .is_some()
+                                    {
+                                        if ui.button(texts.get("Save Prefab")).clicked() {
+                                            log::info!("Menu->Edit->Save Prefab");
+                                            let asset_dir = project.asset_dir().unwrap();
+                                            DataWindow::save_prefab(
+                                                data_window.selected_entity(),
+                                                &world_data.entities,
+                                                project,
+                                                asset_dir,
+                                                load_world_data_this_frame,
+                                            );
+                                            ui.close_menu();
+                                        }
+                                    }
+                                    if ui.button(texts.get("Save As Prefab")).clicked() {
+                                        log::info!("Menu->Edit->Save As Prefab");
+                                        let asset_dir = project.asset_dir().unwrap();
+                                        DataWindow::save_as_prefab(
+                                            data_window.selected_entity(),
+                                            &world_data.entities,
+                                            project.app().unwrap(),
+                                            asset_dir,
+                                        );
+                                        ui.close_menu();
+                                    }
+                                }
+                            },
+                        );
+                        ui.menu_button(texts.get("Create"), |ui| {
+                            if ui.button(texts.get("New Entity")).clicked() {
+                                log::info!("Menu->Edit->Create->New Entity");
+                                DataWindow::create_new_entity(project.app().unwrap());
+                                ui.close_menu();
+                            }
+                            if ui.button(texts.get("From Prefab")).clicked() {
+                                log::info!("Menu->Edit->Create->From Prefab");
+                                let asset_dir = project.asset_dir().unwrap();
+                                DataWindow::create_entities_from_prefab(
+                                    project.app().unwrap(),
+                                    asset_dir,
+                                );
+                                ui.close_menu();
+                            }
+                        });
+                    });
+
+                    ui.add_enabled_ui(!project.is_running(), |ui| {
+                        ui.menu_button(texts.get("Scene"), |ui| {
+                            if let Some(scene_path) = project.scene_relative_path() {
+                                if ui
+                                    .button(format!(
+                                        "{} ({})",
+                                        texts.get("Save"),
+                                        scene_path.display()
+                                    ))
+                                    .clicked()
+                                {
+                                    log::info!("Menu->Scene->Save");
+                                    project.save_scene(scene_path);
+                                    ui.close_menu();
+                                }
+                            }
+                            let starting_dir =
+                                if let Some(scene_path) = project.scene_absolute_path() {
+                                    scene_path.parent().map(|p| p.to_path_buf()).expect(
+                                        "scene file should be at least in the asset directory",
+                                    )
+                                } else {
+                                    project.asset_dir().expect(
+                                    "project.asset_dir() must be some when project.is_compiled()",
+                                )
+                                };
+                            if ui.button(texts.get("Save As")).clicked() {
+                                log::info!("Menu->Scene->Save As");
+                                let file = rfd::FileDialog::new()
+                                    .set_directory(&starting_dir)
+                                    .save_file();
+                                log::info!("Close FileDialog, file={file:?}");
+                                if let Some(mut file) = file {
+                                    file.set_extension("scene");
+                                    let file = project.convert_to_scene_relative_path(&file);
+                                    log::info!(
+                                        "After convert_to_scene_relative_path, file={file:?}"
+                                    );
+                                    if let Some(file) = file {
+                                        project.save_scene(file);
+                                    }
+                                }
+                                ui.close_menu();
+                            }
+                            if ui.button(texts.get("Load")).clicked() {
+                                log::info!("Menu->Scene->Load");
+                                let file = rfd::FileDialog::new()
+                                    .set_directory(starting_dir)
+                                    .pick_file();
+                                log::info!("Close FileDialog, file={file:?}");
+                                if let Some(file) = file {
+                                    let file = project.convert_to_scene_relative_path(&file);
+                                    log::info!(
+                                        "After convert_to_scene_relative_path, file={file:?}"
+                                    );
+                                    if let Some(file) = file {
+                                        project.load_scene(file);
+                                        *load_world_data_this_frame = false;
+                                    }
+                                }
+                                ui.close_menu();
+                            }
+                            if ui.button(texts.get("New")).clicked() {
+                                log::info!("Menu->Scene->New");
+                                project.new_scene();
+                                *load_world_data_this_frame = false;
+                                ui.close_menu();
+                            }
+                        });
+                    });
+
+                    // start running function
+                    let start_running_fn =
+                        |project: &mut Project,
+                         switch_to_game_window_on_start: bool,
+                         dock_state: &mut DockState<String>| {
+                            project.save_to_memory(None);
+                            project.app().unwrap().command(Command::ResetTime);
+                            if switch_to_game_window_on_start {
+                                if let Some(tab) = dock_state.find_tab(&"Game".to_string()) {
+                                    dock_state.set_active_tab(tab);
+                                }
+                            }
+                            project.set_running(true);
+                        };
+
+                    if !project.is_running() && ui.input(|i| i.key_pressed(egui::Key::F5)) {
+                        log::info!("Start running by pressing F5");
+                        start_running_fn(project, self.switch_to_game_window_on_start, dock_state);
+                    }
+
+                    ui.menu_button(texts.get("Run"), |ui| {
+                        if project.is_running() {
+                            if ui.button(texts.get("Stop")).clicked() {
+                                log::info!("Menu->Run->Stop");
+                                project.load_from_memory();
+                                *load_world_data_this_frame = false;
+                                project.set_running(false);
+                                ui.close_menu();
+                            }
+                        } else {
+                            if ui.button(format!("{} (F5)", texts.get("Start"))).clicked() {
+                                log::info!("Menu->Run->Start");
+                                start_running_fn(
+                                    project,
+                                    self.switch_to_game_window_on_start,
+                                    dock_state,
+                                );
+                                ui.close_menu();
+                            }
+                        }
+
+                        ui.checkbox(
+                            &mut self.switch_to_game_window_on_start,
+                            texts.get("Switch to Game Window on Start"),
+                        );
+                    });
+
+                    ui.menu_button(texts.get("Camera"), |ui| {
+                        if ui.button(texts.get("Settings")).clicked() {
+                            log::info!("Menu->Camera->Settings");
+                            self.show_scene_camera_edit_window = true;
+                            ui.close_menu();
+                        }
+                        if ui
+                            .button(format!("{} (Home)", texts.get("Reset")))
+                            .clicked()
+                        {
+                            log::info!("Menu->Camera->Reset");
+                            scene_camera.reset();
+                            ui.close_menu();
+                        }
+                    });
+                });
+
+                ui.add_enabled_ui(project.is_open(), |ui| {
+                    ui.menu_button(texts.get("Asset"), |ui| {
+                        if ui.button(texts.get("Open")).clicked() {
+                            log::info!("Menu->Asset->Open");
+                            if let Err(e) = open::that(project.asset_dir().unwrap()) {
+                                log::error!("Failed to open asset folder: {e:?}");
+                            }
+                            ui.close_menu();
+                        }
+                        if ui.button(texts.get("Introduction")).clicked() {
+                            log::info!("Menu->Asset->Introduction");
+                            self.show_asset_system_introduction_dialog = true;
+                            ui.close_menu();
+                        }
+                    });
+                });
+
+                let mut language = None;
+                ui.menu_button(texts.get("Ui"), |ui| {
+                    ui.label(format!(
+                        "{}{}",
+                        texts.get("Current Scale: "),
+                        ctx.pixels_per_point()
+                    ));
+                    egui::gui_zoom::zoom_menu_buttons(ui);
+                    ui.menu_button(texts.get("Language"), |ui| {
+                        if ui.button(texts.get("en-US")).clicked() {
+                            language = Some(Language::Eng);
+                            local_data.language = Some(texts.language);
+                            local_data.save();
+                            ui.close_menu();
+                        }
+                        if ui.button(texts.get("zh-CN")).clicked() {
+                            language = Some(Language::Chs);
+                            local_data.language = Some(texts.language);
+                            local_data.save();
+                            ui.close_menu();
+                        }
+                        if ui.button(texts.get("Follow System")).clicked() {
+                            language = Some(crate::locale::system_language());
+                            local_data.language = None;
+                            local_data.save();
+                            ui.close_menu();
+                        }
+                    });
+                });
+                language.map(|lang| texts.language = lang);
+
+                self.fps_counter.update();
+                ui.label(format!("{}{:.2}", texts.get("fps: "), self.fps_counter.fps));
+            });
+        });
+    }
+
+    fn compile_dialog(&mut self, ctx: &egui::Context, texts: &Texts) {
+        egui::Window::new(texts.get("Compile"))
+            .open(&mut self.show_compile_dialog)
+            .show(ctx, |ui| {
+                ui.label(texts.get("Compile Introduction"));
+            });
+    }
+
+    fn asset_system_introduction_dialog(&mut self, ctx: &egui::Context, texts: &Texts) {
+        egui::Window::new(texts.get("Asset System Introduction"))
+            .open(&mut self.show_asset_system_introduction_dialog)
+            .show(ctx, |ui| {
+                ui.label(texts.get("Asset Introduction"));
+            });
+    }
+
+    fn scene_camera_edit_window(
+        &mut self,
+        data_window: &mut DataWindow,
+        ctx: &egui::Context,
+        project: &mut Project,
+        scene_camera: &mut SceneCamera,
+        texts: &Texts,
+    ) {
+        if !project.is_compiled() {
+            self.show_scene_camera_edit_window = false;
+        }
+        egui::Window::new(texts.get("Scene Camera"))
+            .open(&mut self.show_scene_camera_edit_window)
+            .show(ctx, |ui| {
+                let asset_dit = project.asset_dir().unwrap();
+                let mut data = Data::new();
+                scene_camera.get_data(&mut data);
+                data_window.data_view(
+                    ui,
+                    "SceneCamera",
+                    &mut data,
+                    project.app().unwrap(),
+                    asset_dit,
+                    texts,
+                    false,
+                );
+                scene_camera.set_data(&data);
+            });
+    }
+}
+
+struct FpsCounter {
+    start: Instant,
+    frame: u32,
+    fps: f32,
+}
+
+impl FpsCounter {
+    fn new() -> Self {
+        FpsCounter {
+            start: Instant::now(),
+            frame: 0,
+            fps: 0.0,
+        }
+    }
+
+    fn update(&mut self) {
+        self.frame += 1;
+        let now = Instant::now();
+        let duration = now.duration_since(self.start).as_secs_f32();
+        if duration >= 1.0 {
+            self.fps = self.frame as f32 / duration;
+            self.frame = 0;
+            self.start = now;
+        }
+    }
+}

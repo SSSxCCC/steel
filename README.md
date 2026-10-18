@@ -1,6 +1,8 @@
 # The Steel Game Engine
 
-Steel is an open source cross-platform Rust game engine with built-in editor. Steel uses real-time ray tracing rendering, also known as path tracing, to provide a perfect 3D lighting system. Traditional rasterization rendering still exists for use in 2D games and can be used to preview 3D scenes. You can switch between ray tracing rendering and rasterization rendering at any time.
+See the [0.3.0 changelog](CHANGELOG.md) for release highlights and migration notes.
+
+Steel is an open-source Rust game engine with an integrated editor. It supports rasterization and real-time ray tracing (path tracing). The editor and game client are launched by a Steel application; the editor is not a standalone executable.
 
 # Design Goals
 
@@ -8,10 +10,10 @@ Steel is an open source cross-platform Rust game engine with built-in editor. St
 * **Simple**: Game engines are very complex. In order to write a game engine in the simplest way, Steel only implements the necessary core game modules. In addition, Steel uses the widely used open source libraries, such as [shipyard][shipyard], [glam][glam], [egui][egui], [vulkano][vulkano], [rapier][rapier], etc. So Steel can focus on implementing editor functions and rendering effects.
 * **Modularity**: General game modules, such as physics engines, can be added as plugins. You can easily add any plugin written by others, or you can write a plugin for others to use.
 * **Fast**: Steel is fast on both the CPU and GPU sides. Steel uses Rust and ECS architecture, which can easily write high-performance and high-concurrency code, thereby achieving high performance on the CPU side. Steel uses Vulkan, an advanced graphics API, to achieve high performance on the GPU side.
-* **Cross-platform**: Rust itself is cross-platform, and Vulkan is also a cross-platform API, so code written in Rust and Vulkan can easily run on almost all platforms. Steel can currently be compiled and run on Windows and Android systems with one click, and will support more platforms in the future.
-* **Easy to use**: The Steel game engine has an editor from the beginning, and the editor and the core game module are developed and upgraded together, which brings great convenience to game development.
+* **Cross-platform**: Steel's game client supports Windows and Android. The integrated editor currently runs on desktop; Android builds use the client and do not support the editor.
+* **Easy to use**: The integrated editor and engine are developed together and can be enabled by building an application with the `editor` feature.
 
-# Run Steel Editor
+# Build and run
 
 ## Environment Setup
 
@@ -19,31 +21,64 @@ Steel is an open source cross-platform Rust game engine with built-in editor. St
 2. Install [Rust][Rust], [Git][Git], [Python][Python], [CMake][CMake] and [Ninja][Ninja] for [shaderc-rs][shaderc-rs].
 3. Install [VSCode][VSCode] with "C/C++" and "rust-analyzer" extensions.
 
-The Steel Editor can be run by compiling the source code, or by running it directly using the compiled executable file. Currently, it is recommended to open the Steel source code in VSCode to run the Steel Editor, because it is convenient for debugging.
+The editor is part of a Steel application, not a separate `steel-editor` executable. The examples below are workspace members and can be run from their directories.
 
 ## Run from Source
 
-1. Download the code of the Steel:
+1. Clone the repository:
 ```
 git clone https://github.com/SSSxCCC/steel
+cd steel
 ```
-2. Use VSCode to open the root directory "steel" and press F5 to compile and run in debug mode. Or you can run it using the command:
+2. Run the ball example with the editor enabled:
 ```
-cargo run -p steel-editor -F desktop
+cd examples/ball
+cargo run --features steel-engine/editor
 ```
 
-## Run from Executable
+To run the same example as a game client without the editor, omit the feature:
+```
+cargo run
+```
 
-1. Download "steel-editor.zip" from the [Releases][Releases] page and unzip it.
-2. Open Windows PowerShell and execute:
+To run the single-file hello-world example with the editor from the repository root:
 ```
-cd steel-editor
-.\steel-editor.exe
+cargo run --example hello_world --features editor
 ```
+
+Changing game code requires rebuilding and relaunching the application. The editor's Project menu does not compile Rust source code.
+
+## Android client
+
+Android builds use `steel-client`; do not enable the editor feature. Install the Android SDK/NDK and Java, then install the Rust target and cargo-ndk:
+```
+rustup target add aarch64-linux-android
+cargo install cargo-ndk
+```
+
+For the ball example, build the Android native library into the included Gradle application's `jniLibs` directory:
+```
+cargo ndk -t arm64-v8a -o ../android-project/app/src/main/jniLibs build --lib
+```
+
+Copy the contents of `examples/ball/assets` to `examples/android-project/app/src/main/assets`, then run `gradlew assembleDebug` (`gradlew.bat assembleDebug` on Windows) from `examples/android-project`. The wrapper currently targets arm64 Android devices and requires the SDK/NDK versions configured in its Gradle files.
+
+## Vendored graphics dependencies
+
+Vulkano, Vulkano-util, and egui_winit_vulkano are included under `dependencies/` so Steel can carry the local changes needed to address [vulkano-rs/vulkano#2711](https://github.com/vulkano-rs/vulkano/issues/2711) while an upstream release containing the fix is unavailable.
 
 # Tutorial
 
 You can learn about the Steel engine through this [tutorial](tutorial/eng/1-introduction.md).
+
+# Examples
+
+There are several examples under `examples/`. `examples/hello_world.rs` is a single-file example:
+```
+cargo run --example hello_world --features editor
+```
+
+`examples/empty-project` is a starter application. Run `cargo run` for the client, or `cargo run --features steel-engine/editor` to run it with the desktop editor.
 
 # Editor demo
 
@@ -63,7 +98,8 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [x] 2D rendering basic
 - [x] 2D texture
 - [x] 3D rendering basic
-- [x] 3D model
+- [x] obj model
+- [ ] gltf model
 - [x] Ray traced rendering
 - [x] 2D physics
 - [ ] 3D physics
@@ -73,9 +109,8 @@ You can learn about the Steel engine through this [tutorial](tutorial/eng/1-intr
 - [ ] Particle system
 - [ ] Network synchronization
 - [ ] AI
-- [x] Build Windows program
-- [x] Build Android application
-- [ ] Customize build
+- [x] Run on Windows
+- [x] Run on Android
 - [x] Write a tutorial
 - [ ] Tests
 
@@ -102,4 +137,3 @@ If you have a major code change idea, please open an issue first to discuss it w
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [Visual Studio 2022]: https://visualstudio.microsoft.com/vs/
 [VSCode]: https://code.visualstudio.com/
-[Releases]: https://github.com/SSSxCCC/steel/releases

@@ -1,0 +1,24 @@
+[package]
+name = "steel-common"
+version = "0.3.0"
+edition = "2021"
+description = "The steel game engine common library, depended by both steel-engine and steel-editor."
+license = "MIT"
+repository = "https://github.com/SSSxCCC/steel"
+documentation = "https://docs.rs/steel-common"
+
+[dependencies]
+vulkano = { package = "steel-vulkano", version = "0.35.2", path = "../../dependencies/vulkano" }
+vulkano-util = { package = "steel-vulkano-util", version = "0.35.0", path = "../../dependencies/vulkano-util" }
+winit = { version = "0.30", features = [ "android-game-activity" ] }
+
+egui = "0.31"
+log = "0.4"
+shipyard = { version = "0.7", features = [ "serde1" ] }
+glam = { version = "0.24", features = [ "serde" ] }
+serde = { version = "1.0", features = [ "derive" ] }
+indexmap = { version = "2.2", features = [ "serde" ] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = "0.9"
+jni = "0.21"

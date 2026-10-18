@@ -1,25 +1,27 @@
-use glam::Vec2;
 use shipyard::{
     AddComponent, Component, EntityId, IntoIter, IntoWithId, UniqueView, UniqueViewMut, View,
     ViewMut,
 };
 use steel::{
-    app::{App, Schedule, SteelApp},
+    app::{Schedule, SteelApp},
     asset::AssetManager,
     data::{Data, Limit, Value},
     edit::Edit,
+    egui,
+    glam::Vec2,
     physics2d::{
         Collider2D, Physics2DManager, Physics2DPlugin, RigidBody2D, PHYSICS2D_UPDATE_SYSTEM_ORDER,
     },
     platform::BuildTarget,
     scene::SceneManager,
+    steel_main,
     time::Time,
     transform::Transform,
     ui::EguiContext,
 };
 
-#[no_mangle]
-pub fn create() -> Box<dyn App> {
+#[steel_main]
+pub fn main() {
     SteelApp::new()
         .add_plugin(Physics2DPlugin)
         .register_component::<Player>()
@@ -35,7 +37,7 @@ pub fn create() -> Box<dyn App> {
             border_check_system,
         )
         .add_system(Schedule::Update, 0, lose_system)
-        .boxed()
+        .run();
 }
 
 #[derive(Component, Edit, Default)]

@@ -2,13 +2,13 @@
 
 ## Steel game engine introduction
 
-Steel is an open source cross-platform rust game engine with the following features:
+Steel is an open-source cross-platform Rust game engine with an integrated editor. Its game client supports Windows and Android; the editor is currently for desktop builds. Features include:
 * It is completely open source, and the engine layer code can be easily modified if there is a need for customization;
 * With a visual editor, you can develop games efficiently;
-* The game can be compiled into a Windows program or an Android application with one click;
+* The game client can be built for Windows or Android; Android packaging requires an Android application wrapper;
 * Using modern rust language, while ensuring code stability and game performance;
 * Use widely used rust open source libraries, such as [shipyard][shipyard], [glam][glam], [egui][egui], [vulkano][vulkano], [rapier][rapier], etc., to speed up the speed of getting started;
-* Using vulkan, an advanced graphics API, can achieve any modern graphics effect;
+* Uses Vulkan and supports rasterized and ray-traced rendering;
 * It is modular, and complex game modules, such as the physics system, can be easily added to your game as plugins.
 
 Steel game engine is implemented based on ECS architecture. The most basic unit of the game world is the entity. Each entity can have several components. Each component can store custom data structures. In addition to data on the components, there are also uniques that can also store custom data structures. The system reads and writes these data to drive the running of the entire game world.
@@ -17,13 +17,15 @@ Currently, the ECS architecture of the Steel game engine is implemented using [s
 
 ## Introduction to this tutorial
 
-This tutorial uses the Steel editor to gradually build a simple catching ball game to lead users to learn to use the Steel engine. In this tutorial game, the user controls the board to move left and right to catch the ball that bounces back and forth on the wall. If the ball falls under the board, the game fails. With this simple 2D game you will learn to use the Steel engine:
-* Use Steel editor to create projects;
+This tutorial uses the `examples/ball` application to demonstrate a simple catch-the-ball game. The player moves a board left and right to catch a ball bouncing off the walls. If the ball falls below the board, the game is lost. The tutorial covers:
+* Running a Steel application with the integrated editor;
 * Add or delete entities and components;
 * Game scene building and switching;
 * Use physics engine to control object behavior;
 * Write systems to implement game logic;
 * Write game menu.
+
+The editor is enabled with the `steel-engine/editor` Cargo feature on desktop. Game code is compiled as part of the application; after changing Rust source, rebuild and restart the application. The editor's Project -> Compile menu does not compile source code.
 
 ## Resources
 
