@@ -9,7 +9,7 @@ use std::{
 use steel_common::{asset::AssetId, camera::SceneCamera, data::SceneData};
 
 /// Delete windows path prefix:
-/// ```
+/// ```text
 /// \\?\
 /// ```
 /// This windows path prefix makes cargo build fail in std::process::Command.
